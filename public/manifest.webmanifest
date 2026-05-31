@@ -1,0 +1,11 @@
+{
+  "name": "ابر چایی | TeaCloud",
+  "short_name": "ابر چایی",
+  "lang": "fa",
+  "dir": "rtl",
+  "display": "standalone",
+  "start_url": "/",
+  "background_color": "#07172f",
+  "theme_color": "#050d19",
+  "icons": [{"src":"/assets/teacloud-logo.png","sizes":"256x256","type":"image/png","purpose":"any maskable"}]
+}

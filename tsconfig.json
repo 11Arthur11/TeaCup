@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "rootDir": "src",
+    "outDir": "dist/assets",
+    "sourceMap": true,
+    "declaration": false,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts"]
+}
