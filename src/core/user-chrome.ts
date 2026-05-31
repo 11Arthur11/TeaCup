@@ -1,23 +1,23 @@
 import { api } from '../api/client.js';
-import { getWalletBalanceMoney } from '../api/wallet.js';
+import { getWalletOverview } from '../api/wallet.js';
 import { dataOf } from '../api/data.js';
-import type { Money, SystemNotificationUserResponse } from '../api/generated-models.js';
+import type { SystemNotificationUserResponse, WalletOverviewResponse } from '../api/generated-models.js';
 import { openDialog } from './dialog.js';
 import { escapeHtml, icon, qsa } from './dom.js';
-import { faDate, money } from './format.js';
+import { faDate, money, remainingTime } from './format.js';
 
 const REFRESH_INTERVAL_MS = 5_000;
 const RETRY_INTERVAL_MS = 1_000;
 
 interface UserChromeState {
   notifications: SystemNotificationUserResponse[];
-  walletBalance: Money;
+  walletOverview: WalletOverviewResponse;
   loaded: boolean;
 }
 
 const state: UserChromeState = {
   notifications: [],
-  walletBalance: { amount: 0, currency: 'IRT' },
+  walletOverview: { balance: { amount: 0, currency: 'IRT' }, spentLast30days: { amount: 0, currency: 'IRT' }, spentLast7days: { amount: 0, currency: 'IRT' }, spentLastDay: { amount: 0, currency: 'IRT' } },
   loaded: false,
 };
 
@@ -87,8 +87,13 @@ function updateDom(): void {
     node.textContent = state.notifications.length.toLocaleString('fa-IR');
     node.setAttribute('aria-label', `${state.notifications.length.toLocaleString('fa-IR')} اعلان عمومی`);
   });
-  qsa<HTMLElement>('[data-user-wallet-balance]').forEach((node) => {
-    node.textContent = money(state.walletBalance);
+  qsa<HTMLElement>('[data-user-wallet-balance], [data-wallet-overview-balance]').forEach((node) => {
+    node.textContent = money(state.walletOverview.balance);
+  });
+  qsa<HTMLElement>('[data-wallet-overview-coverage]').forEach((node) => {
+    node.textContent = state.walletOverview.autoRenewalCoverageUntil
+      ? remainingTime(state.walletOverview.autoRenewalCoverageUntil)
+      : 'پوشش تمدید خودکار محاسبه نشده';
   });
   qsa<HTMLElement>('[data-overview-notifications]').forEach((node) => {
     node.innerHTML = notificationListHtml(state.notifications, true);
@@ -132,8 +137,8 @@ class UserChromeController {
     void this.run(this.generation, !state.loaded);
   }
 
-  setWalletBalance(walletBalance: Money): void {
-    state.walletBalance = walletBalance;
+  setWalletOverview(walletOverview: WalletOverviewResponse): void {
+    state.walletOverview = walletOverview;
     state.loaded = true;
     updateDom();
   }
@@ -169,15 +174,12 @@ class UserChromeController {
       return;
     }
 
-    const balanceRequest = location.pathname === '/panel/finance'
-      ? Promise.resolve(state.walletBalance)
-      : getWalletBalanceMoney();
     const request = Promise.all([
       api.call('getAllGlobalNotifications_1', {}),
-      balanceRequest,
-    ]).then(([notificationsResponse, walletBalance]) => {
+      getWalletOverview({ force: true }),
+    ]).then(([notificationsResponse, walletOverview]) => {
       state.notifications = dataOf(notificationsResponse) ?? [];
-      state.walletBalance = walletBalance;
+      state.walletOverview = walletOverview;
       state.loaded = true;
       updateDom();
     }).catch(() => {

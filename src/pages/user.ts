@@ -1,6 +1,6 @@
 import { api, ApiError } from '../api/client.js';
 import { getUserDashboardOverview, USER_DASHBOARD_ENDPOINT } from '../api/dashboard.js';
-import { getWalletBalanceMoney } from '../api/wallet.js';
+import { getWalletOverview } from '../api/wallet.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -93,15 +93,15 @@ function transactionRows(transactions: Models.WalletTransactionResponse[], showR
 export async function renderUserDashboard(): Promise<void> {
   renderAppShell(loadingPage(), 'نمای کلی');
   try {
-    const [overview, walletBalance] = await Promise.all([
+    const [overview, walletOverview] = await Promise.all([
       getUserDashboardOverview(),
-      getWalletBalanceMoney(),
+      getWalletOverview(),
     ]);
     renderAppShell(`
       ${pageHeader('داشبورد نمای کلی', 'موجودی کیف پول از backend دریافت می‌شود؛ سایر متریک‌ها تا اضافه‌شدن endpoint داشبورد آزمایشی هستند.', [{ label: 'مشاهده محصولات', icon: 'shopping_bag', href: '/panel/products' }])}
-      <div class="dashboard-endpoint-note">${icon('science')}<div><b>Endpoint پیشنهادی داشبورد</b><code>${USER_DASHBOARD_ENDPOINT}</code><small>فقط متریک‌های تجمیعی فعلاً mock هستند. موجودی از /v1/wallet/balance خوانده می‌شود.</small></div></div>
+      <div class="dashboard-endpoint-note">${icon('science')}<div><b>Endpoint پیشنهادی داشبورد</b><code>${USER_DASHBOARD_ENDPOINT}</code><small>فقط متریک‌های تجمیعی فعلاً mock هستند. موجودی و پوشش تمدید خودکار از /v1/wallet/overview خوانده می‌شود.</small></div></div>
       <div class="stats-grid">
-        ${statCard('موجودی کیف پول', money(walletBalance), 'account_balance_wallet', 'موجودی فعلی حساب', 'blue')}
+        ${statCard('موجودی کیف پول', money(walletOverview.balance), 'account_balance_wallet', walletOverview.autoRenewalCoverageUntil ? remainingTime(walletOverview.autoRenewalCoverageUntil) : 'پوشش تمدید خودکار محاسبه نشده', 'blue').replace('<strong>', '<strong data-wallet-overview-balance>').replace('<small>', '<small data-wallet-overview-coverage>')}
         ${statCard('سرویس‌های فعال', faNumber(overview.activeServices), 'teacloud', `${faNumber(overview.totalServices)} سرویس در مجموع`, 'cyan')}
         ${statCard('فاکتورهای در انتظار', faNumber(overview.pendingInvoices), 'receipt_long', 'از بخش مالی قابل پیگیری است', 'purple')}
         ${statCard('تیکت‌های باز', faNumber(overview.openTickets), 'support_agent', 'از مرکز پشتیبانی پیگیری کنید', 'orange')}
@@ -446,25 +446,19 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
       toCreatedAt: apiDateTime(filters.toCreatedAt),
     };
 
-    const [walletBalance, transactionsResponse, invoicesResponse, creditsResponse, debitsResponse, latestResponse] = await Promise.all([
-      getWalletBalanceMoney(),
+    const [walletOverview, transactionsResponse, invoicesResponse] = await Promise.all([
+      getWalletOverview(),
       tab === 'transactions'
         ? api.call('getWalletTransactions', { query: { filter: transactionFilter } })
         : Promise.resolve(undefined),
       api.call('getInvoices', { query: { filterRequest: { page: tab === 'invoices' ? page : 0, size: 20 } } }),
-      api.call('getWalletTransactions', { query: { filter: { page: 0, size: 1, transactionType: 'CREDIT' } } }),
-      api.call('getWalletTransactions', { query: { filter: { page: 0, size: 1, transactionType: 'DEBIT' } } }),
-      api.call('getWalletTransactions', { query: { filter: { page: 0, size: 1 } } }),
     ]);
 
-    userChrome.setWalletBalance(walletBalance);
+    userChrome.setWalletOverview(walletOverview);
     const transactions = transactionsResponse ? contentOf(transactionsResponse) : [];
     const transactionMeta = transactionsResponse ? pageOf(transactionsResponse) : { number: 0, totalPages: 0, totalElements: 0, size: 20 };
     const invoices = contentOf(invoicesResponse);
     const invoiceMeta = pageOf(invoicesResponse);
-    const creditCount = pageOf(creditsResponse).totalElements;
-    const debitCount = pageOf(debitsResponse).totalElements;
-    const latestTransaction = contentOf(latestResponse)[0];
 
     const financeFilterToolbar = tab === 'transactions' ? `<form id="finance-filter-form" class="finance-filter-toolbar" aria-label="فیلتر تراکنش‌های کیف پول">
       <label><span>نوع</span><select name="transactionType"><option value="" ${!filters.transactionType ? 'selected' : ''}>همه</option><option value="CREDIT" ${filters.transactionType === 'CREDIT' ? 'selected' : ''}>افزایش</option><option value="DEBIT" ${filters.transactionType === 'DEBIT' ? 'selected' : ''}>کاهش</option></select></label>
@@ -489,14 +483,14 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
       <section class="finance-overview">
         <article class="wallet-balance-card">
           <div class="wallet-balance-card__icon">${icon('account_balance_wallet')}</div>
-          <div><small>موجودی قابل استفاده</small><strong>${money(walletBalance)}</strong><span>کیف پول ابر چایی</span></div>
+          <div><small>موجودی قابل استفاده</small><strong>${money(walletOverview.balance)}</strong><span>کیف پول ابر چایی</span></div>
           <button type="button" class="button button--primary button--small" id="charge-wallet-inline">${icon('add')} افزایش موجودی</button>
         </article>
         <div class="finance-metrics">
-          <article>${icon('schedule')}<span><small>آخرین تراکنش</small><b>${latestTransaction ? faDate(latestTransaction.createdAt) : 'بدون تراکنش'}</b></span></article>
-          <article>${icon('south_west')}<span><small>تراکنش‌های افزایشی</small><b>${faNumber(creditCount)}</b></span></article>
-          <article>${icon('north_east')}<span><small>تراکنش‌های کاهشی</small><b>${faNumber(debitCount)}</b></span></article>
-          <article>${icon('receipt_long')}<span><small>تعداد فاکتورها</small><b>${faNumber(invoiceMeta.totalElements)}</b></span></article>
+          <article>${icon('today')}<span><small>هزینه ۲۴ ساعت اخیر</small><b>${money(walletOverview.spentLastDay)}</b></span></article>
+          <article>${icon('date_range')}<span><small>هزینه ۷ روز اخیر</small><b>${money(walletOverview.spentLast7days)}</b></span></article>
+          <article>${icon('calendar_month')}<span><small>هزینه ۳۰ روز اخیر</small><b>${money(walletOverview.spentLast30days)}</b></span></article>
+          <article>${icon('autorenew')}<span><small>پوشش تمدید خودکار</small><b>${walletOverview.autoRenewalCoverageUntil ? remainingTime(walletOverview.autoRenewalCoverageUntil) : 'قابل محاسبه نیست'}</b></span></article>
         </div>
       </section>
       <div class="finance-tabs"><a data-link class="${tab === 'transactions' ? 'active' : ''}" href="/panel/finance?tab=transactions">${icon('sync_alt')} تراکنش‌های کیف پول</a><a data-link class="${tab === 'invoices' ? 'active' : ''}" href="/panel/finance?tab=invoices">${icon('receipt_long')} فاکتورها</a></div>
@@ -639,7 +633,7 @@ export async function renderTicketDetail(ticketId: number): Promise<void> {
           ${open ? `<form id="ticket-reply" class="reply-box">
             <textarea name="content" placeholder="پاسخ خود را بنویسید…" required></textarea>
             <div class="ticket-selected-files" data-file-list hidden></div>
-            <div class="reply-box__actions"><label class="icon-button file-button" title="افزودن پیوست">${icon('attach_file')}<input type="file" name="files" multiple hidden/></label><button class="button button--primary">ارسال پاسخ ${icon('send')}</button></div>
+            <div class="reply-box__actions"><button class="button button--primary">ارسال پاسخ ${icon('send')}</button><label class="icon-button file-button" title="افزودن پیوست">${icon('attach_file')}<input type="file" name="files" multiple hidden/></label></div>
           </form>` : `<div class="notice notice--neutral">${icon('lock')} این تیکت بسته شده و امکان ارسال پیام جدید وجود ندارد.</div>`}
         </section>
         <aside>${card('اطلاعات درخواست', `<dl class="description-list"><div><dt>دپارتمان</dt><dd>${translateEnum(ticket.department)}</dd></div><div><dt>وضعیت</dt><dd>${badge(ticket.status)}</dd></div><div><dt>سرویس مرتبط</dt><dd>${escapeHtml(ticket.serviceName || '—')}</dd></div><div><dt>تعداد پیام‌ها</dt><dd>${faNumber(ticket.messages?.length)}</dd></div></dl>`, { icon: 'info' })}</aside>

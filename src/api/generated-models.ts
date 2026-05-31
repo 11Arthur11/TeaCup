@@ -321,15 +321,6 @@ export interface WalletTransactionResponse {
 }
 
 /** DataResponse, the type of responses with data only */
-export interface DataResponseBigDecimal {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: number;
-}
-
-/** DataResponse, the type of responses with data only */
 export interface DataResponseUserDetailResponse {
   /** Operation success state, boolean */
   success?: boolean;
@@ -528,7 +519,7 @@ export interface InvoiceUserResponse {
   money?: Money;
   createdAt?: string;
   paidAt?: string;
-  status?: string;
+  status?: "PAID" | "CANCELLED" | "PENDING";
 }
 
 export interface PagedModelInvoiceUserResponse {
@@ -684,7 +675,7 @@ export interface DataResponseListQueryInstanceListResponse {
 export interface QueryInstanceListResponse {
   id?: number;
   name?: string;
-  status?: string;
+  status?: "DISABLED" | "FULL" | "UNREACHABLE" | "RECONNECTING" | "LOGIN_FAILED" | "DISPATCHED" | "INITIATED";
   maxTeaSpeakInstance?: number;
   usedInstanceSlot?: number;
   startPort?: number;
@@ -769,7 +760,7 @@ export interface InvoiceAdminResponse {
   money?: Money;
   createdAt?: string;
   paidAt?: string;
-  status?: string;
+  status?: "PAID" | "CANCELLED" | "PENDING";
   paymentTransaction?: PaymentTransactionDetailResponse;
 }
 
@@ -799,12 +790,12 @@ export interface DataResponseLiaraDnsProviderDetailResponse {
 export interface DnsZoneListResponse {
   name?: string;
   active?: boolean;
-  status?: string;
+  status?: "CREATING" | "PENDING" | "ACTIVE" | "DELETING";
 }
 
 export interface LiaraDnsProviderDetailResponse {
   active?: boolean;
-  status?: string;
+  status?: "CONNECTED" | "API_KEY_REJECTED" | "SERVER_ERROR" | "UNKNOWN";
   baseUrl?: string;
   apiKey?: string;
   dnsZones?: Array<DnsZoneListResponse>;
@@ -876,4 +867,21 @@ export type ProductPeriod = "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUAR
 
 export interface PrivilegeTokenResponse {
   token?: string;
+}
+
+export interface WalletOverviewResponse {
+  balance?: Money;
+  spentLast30days?: Money;
+  spentLast7days?: Money;
+  spentLastDay?: Money;
+  autoRenewalCoverageUntil?: string;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseWalletOverviewResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: WalletOverviewResponse;
 }

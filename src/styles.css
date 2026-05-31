@@ -1085,3 +1085,42 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
   .wallet-balance-card__icon > .material-symbols-rounded { font-size: 30px !important; }
 }
 .ticket-selected-files--form { margin-top: -4px; }
+
+/* 0.1.2 interaction alignment and denser financial filtering */
+.finance-transactions-card > .card__header {
+  min-height: 86px;
+  padding-block: 16px;
+  align-items: center;
+}
+.finance-filter-toolbar { gap: 9px; }
+.finance-filter-toolbar label > span { font-size: .64rem; }
+.finance-filter-toolbar select,
+.finance-filter-toolbar input {
+  min-height: 40px;
+  height: 40px;
+  font-size: .76rem;
+  border-radius: 10px;
+}
+.finance-filter-toolbar select { min-width: 116px; }
+.finance-filter-toolbar input { width: 178px; }
+.finance-filter-toolbar .icon-button { width: 40px; height: 40px; border-radius: 10px; }
+
+/* Explicit RTL decisions requested for these exact action groups. */
+.admin-resource-filter__actions,
+.reply-box__actions {
+  justify-content: flex-start;
+}
+
+.ticket-selected-file {
+  animation: ticket-file-in .16s ease-out;
+}
+@keyframes ticket-file-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .finance-transactions-card > .card__header { min-height: 0; padding-block: 13px; }
+  .admin-resource-filter__actions,
+  .reply-box__actions { justify-content: flex-start; }
+}

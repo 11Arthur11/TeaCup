@@ -132,7 +132,7 @@ GET /v1/dashboard/overview
 
 ### موجود
 
-- `GET /v1/wallet/balance`
+- `GET /v1/wallet/overview`
 - `GET /v1/wallet/transactions`
 - `POST /v1/wallet/charge`
 - `GET /v1/invoices`

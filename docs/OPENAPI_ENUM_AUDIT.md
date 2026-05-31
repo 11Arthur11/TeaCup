@@ -38,7 +38,7 @@
 
 بر اساس قرارداد جدید backend، فیلد `resourceType` با enumهای `TEASPEAK` و `AUDIO_BOT` به نسخه OpenAPI پروژه اضافه شده و frontend دیگر برای تفکیک دو جدول به ترجمه نام محصول وابسته نیست. fallback نام محصول فقط برای سازگاری موقت با پاسخ‌های قدیمی باقی مانده است.
 
-### `GET /v1/wallet/balance` — اضافه‌شده در نسخه محلی
+### `GET /v1/wallet/overview` — اضافه‌شده در نسخه محلی
 
 این endpoint با پاسخ عددی IRT و مدل `DataResponseNumber` ثبت شده است. frontend مقدار عددی را در adapter کیف پول به ساختار `Money` تبدیل می‌کند.
 

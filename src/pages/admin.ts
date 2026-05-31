@@ -493,7 +493,7 @@ export async function renderAdminTicketDetail(ticketId: number): Promise<void> {
           ${ticket.status !== 'CLOSED' ? `<form id="admin-ticket-reply" class="reply-box">
             <textarea name="content" placeholder="پاسخ پشتیبانی…" required></textarea>
             <div class="ticket-selected-files" data-file-list hidden></div>
-            <div class="reply-box__actions"><label class="icon-button file-button" title="افزودن پیوست">${icon('attach_file')}<input type="file" name="files" multiple hidden/></label><button class="button button--primary">ارسال پاسخ ${icon('send')}</button></div>
+            <div class="reply-box__actions"><button class="button button--primary">ارسال پاسخ ${icon('send')}</button><label class="icon-button file-button" title="افزودن پیوست">${icon('attach_file')}<input type="file" name="files" multiple hidden/></label></div>
           </form>` : `<div class="notice notice--neutral">${icon('lock')} این تیکت بسته شده و امکان ارسال پیام جدید وجود ندارد.</div>`}
         </section>
         <aside>${card('اطلاعات تیکت', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(ticket.status)}</dd></div><div><dt>دپارتمان</dt><dd>${translateEnum(ticket.department)}</dd></div><div><dt>سرویس</dt><dd>${escapeHtml(ticket.serviceName || '—')}</dd></div><div><dt>آخرین تغییر</dt><dd>${faDate(ticket.lastModified)}</dd></div></dl>`, { icon: 'info' })}</aside>
@@ -712,7 +712,7 @@ export async function renderQueryInstances(): Promise<void> {
         render: (instance) => `<div class="table-actions">
           <a data-link class="button button--secondary button--small" href="/admin/query-instances/${instance.id}">${icon('visibility')} جزئیات</a>
           <button type="button" class="icon-button" data-edit-query="${instance.id}" aria-label="ویرایش Query Instance" title="ویرایش">${icon('edit')}</button>
-          <button type="button" class="icon-button" data-toggle-query="${instance.id}" data-active="${instance.active}" aria-label="${instance.active ? 'غیرفعال‌سازی' : 'فعال‌سازی'}" title="${instance.active ? 'غیرفعال‌سازی' : 'فعال‌سازی'}">${icon(instance.active ? 'pause' : 'play_arrow')}</button>
+          <button type="button" class="icon-button" data-toggle-query="${instance.id}" data-disabled="${instance.status === 'DISABLED'}" aria-label="${instance.status === 'DISABLED' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}" title="${instance.status === 'DISABLED' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}">${icon(instance.status === 'DISABLED' ? 'play_arrow' : 'pause')}</button>
           <button type="button" class="icon-button icon-button--danger" data-delete-query="${instance.id}" aria-label="حذف Query Instance" title="حذف">${icon('delete')}</button>
         </div>`,
       },
@@ -727,18 +727,18 @@ export async function renderQueryInstances(): Promise<void> {
     qsa<HTMLButtonElement>('[data-edit-query]').forEach((button) => button.addEventListener('click', () => openQueryForm(instances.find((item) => item.id === Number(button.dataset.editQuery)))));
     qsa<HTMLButtonElement>('[data-toggle-query]').forEach((button) => button.addEventListener('click', () => {
       const id = Number(button.dataset.toggleQuery);
-      const active = button.dataset.active === 'true';
+      const disabled = button.dataset.disabled === 'true';
       confirmDialog(
-        active ? 'غیرفعال‌کردن Instance' : 'فعال‌کردن Instance',
-        active ? 'Provisioning جدید روی این اتصال متوقف می‌شود.' : 'Instance مجدداً dispatch می‌شود.',
-        active ? 'غیرفعال‌سازی' : 'فعال‌سازی',
+        disabled ? 'فعال‌کردن Instance' : 'غیرفعال‌کردن Instance',
+        disabled ? 'Instance مجدداً dispatch می‌شود.' : 'Provisioning جدید روی این اتصال متوقف می‌شود.',
+        disabled ? 'فعال‌سازی' : 'غیرفعال‌سازی',
         async () => {
-          const ok = active
-            ? await runAction(() => api.call('disableQueryInstance', { path: { id } }))
-            : await runAction(() => api.call('enableQueryInstance', { path: { id } }));
+          const ok = disabled
+            ? await runAction(() => api.call('enableQueryInstance', { path: { id } }))
+            : await runAction(() => api.call('disableQueryInstance', { path: { id } }));
           if (ok) await renderQueryInstances();
         },
-        active,
+        !disabled,
       );
     }));
     qsa<HTMLButtonElement>('[data-delete-query]').forEach((button) => button.addEventListener('click', () => confirmDialog(
@@ -765,17 +765,17 @@ export async function renderQueryInstanceDetail(instanceId: number): Promise<voi
       <div class="detail-grid"><div class="detail-main">
         ${card('مشخصات نود Query', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>#${faNumber(instance.id)}</dd></div><div><dt>نام</dt><dd>${escapeHtml(instance.name || '—')}</dd></div><div><dt>وضعیت runtime</dt><dd>${runtimeStatus(instance.status, Boolean(instance.active))}</dd></div><div><dt>دسترسی</dt><dd>${badge(instance.active ? 'ACTIVE' : 'DISABLED')}</dd></div><div><dt>شروع پورت</dt><dd class="ltr">${faNumber(instance.startPort)}</dd></div><div><dt>پایان پورت</dt><dd class="ltr">${faNumber(instance.stopPort)}</dd></div></dl>`, { icon: 'lan' })}
         ${card('ظرفیت Provisioning', `${capacityCell(Number(instance.usedInstanceSlot ?? 0), Number(instance.maxTeaSpeakInstance ?? 0), 'سرویس')}<p class="muted">ظرفیت مصرف‌شده بر اساس آخرین پاسخ backend نمایش داده می‌شود.</p>`, { icon: 'speed' })}
-      </div><aside>${card('عملیات نود', `<div class="admin-resource-actions"><button type="button" class="button button--secondary button--block" id="detail-edit-query">${icon('edit')} ویرایش نود</button><button type="button" class="button button--ghost button--block" id="detail-toggle-query">${icon(instance.active ? 'pause' : 'play_arrow')} ${instance.active ? 'غیرفعال‌سازی' : 'فعال‌سازی'}</button></div>`, { icon: 'settings' })}</aside></div>
+      </div><aside>${card('عملیات نود', `<div class="admin-resource-actions"><button type="button" class="button button--secondary button--block" id="detail-edit-query">${icon('edit')} ویرایش نود</button><button type="button" class="button button--ghost button--block" id="detail-toggle-query">${icon(instance.status === 'DISABLED' ? 'play_arrow' : 'pause')} ${instance.status === 'DISABLED' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}</button></div>`, { icon: 'settings' })}</aside></div>
     `, 'جزئیات نود Query');
     document.querySelector('#detail-edit-query')?.addEventListener('click', () => openQueryForm(instance));
     document.querySelector('#detail-toggle-query')?.addEventListener('click', () => {
-      const active = Boolean(instance.active);
-      confirmDialog(active ? 'غیرفعال‌کردن Instance' : 'فعال‌کردن Instance', active ? 'Provisioning جدید روی این اتصال متوقف می‌شود.' : 'Instance مجدداً dispatch می‌شود.', active ? 'غیرفعال‌سازی' : 'فعال‌سازی', async () => {
-        const ok = active
-          ? await runAction(() => api.call('disableQueryInstance', { path: { id: instanceId } }))
-          : await runAction(() => api.call('enableQueryInstance', { path: { id: instanceId } }));
+      const disabled = instance.status === 'DISABLED';
+      confirmDialog(disabled ? 'فعال‌کردن Instance' : 'غیرفعال‌کردن Instance', disabled ? 'Instance مجدداً dispatch می‌شود.' : 'Provisioning جدید روی این اتصال متوقف می‌شود.', disabled ? 'فعال‌سازی' : 'غیرفعال‌سازی', async () => {
+        const ok = disabled
+          ? await runAction(() => api.call('enableQueryInstance', { path: { id: instanceId } }))
+          : await runAction(() => api.call('disableQueryInstance', { path: { id: instanceId } }));
         if (ok) await renderQueryInstanceDetail(instanceId);
-      }, active);
+      }, !disabled);
     });
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات نود Query', 'زیرساخت TeaSpeak')}${adminError(error)}`, 'جزئیات نود Query');

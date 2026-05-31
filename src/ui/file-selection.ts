@@ -14,18 +14,10 @@ export function bindFileSelection(
 ): FileSelectionController {
   let selected: File[] = [];
 
-  const syncInput = (): void => {
-    try {
-      const transfer = new DataTransfer();
-      selected.forEach((file) => transfer.items.add(file));
-      input.files = transfer.files;
-    } catch {
-      // Internal state remains the source of truth on older browsers.
-    }
-  };
-
   const render = (): void => {
-    list.hidden = selected.length === 0;
+    const hasFiles = selected.length > 0;
+    list.hidden = !hasFiles;
+    list.dataset.hasFiles = String(hasFiles);
     list.innerHTML = selected.map((file, index) => `
       <span class="ticket-selected-file">
         ${icon('description')}
@@ -34,22 +26,32 @@ export function bindFileSelection(
       </span>`).join('');
   };
 
-  input.addEventListener('change', () => {
+  const acceptSelection = (): void => {
+    const incoming = Array.from(input.files ?? []);
+    if (!incoming.length) return;
     const existing = new Set(selected.map(fileKey));
-    for (const file of Array.from(input.files ?? [])) {
-      if (!existing.has(fileKey(file))) selected.push(file);
+    for (const file of incoming) {
+      const key = fileKey(file);
+      if (!existing.has(key)) {
+        selected.push(file);
+        existing.add(key);
+      }
     }
-    syncInput();
+    // The controller state is the upload source. Clearing the native input lets
+    // the same file be selected again after it is removed without losing the UI list.
+    input.value = '';
     render();
-  });
+  };
+
+  input.addEventListener('change', acceptSelection);
 
   list.addEventListener('click', (event) => {
     const button = (event.target as Element | null)?.closest<HTMLButtonElement>('[data-remove-file]');
     if (!button) return;
+    event.preventDefault();
     const index = Number(button.dataset.removeFile);
     if (!Number.isInteger(index) || index < 0 || index >= selected.length) return;
     selected.splice(index, 1);
-    syncInput();
     render();
   });
 
@@ -59,7 +61,6 @@ export function bindFileSelection(
     clear: () => {
       selected = [];
       input.value = '';
-      syncInput();
       render();
     },
   };

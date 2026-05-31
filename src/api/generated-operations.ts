@@ -57,7 +57,6 @@ export const operations = {
   "disableQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}/disable", bodyKind: null, responseKind: "json" },
   "changeEnabled": { method: "PATCH", path: "/v1/admin/products/{productId}/{enabled}", bodyKind: null, responseKind: "json" },
   "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
-  "getBalance": { method: "GET", path: "/v1/wallet/balance", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
   "getTickets": { method: "GET", path: "/v1/tickets", bodyKind: null, responseKind: "json" },
   "getTicketDetails": { method: "GET", path: "/v1/tickets/detail/{id}", bodyKind: null, responseKind: "json" },
@@ -89,6 +88,7 @@ export const operations = {
   "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
+  "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -337,7 +337,6 @@ export interface OperationInputMap {
     filter: Models.WalletTransactionFilterRequest;
   };
   };
-  "getBalance": Record<string, never>;
   "getProfile": Record<string, never>;
   "getTickets": {
     query: {
@@ -457,6 +456,7 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
+  "getBalance": Record<string, never>;
 }
 
 export interface OperationOutputMap {
@@ -516,7 +516,6 @@ export interface OperationOutputMap {
   "disableQueryInstance": Models.SimpleResponse;
   "changeEnabled": Models.SimpleResponse;
   "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
-  "getBalance": Models.DataResponseBigDecimal;
   "getProfile": Models.DataResponseUserDetailResponse;
   "getTickets": Models.DataResponsePagedModelTicketListUserResponse;
   "getTicketDetails": Models.DataResponseTicketDetailBaseResponse;
@@ -552,6 +551,7 @@ export interface OperationOutputMap {
   "deleteAudioBotPlaylist": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
+  "getBalance": Models.DataResponseWalletOverviewResponse;
 }
 
 export interface OperationMeta {

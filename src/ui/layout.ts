@@ -4,7 +4,7 @@ import { runAction } from '../core/action.js';
 import { getBackendAvailability, probeBackendAvailability, subscribeBackendAvailability } from '../core/backend-availability.js';
 import { openDialog } from '../core/dialog.js';
 import { appRoot, bellIcon, brandLogo, escapeHtml, icon, qsa } from '../core/dom.js';
-import { isBackgroundPageRefresh } from '../core/page-refresh.js';
+import { hasPendingPageInteraction, isBackgroundPageRefresh } from '../core/page-refresh.js';
 import { router } from '../core/router.js';
 import { clearSessionHint } from '../core/session.js';
 import { store } from '../core/store.js';
@@ -129,7 +129,7 @@ export function renderPublic(content: string, options: { transparent?: boolean }
 }
 
 export function renderAppShell(content: string, title = ''): void {
-  if (isBackgroundPageRefresh() && content.includes('class="skeleton-page"')) return;
+  if (isBackgroundPageRefresh() && (content.includes('class="skeleton-page"') || hasPendingPageInteraction())) return;
   const state = store.get();
   const current = location.pathname;
   const isAdminSection = current.startsWith('/admin');
