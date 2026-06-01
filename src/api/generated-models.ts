@@ -885,3 +885,23 @@ export interface DataResponseWalletOverviewResponse {
   type?: string;
   data?: WalletOverviewResponse;
 }
+
+export interface ResourceMetricResponse {
+  total?: number;
+  active?: number;
+  suspended?: number;
+}
+
+export interface UserDashboardOverviewResponse {
+  resourceMetric?: ResourceMetricResponse;
+  openTickets?: number;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseUserDashboardOverviewResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: UserDashboardOverviewResponse;
+}

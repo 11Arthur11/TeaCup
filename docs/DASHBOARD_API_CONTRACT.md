@@ -1,35 +1,37 @@
-# قرارداد پیشنهادی داشبورد کاربر
+# قرارداد داشبورد کاربر
 
-فرانت‌اند فعلاً برای داشبورد کاربر هیچ درخواست متریکی به backend ارسال نمی‌کند و از mock adapter در `src/api/dashboard.ts` استفاده می‌کند.
-
-Endpoint پیشنهادی برای آینده:
+داشبورد کاربر به endpoint واقعی زیر متصل است:
 
 ```http
 GET /v1/dashboard/overview
 ```
 
-پاسخ پیشنهادی:
+پاسخ فعلی:
 
 ```json
 {
   "success": true,
   "type": "DATA",
   "data": {
-    "walletBalance": {
-      "amount": 250000,
-      "currency": "IRT"
+    "resourceMetric": {
+      "total": 3,
+      "active": 3,
+      "suspended": 0
     },
-    "activeServices": 2,
-    "totalServices": 3,
-    "pendingInvoices": 1,
-    "openTickets": 1,
-    "generatedAt": "2026-07-24T12:00:00Z"
+    "openTickets": 0
   }
 }
 ```
 
-پس از آماده‌شدن endpoint، تابع `getUserDashboardOverview` باید به API واقعی متصل شود. سایر صفحات نیازی به تغییر ندارند.
+کاربرد در فرانت‌اند:
+
+- `resourceMetric.total`: تعداد کل سرویس‌ها
+- `resourceMetric.active`: تعداد سرویس‌های فعال
+- `resourceMetric.suspended`: تعداد سرویس‌های تعلیق‌شده یا نیازمند بررسی
+- `openTickets`: تعداد تیکت‌های باز
+
+برای موجودی و زمان پوشش تمدید خودکار همچنان از `GET /v1/wallet/overview` استفاده می‌شود. پنج تیکت اخیر با `GET /v1/tickets?page=0&size=5` و دسترسی سریع سرویس‌ها با `GET /v1/services` دریافت می‌شوند.
 
 # داشبورد مدیریت
 
-داشبورد مدیریت نیز فعلاً هیچ‌کدام از endpointهای users/resources/tickets/invoices/nodes را برای ساخت متریک تجمیعی فراخوانی نمی‌کند. پیشنهاد می‌شود بعداً endpoint سبک و تجمیعی مستقلی برای staff dashboard اضافه شود.
+داشبورد مدیریت فعلاً متریک‌های خود را از mock می‌گیرد. برای جلوگیری از چند درخواست هم‌زمان، endpoint سبک و تجمیعی مستقل برای staff dashboard پیشنهاد می‌شود.

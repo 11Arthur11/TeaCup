@@ -37,7 +37,13 @@ function renderPhone(): void {
     phone = normalizeIranMobileInput(phoneInput.value);
     let backendPhone: string;
     try {
-      backendPhone = iranMobileToE164(phone);
+      const normalized = normalizeIranMobileInput(phone).replace(/\D/g, '');
+
+      if (!/^09\d{9}$/.test(normalized)) {
+        throw new Error('شماره موبایل معتبر نیست.');
+      }
+
+      backendPhone = normalized.substring(1);
     } catch (error) {
       phoneInput.setCustomValidity(error instanceof Error ? error.message : 'شماره موبایل معتبر نیست.');
       phoneInput.reportValidity();

@@ -1124,3 +1124,115 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
   .admin-resource-filter__actions,
   .reply-box__actions { justify-content: flex-start; }
 }
+
+/* Dashboard overview connected to /v1/dashboard/overview */
+.dashboard-active-services {
+  display: grid;
+  gap: 8px;
+}
+.dashboard-active-services > a {
+  min-height: 60px;
+  padding: 9px 11px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .018);
+  transition: border-color .16s ease, background-color .16s ease, transform .16s ease;
+}
+.dashboard-active-services > a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(76, 145, 255, .38);
+  background: rgba(47, 124, 255, .065);
+}
+.dashboard-active-services__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--blue-400);
+  background: rgba(47, 124, 255, .12);
+}
+.dashboard-active-services__icon > .material-symbols-rounded { font-size: 21px; }
+.dashboard-active-services > a > span:nth-child(2) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dashboard-active-services b,
+.dashboard-active-services small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-active-services b { font-size: .73rem; }
+.dashboard-active-services small { color: var(--text-3); font-size: .61rem; }
+.dashboard-active-services > a > .material-symbols-rounded:last-child { color: var(--text-3); font-size: 19px; }
+
+.dashboard-recent-tickets-card { margin-top: 20px; }
+.dashboard-recent-tickets { display: grid; }
+.dashboard-recent-tickets > a {
+  min-height: 66px;
+  padding: 10px 4px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 150px 22px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background-color .16s ease, padding-inline .16s ease;
+}
+.dashboard-recent-tickets > a:first-child { padding-top: 4px; }
+.dashboard-recent-tickets > a:last-child { border-bottom: 0; padding-bottom: 4px; }
+.dashboard-recent-tickets > a:hover {
+  padding-inline: 10px;
+  border-radius: 11px;
+  background: rgba(47, 124, 255, .055);
+}
+.dashboard-recent-tickets__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--blue-400);
+  background: rgba(47, 124, 255, .1);
+}
+.dashboard-recent-tickets__icon > .material-symbols-rounded { font-size: 20px; }
+.dashboard-recent-tickets__subject {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dashboard-recent-tickets__subject b,
+.dashboard-recent-tickets__subject small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-recent-tickets__subject b { font-size: .75rem; }
+.dashboard-recent-tickets__subject small { color: var(--text-3); font-size: .61rem; }
+.dashboard-recent-tickets time { color: var(--text-3); font-size: .62rem; white-space: nowrap; }
+.dashboard-recent-tickets > a > .material-symbols-rounded:last-child { color: var(--text-3); font-size: 19px; }
+
+/* Explicit ticket reply order: send on the right, attachment immediately to its left. */
+.reply-box__actions {
+  direction: rtl;
+  justify-content: flex-start;
+}
+
+@media (max-width: 760px) {
+  .dashboard-recent-tickets > a {
+    grid-template-columns: 38px minmax(0, 1fr) auto 20px;
+    gap: 9px;
+  }
+  .dashboard-recent-tickets time { display: none; }
+}
+@media (max-width: 480px) {
+  .dashboard-recent-tickets__status { display: none; }
+  .dashboard-recent-tickets > a { grid-template-columns: 36px minmax(0, 1fr) 20px; }
+}

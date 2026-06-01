@@ -1,5 +1,5 @@
 import { api, ApiError } from '../api/client.js';
-import { getUserDashboardOverview, USER_DASHBOARD_ENDPOINT } from '../api/dashboard.js';
+import { getUserDashboardOverview } from '../api/dashboard.js';
 import { getWalletOverview } from '../api/wallet.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
@@ -93,23 +93,57 @@ function transactionRows(transactions: Models.WalletTransactionResponse[], showR
 export async function renderUserDashboard(): Promise<void> {
   renderAppShell(loadingPage(), 'نمای کلی');
   try {
-    const [overview, walletOverview] = await Promise.all([
+    const [overview, walletOverview, ticketsResponse, resourcesResponse] = await Promise.all([
       getUserDashboardOverview(),
       getWalletOverview(),
+      api.call('getTickets', { query: { filterRequest: { page: 0, size: 5 } } }),
+      api.call('getResources', {}),
     ]);
+
+    const resourceMetric = overview.resourceMetric ?? {};
+    const recentTickets = contentOf(ticketsResponse) as Models.TicketListUserResponse[];
+    const resources = (dataOf(resourcesResponse) ?? []) as UserResourceListItem[];
+    const activeResources = resources
+      .filter((resource) => resource.resourceStatus === 'ACTIVE')
+      .slice(0, 4);
+    const coverageDescription = walletOverview.autoRenewalCoverageUntil
+      ? `زمان باقی‌مانده تا اتمام موجودی بر اساس سرویس‌های دارای تمدید خودکار: ${remainingTime(walletOverview.autoRenewalCoverageUntil)}`
+      : 'برای سرویس‌های دارای تمدید خودکار، زمان اتمام موجودی هنوز محاسبه نشده است.';
+
+    const activeServicesHtml = activeResources.length
+      ? `<div class="dashboard-active-services">${activeResources.map((resource) => {
+          const kind = resourceKindOf(resource);
+          return `<a data-link href="/panel/services/${resource.id}">
+            <span class="dashboard-active-services__icon">${icon(kind === 'AUDIO_BOT' ? 'headphones' : 'dns')}</span>
+            <span><b>${escapeHtml(resource.label || resource.productName || `سرویس #${resource.id}`)}</b><small>${escapeHtml(resource.productName || translateEnum(kind))}</small></span>
+            ${icon('chevron_left')}
+          </a>`;
+        }).join('')}</div>`
+      : emptyState('سرویس فعالی وجود ندارد', 'پس از فعال‌شدن سرویس، دسترسی سریع آن در این کارت نمایش داده می‌شود.', '<a data-link href="/panel/services" class="button button--secondary button--small">مشاهده سرویس‌ها</a>');
+
+    const recentTicketsHtml = recentTickets.length
+      ? `<div class="dashboard-recent-tickets">${recentTickets.map((ticket) => `<a data-link href="/panel/tickets/${ticket.id}">
+          <span class="dashboard-recent-tickets__icon">${icon('chat')}</span>
+          <span class="dashboard-recent-tickets__subject"><b>${escapeHtml(ticket.subject || `تیکت #${ticket.id}`)}</b><small>${translateEnum(ticket.department)} · تیکت #${faNumber(ticket.id)}</small></span>
+          <span class="dashboard-recent-tickets__status">${badge(ticket.status)}</span>
+          <time>${faDate(ticket.lastModified || ticket.createdAt)}</time>
+          ${icon('chevron_left')}
+        </a>`).join('')}</div>`
+      : emptyState('تیکتی ثبت نشده است', 'پنج تیکت اخیر شما در این بخش نمایش داده می‌شوند.', '<a data-link href="/panel/tickets" class="button button--secondary button--small">رفتن به پشتیبانی</a>');
+
     renderAppShell(`
-      ${pageHeader('داشبورد نمای کلی', 'موجودی کیف پول از backend دریافت می‌شود؛ سایر متریک‌ها تا اضافه‌شدن endpoint داشبورد آزمایشی هستند.', [{ label: 'مشاهده محصولات', icon: 'shopping_bag', href: '/panel/products' }])}
-      <div class="dashboard-endpoint-note">${icon('science')}<div><b>Endpoint پیشنهادی داشبورد</b><code>${USER_DASHBOARD_ENDPOINT}</code><small>فقط متریک‌های تجمیعی فعلاً mock هستند. موجودی و پوشش تمدید خودکار از /v1/wallet/overview خوانده می‌شود.</small></div></div>
+      ${pageHeader('داشبورد نمای کلی', 'وضعیت سرویس‌ها، کیف پول و درخواست‌های پشتیبانی حساب شما.', [{ label: 'مشاهده محصولات', icon: 'shopping_bag', href: '/panel/products' }])}
       <div class="stats-grid">
-        ${statCard('موجودی کیف پول', money(walletOverview.balance), 'account_balance_wallet', walletOverview.autoRenewalCoverageUntil ? remainingTime(walletOverview.autoRenewalCoverageUntil) : 'پوشش تمدید خودکار محاسبه نشده', 'blue').replace('<strong>', '<strong data-wallet-overview-balance>').replace('<small>', '<small data-wallet-overview-coverage>')}
-        ${statCard('سرویس‌های فعال', faNumber(overview.activeServices), 'teacloud', `${faNumber(overview.totalServices)} سرویس در مجموع`, 'cyan')}
-        ${statCard('فاکتورهای در انتظار', faNumber(overview.pendingInvoices), 'receipt_long', 'از بخش مالی قابل پیگیری است', 'purple')}
-        ${statCard('تیکت‌های باز', faNumber(overview.openTickets), 'support_agent', 'از مرکز پشتیبانی پیگیری کنید', 'orange')}
+        ${statCard('موجودی کیف پول', money(walletOverview.balance), 'account_balance_wallet', coverageDescription, 'blue').replace('<strong>', '<strong data-wallet-overview-balance>').replace('<small>', '<small data-wallet-overview-coverage>')}
+        ${statCard('سرویس‌های فعال', faNumber(resourceMetric.active), 'teacloud', `${faNumber(resourceMetric.total)} سرویس در مجموع`, 'cyan')}
+        ${statCard('سرویس‌های تعلیق‌شده', faNumber(resourceMetric.suspended), 'pause_circle', 'سرویس‌هایی که نیازمند بررسی هستند', 'purple')}
+        ${statCard('تیکت‌های باز', faNumber(overview.openTickets), 'support_agent', 'در انتظار پاسخ یا اقدام', 'orange')}
       </div>
       <div class="dashboard-grid dashboard-grid--bottom">
-        ${card('دسترسی سریع', `<div class="dashboard-shortcuts"><a data-link href="/panel/services">${icon('dns')}<span><b>سرویس‌های من</b><small>مدیریت TeaSpeak و AudioBot</small></span>${icon('chevron_left')}</a><a data-link href="/panel/products">${icon('shopping_bag')}<span><b>محصولات</b><small>انتخاب و راه‌اندازی سرویس</small></span>${icon('chevron_left')}</a><a data-link href="/panel/finance">${icon('account_balance_wallet')}<span><b>مالی</b><small>کیف پول، تراکنش و فاکتور</small></span>${icon('chevron_left')}</a><a data-link href="/panel/tickets">${icon('support_agent')}<span><b>پشتیبانی</b><small>ثبت و پیگیری درخواست</small></span>${icon('chevron_left')}</a></div>`, { icon: 'bolt' })}
+        ${card('سرویس‌های فعال', activeServicesHtml, { icon: 'dns', actions: '<a data-link class="button button--ghost button--small" href="/panel/services">همه سرویس‌ها</a>', className: 'dashboard-active-services-card' })}
         ${card('اعلان‌های عمومی', `<div data-overview-notifications><div class="notification-empty">${icon('hourglass_top')}<b>در حال دریافت اعلان‌ها</b><span>آخرین پیام‌های عمومی سامانه در این بخش نمایش داده می‌شوند.</span></div></div>`, { icon: 'notifications', actions: '<button type="button" class="button button--ghost button--small" data-user-notifications-open>مشاهده همه</button>' })}
       </div>
+      ${card('تیکت‌های اخیر', recentTicketsHtml, { icon: 'forum', actions: '<a data-link class="button button--ghost button--small" href="/panel/tickets">همه تیکت‌ها</a>', className: 'dashboard-recent-tickets-card' })}
     `, 'نمای کلی');
   } catch (error) {
     renderAppShell(`${pageHeader('داشبورد نمای کلی', 'اطلاعات حساب')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'نمای کلی');

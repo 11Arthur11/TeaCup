@@ -92,8 +92,8 @@ function updateDom(): void {
   });
   qsa<HTMLElement>('[data-wallet-overview-coverage]').forEach((node) => {
     node.textContent = state.walletOverview.autoRenewalCoverageUntil
-      ? remainingTime(state.walletOverview.autoRenewalCoverageUntil)
-      : 'پوشش تمدید خودکار محاسبه نشده';
+      ? `زمان باقی‌مانده تا اتمام موجودی بر اساس سرویس‌های دارای تمدید خودکار: ${remainingTime(state.walletOverview.autoRenewalCoverageUntil)}`
+      : 'برای سرویس‌های دارای تمدید خودکار، زمان اتمام موجودی هنوز محاسبه نشده است.';
   });
   qsa<HTMLElement>('[data-overview-notifications]').forEach((node) => {
     node.innerHTML = notificationListHtml(state.notifications, true);

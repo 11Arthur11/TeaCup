@@ -89,6 +89,7 @@ export const operations = {
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
   "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
+  "getDashboardOverview": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -457,6 +458,7 @@ export interface OperationInputMap {
   };
   };
   "getBalance": Record<string, never>;
+  "getDashboardOverview": Record<string, never>;
 }
 
 export interface OperationOutputMap {
@@ -552,6 +554,7 @@ export interface OperationOutputMap {
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
   "getBalance": Models.DataResponseWalletOverviewResponse;
+  "getDashboardOverview": Models.DataResponseUserDashboardOverviewResponse;
 }
 
 export interface OperationMeta {
