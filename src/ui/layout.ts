@@ -19,6 +19,7 @@ const userNav: NavItem[] = [
   { label: 'محصولات', href: '/panel/products', icon: 'shopping_bag' },
   { label: 'مالی', href: '/panel/finance', icon: 'account_balance_wallet' },
   { label: 'پشتیبانی', href: '/panel/tickets', icon: 'support_agent' },
+  { label: 'پروفایل', href: '/panel/account', icon: 'manage_accounts' },
 ];
 
 const adminNav: NavItem[] = [
@@ -35,6 +36,7 @@ const adminNav: NavItem[] = [
   { label: 'اعلان‌های عمومی', href: '/admin/notifications', icon: 'campaign', area: 'notifications' },
   { label: 'تنظیمات DNS', href: '/admin/dns', icon: 'language', area: 'dns' },
   { label: 'مانیتورینگ', href: '/admin/monitoring', icon: 'monitor_heart', area: 'liveStatus' },
+  { label: 'پروفایل', href: '/admin/profile', icon: 'manage_accounts', area: 'profile' },
 ];
 
 function isActive(href: string, current: string): boolean {
@@ -151,7 +153,7 @@ export function renderAppShell(content: string, title = ''): void {
     <section class="workspace"><header class="topbar"><div><button type="button" class="icon-button topbar__menu" data-sidebar-open>${icon('menu')}</button><div class="topbar__title"><small>${panelTitle}</small><b>${escapeHtml(title || 'ابر چایی')}</b></div></div><div class="topbar__actions">
       ${!isAdminSection ? `<div class="topbar-wallet"><span><small>موجودی</small><b data-user-wallet-balance>۰ تومان</b></span><button type="button" class="topbar-wallet__add" data-charge-wallet-header aria-label="شارژ کیف پول" title="شارژ کیف پول">${icon('add')}</button></div><button type="button" class="icon-button topbar-notification" data-user-notifications-open aria-label="اعلان‌های عمومی" title="اعلان‌های عمومی">${bellIcon('topbar-notification__icon')}<span class="topbar-notification__count" data-user-notification-count>۰</span></button>` : ''}
       ${hasAdminPanelAccess(state.identity.role) ? `<a data-link href="${switchHref}" class="button button--secondary button--small panel-switch">${icon(switchIcon)} ${switchLabel}</a>` : ''}
-      <a data-link href="/panel/account" class="avatar avatar--small" aria-label="حساب کاربری">${icon('person')}</a>
+      <a data-link href="${isAdminSection ? '/admin/profile' : '/panel/account'}" class="avatar avatar--small" aria-label="حساب کاربری">${icon('person')}</a>
     </div></header><main class="content">${content}</main></section>
   </div>`;
   bindShell();

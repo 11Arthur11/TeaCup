@@ -17,6 +17,7 @@ import { badge, card, dataTable, emptyState, field, loadingPage, metricBar, page
 import { renderAppShell } from '../ui/layout.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
+import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number;
@@ -33,7 +34,8 @@ const resourceKindOf = (resource: UserResourceListItem): ResourceKind => {
 };
 interface InvoiceDetailDto {
   invoiceToken?: string; token?: string; status?: string; money?: Models.Money; amount?: Models.Money | number;
-  description?: string; createdAt?: string; paidAt?: string; items?: Array<{ title?: string; description?: string; amount?: Models.Money }>;
+  description?: string; createdAt?: string; paidAt?: string; ownerId?: number; paymentTransaction?: Models.PaymentTransactionDetailResponse;
+  items?: Array<{ title?: string; description?: string; amount?: Models.Money }>;
 }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
@@ -223,20 +225,14 @@ async function openNewServiceDialog(): Promise<void> {
   } catch (error) { qs<HTMLElement>('.dialog__content', dialog).innerHTML = errorNotice(error instanceof ApiError ? error.message : undefined); }
 }
 
-function teaSpeakConnectionPanel(resource: TeaSpeakResourceDetail): string {
+function teaSpeakConnectionEndpoint(resource: TeaSpeakResourceDetail): string {
   const address = resource.address?.trim();
   const port = resource.port == null ? '' : String(resource.port);
   if (!address && !port) {
-    return card('اتصال به TeaSpeak', emptyState('اطلاعات اتصال آماده نیست', 'پس از تکمیل استقرار، آدرس و پورت اتصال در این بخش نمایش داده می‌شود.'), { icon: 'link', className: 'teaspeak-connection-card' });
+    return `<div class="teaspeak-connection teaspeak-connection--inline"><div class="teaspeak-connection__empty">${icon('lan')}<span><b>اطلاعات اتصال هنوز آماده نیست</b><small>پس از تکمیل استقرار، آدرس و پورت در همین بخش نمایش داده می‌شود.</small></span></div></div>`;
   }
   const endpoint = [address, port].filter(Boolean).join(':');
-  return card('اتصال به TeaSpeak', `<div class="teaspeak-connection">
-    <div class="teaspeak-connection__endpoint"><span>${icon('lan')}<small>آدرس اتصال</small></span><code dir="ltr">${escapeHtml(endpoint)}</code><button type="button" class="icon-button" data-copy-connection="${escapeHtml(endpoint)}" aria-label="کپی آدرس اتصال" title="کپی آدرس و پورت">${icon('content_copy')}</button></div>
-    <div class="teaspeak-connection__parts">
-      <button type="button" data-copy-connection="${escapeHtml(address ?? '')}"><span>آدرس</span><b dir="ltr">${escapeHtml(address ?? '—')}</b>${icon('content_copy')}</button>
-      <button type="button" data-copy-connection="${escapeHtml(port)}"><span>پورت</span><b dir="ltr">${escapeHtml(port || '—')}</b>${icon('content_copy')}</button>
-    </div>
-  </div>`, { icon: 'link', className: 'teaspeak-connection-card' });
+  return `<div class="teaspeak-connection teaspeak-connection--inline"><div class="teaspeak-connection__endpoint"><span>${icon('lan')}<small>آدرس اتصال TeaSpeak</small></span><code dir="ltr">${escapeHtml(endpoint)}</code><button type="button" class="icon-button" data-copy-connection="${escapeHtml(endpoint)}" aria-label="کپی آدرس اتصال" title="کپی آدرس و پورت">${icon('content_copy')}</button></div></div>`;
 }
 
 function privilegeTokenPanel(resource: TeaSpeakResourceDetail): string {
@@ -298,8 +294,7 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
 
     renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${serviceLabelEditor(resource)}
       <div class="detail-grid"><div class="detail-main">
-        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>`, { icon: 'monitor_heart' })}
-        ${isTeaSpeak ? teaSpeakConnectionPanel(resource) : ''}
+        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource) : ''}`, { icon: 'monitor_heart' })}
         ${isTeaSpeak ? privilegeTokenPanel(resource) : ''}
         ${isAudio ? card('Playlistهای AudioBot', `<div class="playlist-grid">${playlists.map((playlist) => `<article class="playlist-card"><span>${icon('queue_music')}</span><div><b>${escapeHtml(playlist.title || playlist.playlistFilename)}</b><small>${faNumber(playlist.songCount)} قطعه</small></div><button class="icon-button" data-playlist="${escapeHtml(playlist.playlistFilename)}">${icon('chevron_left')}</button></article>`).join('') || emptyState('Playlist ندارید', 'یک Playlist بسازید و لینک قطعه‌های صوتی را به آن اضافه کنید.')} </div>`, { icon: 'library_music', actions: '<button id="new-playlist" class="button button--secondary button--small">ساخت Playlist</button>' }) : ''}
         ${card('تراکنش‌های این سرویس', transactionRows(resourceTransactions, false), { icon: 'receipt_long', className: 'service-transactions-card', actions: '<a data-link class="button button--ghost button--small" href="/panel/finance?tab=transactions">همه تراکنش‌ها</a>' })}
@@ -506,7 +501,7 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
     const table = tab === 'transactions'
       ? transactionRows(transactions) + pagination(transactionMeta.number, transactionMeta.totalPages)
       : dataTable<Models.InvoiceUserResponse>([
-          { label: 'شناسه فاکتور', render: (row) => `<a data-link class="text-link strong ltr" href="/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}">${escapeHtml(row.invoiceToken?.slice(0, 12))}…</a>` },
+          { label: 'شناسه فاکتور', render: (row) => invoiceTokenView(row.invoiceToken, `/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
           { label: 'مبلغ', render: (row) => `<b>${money(row.money)}</b>` },
           { label: 'وضعیت', render: (row) => badge(row.status) },
           { label: 'تاریخ ایجاد', render: (row) => faDate(row.createdAt) },
@@ -531,6 +526,7 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
       ${card(tab === 'transactions' ? 'تراکنش‌های کیف پول' : 'فاکتورهای حساب', table, { icon: tab === 'transactions' ? 'account_balance_wallet' : 'receipt_long', actions: financeFilterToolbar, className: tab === 'transactions' ? 'finance-transactions-card' : '' })}
     `, 'مالی');
 
+    bindInvoiceTokenCopies();
     document.querySelector('#charge-wallet')?.addEventListener('click', openChargeWalletDialog);
     document.querySelector('#charge-wallet-inline')?.addEventListener('click', openChargeWalletDialog);
     document.querySelector<HTMLFormElement>('#finance-filter-form')?.addEventListener('submit', (event) => {
@@ -589,23 +585,44 @@ export async function renderInvoices(page = 0): Promise<void> {
     renderAppShell(`${pageHeader('صورت‌حساب‌ها', 'مشاهده وضعیت، جزئیات و پرداخت فاکتورهای حساب.')}
       <div class="filter-bar"><div class="segmented"><a data-link class="${!status ? 'active' : ''}" href="/panel/invoices">همه</a><a data-link class="${status === 'PENDING' ? 'active' : ''}" href="/panel/invoices?status=PENDING">در انتظار</a><a data-link class="${status === 'PAID' ? 'active' : ''}" href="/panel/invoices?status=PAID">پرداخت‌شده</a><a data-link class="${status === 'CANCELLED' ? 'active' : ''}" href="/panel/invoices?status=CANCELLED">لغوشده</a></div></div>
       ${card('فهرست صورت‌حساب‌ها', dataTable<Models.InvoiceUserResponse>([
-        { label: 'شناسه فاکتور', render: (row) => `<a data-link class="text-link strong ltr" href="/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}">${escapeHtml(row.invoiceToken?.slice(0, 12))}…</a>` }, { label: 'مبلغ', render: (row) => `<b>${money(row.money)}</b>` },
+        { label: 'شناسه فاکتور', render: (row) => invoiceTokenView(row.invoiceToken, `/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) }, { label: 'مبلغ', render: (row) => `<b>${money(row.money)}</b>` },
         { label: 'وضعیت', render: (row) => badge(row.status) }, { label: 'تاریخ ایجاد', render: (row) => faDate(row.createdAt) }, { label: 'پرداخت', render: (row) => faDate(row.paidAt) },
         { label: '', render: (row) => `<a data-link class="button button--ghost button--small" href="/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}">جزئیات</a>` }
       ], invoices) + pagination(meta.number, meta.totalPages), { icon: 'receipt_long' })}`, 'صورت‌حساب‌ها');
+    bindInvoiceTokenCopies();
     qsa<HTMLButtonElement>('[data-page]').forEach((button) => button.addEventListener('click', () => { const next=Number(button.dataset.page); const query=status?`?status=${status}&page=${next}`:`?page=${next}`; router.navigate(`/panel/invoices${query}`); }));
   } catch (error) { renderAppShell(`${pageHeader('صورت‌حساب‌ها','سوابق مالی')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'صورت‌حساب‌ها'); }
+}
+
+function showPaymentRedirectResult(invoiceToken: string, result: string | null, amount: Models.Money | undefined): void {
+  if (result !== 'true' && result !== 'false') return;
+  const current = new URL(location.href);
+  current.searchParams.delete('result');
+  history.replaceState(history.state, '', `${current.pathname}${current.search}${current.hash}`);
+  const paid = result === 'true';
+  openDialog({
+    title: paid ? 'پرداخت با موفقیت انجام شد' : 'پرداخت ناموفق بود',
+    description: paid ? `تأیید پرداخت فاکتور ${invoiceToken}` : `نتیجه پرداخت فاکتور ${invoiceToken}`,
+    content: `<div class="payment-redirect-result payment-redirect-result--${paid ? 'success' : 'failed'}">${icon(paid ? 'verified' : 'cancel')}<div><h3>${paid ? `فاکتور شما به مبلغ ${money(amount)} پرداخت شد.` : 'پرداخت فاکتور تکمیل نشد.'}</h3><p>${paid ? 'تراکنش توسط backend تأیید و وضعیت صورت‌حساب به‌روزرسانی شده است.' : 'می‌توانید دوباره یک درگاه را انتخاب کنید یا در صورت کسر وجه با پشتیبانی تماس بگیرید.'}</p>${invoiceTokenView(invoiceToken)}</div></div>`,
+    compact: true,
+    hideFooter: true,
+  });
+  bindInvoiceTokenCopies();
 }
 
 export async function renderInvoiceDetail(invoiceToken: string): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات فاکتور');
   try {
-    const [invoiceResponse, gatewaysResponse] = await Promise.all([api.call('getInvoice', { path: { invoiceToken } }), api.call('getAllGateways', {})]);
-    const raw = objectOf(invoiceResponse); const invoice = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as InvoiceDetailDto; const gateways = dataOf(gatewaysResponse) ?? [];
+    const invoiceResponse = await api.call('getInvoice', { path: { invoiceToken } });
+    const raw = objectOf(invoiceResponse);
+    const invoice = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as InvoiceDetailDto;
+    const gateways = invoice.status === 'PENDING' ? dataOf(await api.call('getAllGateways', {})) ?? [] : [];
     const amount = typeof invoice.amount === 'number' ? { amount: invoice.amount, currency: 'IRT' as const } : invoice.amount ?? invoice.money;
     renderAppShell(`${pageHeader('جزئیات صورت‌حساب', `شناسه: ${invoiceToken}`, [{label:'بازگشت',icon:'arrow_forward',href:'/panel/finance?tab=invoices',variant:'ghost'}])}
-      <div class="invoice-layout"><section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd class="ltr">${escapeHtml(invoiceToken)}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item)=>`<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}<footer><span>مبلغ قابل پرداخت</span><strong>${money(amount)}</strong></footer></section>
+      <div class="invoice-layout"><section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(invoiceToken)}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item)=>`<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}<footer><span>مبلغ قابل پرداخت</span><strong>${money(amount)}</strong></footer></section>
       <aside>${invoice.status === 'PENDING' ? card('پرداخت آنلاین', `<p class="muted">درگاه پرداخت را انتخاب کنید. پس از دریافت URL از backend به صفحه درگاه منتقل می‌شوید.</p><div class="gateway-list">${gateways.map((gateway) => `<label><input type="radio" name="gateway" value="${gateway.id}"/><span>${icon('account_balance')}<b>${escapeHtml(gateway.name)}</b></span></label>`).join('') || '<p>درگاه فعالی وجود ندارد.</p>'}</div><button id="pay-invoice" class="button button--primary button--block" ${gateways.length ? '' : 'disabled'}>${icon('payments')} پرداخت صورت‌حساب</button>`, {icon:'lock'}) : card('وضعیت پرداخت', `<div class="payment-result">${icon(invoice.status === 'PAID' ? 'verified' : 'cancel')}<h3>${translateEnum(invoice.status)}</h3><p>${invoice.status === 'PAID' ? 'پرداخت این فاکتور با موفقیت ثبت شده است.' : 'این فاکتور قابل پرداخت نیست.'}</p></div>`, {icon:'receipt'})}</aside></div>`, 'جزئیات فاکتور');
+    bindInvoiceTokenCopies();
+    showPaymentRedirectResult(invoiceToken, new URLSearchParams(location.search).get('result'), amount);
     document.querySelector('#pay-invoice')?.addEventListener('click', async () => {
       const selected = document.querySelector<HTMLInputElement>('input[name="gateway"]:checked'); if (!selected) return notify('یک درگاه پرداخت انتخاب کنید.', 'warning');
       const response = await runAction(() => api.call('payInvoice', { query: { invoiceToken, gatewayId: Number(selected.value) } }), { silentSuccess: true });

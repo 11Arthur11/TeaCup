@@ -19,7 +19,7 @@ import {
   renderServices, renderTicketDetail, renderTickets, renderUserDashboard
 } from './pages/user.js';
 import {
-  renderAdminCategories, renderAdminDashboard, renderAdminDns, renderAdminGateways, renderAdminInvoices, renderAdminLiaraDns,
+  renderAdminCategories, renderAdminDashboard, renderAdminDns, renderAdminGateways, renderAdminInvoiceDetail, renderAdminInvoices, renderAdminLiaraDns,
   renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminLiveStatus, renderAdminTicketDetail,
   renderAdminTickets, renderAdminUserDetail, renderAdminUsers, renderAdminProducts, renderAudioNodeDetail, renderAudioNodes,
   renderQueryInstanceDetail, renderQueryInstances
@@ -216,6 +216,7 @@ router
   .register('/admin/tickets', liveAdminArea('tickets', (ctx) => renderAdminTickets(Number(ctx.query.get('page') ?? 0))))
   .register('/admin/tickets/:id', liveAdminArea('tickets', (ctx) => renderAdminTicketDetail(numberParam(ctx, 'id'))))
   .register('/admin/invoices', liveAdminArea('invoices', (ctx) => renderAdminInvoices(Number(ctx.query.get('page') ?? 0))))
+  .register('/admin/invoices/:token', liveAdminArea('invoices', (ctx) => renderAdminInvoiceDetail(ctx.params.token ?? '')))
   .register('/admin/gateways', liveAdminArea('gateways', () => renderAdminGateways()))
   .register('/admin/query-instances', liveAdminArea('queryInstances', () => renderQueryInstances()))
   .register('/admin/query-instances/:id', liveAdminArea('queryInstances', (ctx) => renderQueryInstanceDetail(numberParam(ctx, 'id'))))
@@ -225,6 +226,7 @@ router
   .register('/admin/dns', adminArea('dns', () => renderAdminDns()))
   .register('/admin/dns/liara', liveAdminArea('dns', () => renderAdminLiaraDns()))
   .register('/admin/monitoring', liveAdminArea('liveStatus', () => renderAdminLiveStatus()))
+  .register('/admin/profile', liveAdminArea('profile', () => renderAccount()))
   .register('/admin/live-status', adminArea('liveStatus', () => { router.navigate('/admin/monitoring', true); }))
   .setFallback(() => renderNotFound());
 

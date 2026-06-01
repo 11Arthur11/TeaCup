@@ -14,9 +14,10 @@ export type AdminArea =
   | 'audioNodes'
   | 'notifications'
   | 'dns'
-  | 'liveStatus';
+  | 'liveStatus'
+  | 'profile';
 
-const supportAreas = new Set<AdminArea>(['dashboard', 'tickets', 'invoices']);
+const supportAreas = new Set<AdminArea>(['dashboard', 'tickets', 'invoices', 'profile']);
 
 export function parseUserRole(value: unknown): UserRole | null {
   if (typeof value !== 'string') return null;

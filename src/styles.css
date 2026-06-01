@@ -1236,3 +1236,194 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
   .dashboard-recent-tickets__status { display: none; }
   .dashboard-recent-tickets > a { grid-template-columns: 36px minmax(0, 1fr) 20px; }
 }
+
+/* Inline TeaSpeak endpoint inside the main service status card. */
+.teaspeak-connection--inline {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.teaspeak-connection--inline .teaspeak-connection__endpoint {
+  margin: 0;
+}
+.teaspeak-connection__empty {
+  min-height: 66px;
+  border: 1px dashed var(--border);
+  border-radius: 13px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.teaspeak-connection__empty > .material-symbols-rounded {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--cyan-400);
+  background: color-mix(in srgb,var(--cyan-400) 10%,var(--surface));
+}
+.teaspeak-connection__empty span { display: flex; flex-direction: column; gap: 3px; }
+.teaspeak-connection__empty b { font-size: .73rem; color: var(--text); }
+.teaspeak-connection__empty small { font-size: .62rem; color: var(--text-3); }
+
+/* Invoice token: compact by default, full and copyable on hover/focus. */
+.invoice-token {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  direction: ltr;
+}
+.invoice-token__compact {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 .7rem/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+}
+.invoice-token__popover {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  max-width: min(520px,75vw);
+  margin-top: 7px;
+  padding: 7px 8px 7px 10px;
+  border: 1px solid color-mix(in srgb,var(--blue-500) 35%,var(--border));
+  border-radius: 10px;
+  background: var(--surface-3);
+  box-shadow: var(--shadow-sm);
+  z-index: 4;
+}
+.invoice-token:hover .invoice-token__popover,
+.invoice-token:focus-within .invoice-token__popover,
+.invoice-token:focus .invoice-token__popover { display: flex; }
+.invoice-token__popover code {
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--text);
+  font: 650 .66rem/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+  scrollbar-width: thin;
+}
+.invoice-token__popover .icon-button { width: 30px; height: 30px; flex: 0 0 auto; }
+.invoice-token__popover .material-symbols-rounded { font-size: 17px; }
+
+.payment-redirect-result {
+  min-height: 120px;
+  display: grid;
+  grid-template-columns: 54px minmax(0,1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 4px 0;
+}
+.payment-redirect-result > .material-symbols-rounded {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+}
+.payment-redirect-result--success > .material-symbols-rounded {
+  color: var(--green-500);
+  background: color-mix(in srgb,var(--green-500) 12%,var(--surface));
+}
+.payment-redirect-result--failed > .material-symbols-rounded {
+  color: var(--red-500);
+  background: color-mix(in srgb,var(--red-500) 11%,var(--surface));
+}
+.payment-redirect-result h3 { margin: 3px 0 7px; font: 760 .9rem/1.8 var(--font-display); }
+.payment-redirect-result p { margin: 0 0 12px; color: var(--text-2); font-size: .7rem; line-height: 1.9; }
+
+.admin-invoice-filter-card { margin-bottom: 20px; }
+.admin-invoice-tools { display: grid; gap: 17px; }
+.admin-invoice-filter {
+  display: grid;
+  grid-template-columns: minmax(150px,.8fr) minmax(190px,1fr) minmax(190px,1fr) minmax(240px,1.2fr);
+  gap: 12px;
+  align-items: end;
+}
+.admin-invoice-filter > label,
+.admin-invoice-token-loader > label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-invoice-filter > label > span,
+.admin-invoice-token-loader > label > span { color: var(--text-3); font-size: .62rem; }
+.admin-invoice-filter select,
+.admin-invoice-filter input,
+.admin-invoice-token-loader input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: var(--surface-2);
+  color: var(--text);
+  padding-inline: 12px;
+  outline: 0;
+}
+.admin-invoice-filter select:focus,
+.admin-invoice-filter input:focus,
+.admin-invoice-token-loader input:focus { border-color: var(--blue-500); }
+.admin-invoice-filter__user { display: flex; align-items: center; gap: 7px; }
+.admin-invoice-filter__user .owner-select-button { flex: 1; }
+.admin-invoice-filter__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.admin-invoice-token-loader {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(260px,1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.payment-transaction-detail { display: grid; gap: 14px; }
+.payment-transaction-detail__hero {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.payment-transaction-detail__hero > .material-symbols-rounded {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--blue-500);
+  background: color-mix(in srgb,var(--blue-500) 10%,var(--surface));
+}
+.payment-transaction-detail__hero span { display: flex; flex-direction: column; gap: 3px; }
+.payment-transaction-detail__hero small { color: var(--text-3); font-size: .6rem; }
+.payment-transaction-detail__hero b { color: var(--text); font-size: .78rem; }
+.admin-invoice-detail .invoice-meta { grid-template-columns: repeat(2,minmax(0,1fr)); }
+
+@media (max-width: 1100px) {
+  .admin-invoice-filter { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 640px) {
+  .teaspeak-connection__endpoint { grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; }
+  .teaspeak-connection__endpoint code { font-size: .72rem; }
+  .admin-invoice-filter { grid-template-columns: 1fr; }
+  .admin-invoice-filter__actions { grid-column: auto; flex-wrap: wrap; }
+  .admin-invoice-filter__actions .button { flex: 1; }
+  .admin-invoice-token-loader { grid-template-columns: 1fr; }
+  .admin-invoice-token-loader .button { width: 100%; }
+  .admin-invoice-detail .invoice-meta { grid-template-columns: 1fr; }
+  .payment-redirect-result { grid-template-columns: 44px minmax(0,1fr); gap: 10px; }
+  .payment-redirect-result > .material-symbols-rounded { width: 44px; height: 44px; font-size: 25px; }
+}

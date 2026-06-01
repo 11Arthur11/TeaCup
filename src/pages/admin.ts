@@ -5,7 +5,7 @@ import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
 import { canAccessAdminArea } from '../core/authorization.js';
 import { confirmDialog, openDialog } from '../core/dialog.js';
-import { escapeHtml, icon, qs, qsa, requiredNumber } from '../core/dom.js';
+import { brandLogo, escapeHtml, icon, qs, qsa, requiredNumber } from '../core/dom.js';
 import { faDate, faDateShort, faNumber, money, remainingTime, runtimeStatusHint, translateEnum } from '../core/format.js';
 import { router } from '../core/router.js';
 import { store } from '../core/store.js';
@@ -15,6 +15,7 @@ import { renderAppShell } from '../ui/layout.js';
 import { openUserPicker } from '../ui/user-picker.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
+import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 
 interface AdminProductDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -560,14 +561,48 @@ export async function renderAdminTicketDetail(ticketId: number): Promise<void> {
   }
 }
 
-function adminInvoiceStatusHref(status: Models.InvoiceAdminFilterRequest['status'] | undefined, userId: number, userLabel: string): string {
-  const query = new URLSearchParams();
-  if (status) query.set('status', status);
-  if (userId > 0) {
-    query.set('user', String(userId));
-    if (userLabel) query.set('userLabel', userLabel);
-  }
-  return `/admin/invoices${query.size ? `?${query.toString()}` : ''}`;
+interface AdminInvoiceDetailDto extends Models.InvoiceAdminResponse {
+  token?: string;
+  description?: string;
+  items?: Array<{ title?: string; description?: string; amount?: Models.Money }>;
+}
+
+function invoiceDateTimeLocalValue(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function invoiceApiDateTime(value?: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function paymentTransactionContent(transaction: Models.PaymentTransactionDetailResponse | undefined, invoiceMoney?: Models.Money): string {
+  if (!transaction) return emptyState('اطلاعات تراکنش موجود نیست', 'برای این فاکتور تراکنش بانکی ثبت نشده است.');
+  return `<div class="payment-transaction-detail">
+    <div class="payment-transaction-detail__hero">${icon('account_balance')}<span><small>درگاه پرداخت</small><b>${escapeHtml(transaction.gatewayName || 'نامشخص')}</b></span></div>
+    <dl class="description-list description-list--grid">
+      <div><dt>شناسه داخلی تراکنش</dt><dd>${transaction.id == null ? '—' : `#${faNumber(transaction.id)}`}</dd></div>
+      <div><dt>Transaction ID</dt><dd class="ltr">${escapeHtml(transaction.transactionId || '—')}</dd></div>
+      <div><dt>Tracking ID</dt><dd class="ltr">${escapeHtml(transaction.trackingId || '—')}</dd></div>
+      <div><dt>مبلغ تراکنش</dt><dd>${money(transaction.amount ?? invoiceMoney)}</dd></div>
+      <div><dt>زمان تراکنش</dt><dd>${faDate(transaction.transactionDate)}</dd></div>
+    </dl>
+  </div>`;
+}
+
+function openPaymentTransactionDialog(invoice: Models.InvoiceAdminResponse): void {
+  openDialog({
+    title: 'اطلاعات تراکنش درگاه',
+    description: invoice.invoiceToken ? `تراکنش فاکتور ${invoice.invoiceToken}` : 'جزئیات ثبت‌شده توسط درگاه پرداخت',
+    content: paymentTransactionContent(invoice.paymentTransaction, invoice.money),
+    compact: true,
+    hideFooter: true,
+  });
 }
 
 export async function renderAdminInvoices(page = 0): Promise<void> {
@@ -575,36 +610,76 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
   try {
     const params = new URLSearchParams(location.search);
     const status = params.get('status') as Models.InvoiceAdminFilterRequest['status'] | null;
+    const fromCreatedAt = params.get('fromCreatedAt') || '';
+    const toCreatedAt = params.get('toCreatedAt') || '';
     const userId = Number(params.get('user') ?? 0);
     const userLabel = params.get('userLabel') || (userId > 0 ? `کاربر #${faNumber(userId)}` : 'همه کاربران');
-    const response = await api.call('getAllInvoices', { query: { filterRequest: { page, size: 20, status: status ?? undefined, byUserId: userId > 0 ? userId : undefined } } });
+    const response = await api.call('getAllInvoices', { query: { filterRequest: {
+      page,
+      size: 20,
+      status: status ?? undefined,
+      fromCreatedAt: invoiceApiDateTime(fromCreatedAt),
+      toCreatedAt: invoiceApiDateTime(toCreatedAt),
+      byUserId: userId > 0 ? userId : undefined,
+    } } });
     const invoices = contentOf(response);
     const meta = pageOf(response);
 
-    renderAppShell(`${pageHeader('مدیریت فاکتورها', 'پیگیری پرداخت‌ها و صدور فاکتور بدهی برای کاربران.', [{ label: 'صدور فاکتور بدهی', icon: 'post_add', id: 'debt-invoice' }])}
-      <div class="filter-bar filter-bar--with-user">
-        <div class="segmented">
-          <a data-link class="${!status ? 'active' : ''}" href="${adminInvoiceStatusHref(undefined, userId, userLabel)}">همه</a>
-          <a data-link class="${status === 'PENDING' ? 'active' : ''}" href="${adminInvoiceStatusHref('PENDING', userId, userLabel)}">در انتظار</a>
-          <a data-link class="${status === 'PAID' ? 'active' : ''}" href="${adminInvoiceStatusHref('PAID', userId, userLabel)}">پرداخت‌شده</a>
-          <a data-link class="${status === 'CANCELLED' ? 'active' : ''}" href="${adminInvoiceStatusHref('CANCELLED', userId, userLabel)}">لغوشده</a>
-        </div>
-        <div class="filter-user-control">
-          <button type="button" class="owner-select-button owner-select-button--compact" id="select-invoice-user">${icon('person_search')}<span><small>فیلتر کاربر</small><b>${escapeHtml(userLabel)}</b></span>${icon('expand_more')}</button>
-          <button type="button" class="icon-button" id="clear-invoice-user" title="حذف فیلتر کاربر" ${userId > 0 ? '' : 'disabled'}>${icon('person_remove')}</button>
-        </div>
-      </div>
+    const filterCard = card('فیلتر و دسترسی سریع', `<div class="admin-invoice-tools">
+      <form id="admin-invoice-filter" class="admin-invoice-filter">
+        <label><span>وضعیت</span><select name="status"><option value="" ${!status ? 'selected' : ''}>همه وضعیت‌ها</option><option value="PENDING" ${status === 'PENDING' ? 'selected' : ''}>در انتظار</option><option value="PAID" ${status === 'PAID' ? 'selected' : ''}>پرداخت‌شده</option><option value="CANCELLED" ${status === 'CANCELLED' ? 'selected' : ''}>لغوشده</option></select></label>
+        <label><span>از تاریخ</span><input type="datetime-local" name="fromCreatedAt" value="${escapeHtml(invoiceDateTimeLocalValue(fromCreatedAt))}" /></label>
+        <label><span>تا تاریخ</span><input type="datetime-local" name="toCreatedAt" value="${escapeHtml(invoiceDateTimeLocalValue(toCreatedAt))}" /></label>
+        <div class="admin-invoice-filter__user"><button type="button" class="owner-select-button owner-select-button--compact" id="select-invoice-user">${icon('person_search')}<span><small>مالک فاکتور</small><b>${escapeHtml(userLabel)}</b></span>${icon('expand_more')}</button><button type="button" class="icon-button" id="clear-invoice-user" title="حذف فیلتر کاربر" ${userId > 0 ? '' : 'disabled'}>${icon('person_remove')}</button></div>
+        <div class="admin-invoice-filter__actions"><button type="submit" class="button button--primary button--small">${icon('filter_alt')} اعمال فیلتر</button><a data-link class="button button--ghost button--small" href="/admin/invoices">${icon('filter_alt_off')} پاک‌کردن</a></div>
+      </form>
+      <form id="admin-invoice-token-loader" class="admin-invoice-token-loader">
+        <label><span>بارگذاری مستقیم فاکتور با token</span><input name="invoiceToken" dir="ltr" placeholder="INVOICE_..." required /></label>
+        <button type="submit" class="button button--secondary button--small">${icon('open_in_new')} مشاهده جزئیات</button>
+      </form>
+    </div>`, { icon: 'filter_alt', className: 'admin-invoice-filter-card' });
+
+    renderAppShell(`${pageHeader('مدیریت فاکتورها', 'پیگیری پرداخت‌ها، تراکنش‌های درگاه و صدور فاکتور بدهی برای کاربران.', [{ label: 'صدور فاکتور بدهی', icon: 'post_add', id: 'debt-invoice' }])}
+      ${filterCard}
       ${card('فاکتورها', dataTable<Models.InvoiceAdminResponse>([
-        { label: 'توکن', render: (row) => `<span class="ltr strong">${escapeHtml(row.invoiceToken?.slice(0, 12))}…</span>` },
+        { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, `/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
         { label: 'کاربر', render: (row) => adminUserReference(row.ownerId) },
         { label: 'مبلغ', render: (row) => money(row.money) },
         { label: 'وضعیت', render: (row) => badge(row.status) },
         { label: 'ایجاد', render: (row) => faDate(row.createdAt) },
-        { label: 'تراکنش', render: (row) => row.paymentTransaction ? `<span><b>${escapeHtml(row.paymentTransaction.gatewayName)}</b><small class="block ltr">${escapeHtml(row.paymentTransaction.trackingId)}</small></span>` : '—' },
-      ], invoices) + pagination(meta.number, meta.totalPages), { icon: 'request_quote' })}
+        { label: 'پرداخت', render: (row) => faDate(row.paidAt) },
+        { label: 'عملیات', render: (row) => `<div class="table-actions"><a data-link class="icon-button" href="/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}" title="جزئیات فاکتور">${icon('visibility')}</a><button type="button" class="icon-button" data-payment-transaction="${escapeHtml(row.invoiceToken ?? '')}" title="اطلاعات تراکنش درگاه" ${row.status === 'PAID' && row.paymentTransaction ? '' : 'disabled'}>${icon('account_balance')}</button></div>` },
+      ], invoices, { emptyTitle: 'فاکتوری وجود ندارد', emptyText: 'با تغییر فیلترها یا صدور فاکتور جدید، نتایج در این بخش نمایش داده می‌شوند.' }) + pagination(meta.number, meta.totalPages), { icon: 'request_quote' })}
     `, 'فاکتورها');
 
+    bindInvoiceTokenCopies();
     document.querySelector('#debt-invoice')?.addEventListener('click', openDebtInvoice);
+    document.querySelector<HTMLFormElement>('#admin-invoice-filter')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const values = new FormData(event.currentTarget as HTMLFormElement);
+      const from = String(values.get('fromCreatedAt') ?? '');
+      const to = String(values.get('toCreatedAt') ?? '');
+      if (from && to && new Date(from).getTime() > new Date(to).getTime()) {
+        notify('تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.', 'warning');
+        return;
+      }
+      const query = new URLSearchParams();
+      const nextStatus = String(values.get('status') ?? '');
+      if (nextStatus) query.set('status', nextStatus);
+      if (from) query.set('fromCreatedAt', from);
+      if (to) query.set('toCreatedAt', to);
+      if (userId > 0) {
+        query.set('user', String(userId));
+        query.set('userLabel', userLabel);
+      }
+      router.navigate(`/admin/invoices${query.size ? `?${query.toString()}` : ''}`);
+    });
+    document.querySelector<HTMLFormElement>('#admin-invoice-token-loader')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const token = String(new FormData(event.currentTarget as HTMLFormElement).get('invoiceToken') ?? '').trim();
+      if (!token) return;
+      router.navigate(`/admin/invoices/${encodeURIComponent(token)}`);
+    });
     document.querySelector('#select-invoice-user')?.addEventListener('click', () => openUserPicker({
       title: 'فیلتر فاکتورها بر اساس کاربر',
       onSelect: (selection) => {
@@ -622,6 +697,10 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
       query.delete('page');
       router.navigate(`/admin/invoices${query.size ? `?${query.toString()}` : ''}`);
     });
+    qsa<HTMLButtonElement>('[data-payment-transaction]').forEach((button) => button.addEventListener('click', () => {
+      const invoice = invoices.find((item) => item.invoiceToken === button.dataset.paymentTransaction);
+      if (invoice) openPaymentTransactionDialog(invoice);
+    }));
     qsa<HTMLButtonElement>('[data-page]').forEach((button) => button.addEventListener('click', () => {
       const query = new URLSearchParams(location.search);
       query.set('page', String(Number(button.dataset.page)));
@@ -629,6 +708,25 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
     }));
   } catch (error) {
     renderAppShell(`${pageHeader('مدیریت فاکتورها', 'فاکتورها')}${adminError(error)}`, 'فاکتورها');
+  }
+}
+
+export async function renderAdminInvoiceDetail(invoiceToken: string): Promise<void> {
+  renderAppShell(loadingPage(), 'جزئیات فاکتور');
+  try {
+    const response = await api.call('getInvoice', { path: { invoiceToken } });
+    const raw = objectOf(response);
+    const invoice = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as AdminInvoiceDetailDto;
+    const token = invoice.invoiceToken || invoice.token || invoiceToken;
+    const transaction = invoice.paymentTransaction;
+    renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
+      <div class="invoice-layout admin-invoice-detail">
+        <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item) => `<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}<footer><span>مبلغ فاکتور</span><strong>${money(invoice.money)}</strong></footer></section>
+        <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(transaction, invoice.money), { icon: 'account_balance' })}</aside>
+      </div>`, 'جزئیات فاکتور');
+    bindInvoiceTokenCopies();
+  } catch (error) {
+    renderAppShell(`${pageHeader('جزئیات فاکتور', invoiceToken, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}${adminError(error)}`, 'جزئیات فاکتور');
   }
 }
 
