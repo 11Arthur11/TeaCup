@@ -1,5 +1,6 @@
 import { api, ApiError } from '../api/client.js';
 import { getMockLiveServiceStatus } from '../api/live-status.js';
+import { getMockAdminDashboardOverview, type MockPeriodComparison, type MockWalletFlowComparisons } from '../api/admin-dashboard.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -44,26 +45,115 @@ function roleOptionLabel(role: Models.RoleListResponse): string {
   return translateEnum(role.name) || role.name || `نقش #${role.id}`;
 }
 
-export async function renderAdminDashboard(): Promise<void> {
-  const isSupport = store.get().identity.role === 'ROLE_SUPPORT';
-  const title = isSupport ? 'نمای کلی پشتیبانی' : 'نمای کلی مدیریت';
-  const description = isSupport
-    ? 'دسترسی سریع به عملیات تیکت و فاکتور؛ بدون دریافت متریک‌های داشبورد از backend.'
-    : 'مرکز دسترسی به مدیریت TeaCloud؛ متریک‌های اصلی تا اضافه‌شدن endpoint اختصاصی از backend دریافت نمی‌شوند.';
-  const shortcuts = isSupport
-    ? `<a data-link href="/admin/tickets">${icon('forum')}<span><b>مدیریت تیکت‌ها</b><small>مشاهده و پاسخ به درخواست کاربران</small></span>${icon('chevron_left')}</a><a data-link href="/admin/invoices">${icon('request_quote')}<span><b>مدیریت فاکتورها</b><small>پیگیری صورت‌حساب‌ها و پرداخت‌ها</small></span>${icon('chevron_left')}</a>`
-    : `<a data-link href="/admin/users">${icon('group')}<span><b>کاربران</b><small>حساب‌ها، نقش‌ها و وضعیت دسترسی</small></span>${icon('chevron_left')}</a><a data-link href="/admin/categories">${icon('category')}<span><b>دسته‌بندی‌ها</b><small>ساختار فروشگاه و گروه‌بندی محصولات</small></span>${icon('chevron_left')}</a><a data-link href="/admin/products">${icon('inventory_2')}<span><b>محصولات</b><small>تعرفه‌ها و سرویس‌های قابل سفارش</small></span>${icon('chevron_left')}</a><a data-link href="/admin/resources">${icon('cloud_queue')}<span><b>سرویس‌های کاربران</b><small>فیلتر و مدیریت منابع کاربران</small></span>${icon('chevron_left')}</a><a data-link href="/admin/tickets">${icon('forum')}<span><b>تیکت‌ها</b><small>مدیریت درخواست‌های کاربران</small></span>${icon('chevron_left')}</a><a data-link href="/admin/invoices">${icon('request_quote')}<span><b>فاکتورها</b><small>صورتحساب‌ها و تراکنش‌های پرداخت</small></span>${icon('chevron_left')}</a><a data-link href="/admin/query-instances">${icon('lan')}<span><b>نودهای Query</b><small>زیرساخت ارائه TeaSpeak</small></span>${icon('chevron_left')}</a><a data-link href="/admin/audio-nodes">${icon('headphones')}<span><b>نودهای ربات موزیک</b><small>زیرساخت AudioBot</small></span>${icon('chevron_left')}</a><a data-link href="/admin/dns">${icon('language')}<span><b>مدیریت DNS</b><small>Providerهای DNS و تنظیمات آن‌ها</small></span>${icon('chevron_left')}</a>`;
 
-  renderAppShell(`${pageHeader(title, description)}
-    <div class="dashboard-endpoint-note dashboard-endpoint-note--admin">${icon('monitoring')}<div><b>متریک‌های داشبورد غیرفعال هستند</b><small>این صفحه عمداً برای آمار کلی هیچ API مدیریتی را فراخوانی نمی‌کند. بعداً می‌توان یک endpoint تجمیعی و سبک برای آن تعریف کرد.</small></div></div>
-    <div class="stats-grid">
-      ${statCard('کاربران', '—', 'group', 'نیازمند endpoint متریک', 'blue')}
-      ${statCard('سرویس‌ها', '—', 'teacloud', 'نیازمند endpoint متریک', 'cyan')}
-      ${statCard('تیکت‌های باز', '—', 'support_agent', 'نیازمند endpoint متریک', 'orange')}
-      ${statCard('فاکتورهای در انتظار', '—', 'receipt_long', 'نیازمند endpoint متریک', 'purple')}
+interface AdminMetricItem {
+  label: string;
+  value: string;
+  hint?: string;
+  symbol: string;
+  tone?: 'blue' | 'cyan' | 'purple' | 'orange';
+}
+
+function mockMoney(amount: number): string {
+  return money({ amount, currency: 'IRT' });
+}
+
+function adminSectionMetrics(items: AdminMetricItem[], className = ''): string {
+  return `<div class="admin-section-metrics ${escapeHtml(className)}">${items.map((item) => `<article class="admin-section-metric admin-section-metric--${escapeHtml(item.tone ?? 'blue')}"><span>${icon(item.symbol)}</span><div><small>${escapeHtml(item.label)}</small><b>${escapeHtml(item.value)}</b>${item.hint ? `<em>${escapeHtml(item.hint)}</em>` : ''}</div></article>`).join('')}</div>`;
+}
+
+function comparisonPercent(current: number, previous: number): number {
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
+function comparisonTone(change: number, favorableIncrease: boolean): string {
+  if (change === 0) return 'neutral';
+  const favorable = favorableIncrease ? change > 0 : change < 0;
+  return favorable ? 'positive' : 'negative';
+}
+
+function comparisonRow(label: string, currentLabel: string, previousLabel: string, values: MockPeriodComparison, favorableIncrease: boolean): string {
+  const max = Math.max(1, values.current, values.previous);
+  const currentWidth = values.current > 0 ? Math.max(4, Math.round((values.current / max) * 100)) : 0;
+  const previousWidth = values.previous > 0 ? Math.max(4, Math.round((values.previous / max) * 100)) : 0;
+  const change = comparisonPercent(values.current, values.previous);
+  const tone = comparisonTone(change, favorableIncrease);
+  const changeText = change === 0 ? 'بدون تغییر' : `${faNumber(Math.abs(change))}٪ ${change > 0 ? 'افزایش' : 'کاهش'}`;
+  return `<div class="admin-comparison-row">
+    <header><span>${escapeHtml(label)}</span><b>${mockMoney(values.current)}</b><em class="admin-trend admin-trend--${tone}">${escapeHtml(changeText)}</em></header>
+    <div class="admin-comparison-bars" aria-label="${escapeHtml(`${currentLabel} ${mockMoney(values.current)}، ${previousLabel} ${mockMoney(values.previous)}`)}">
+      <div><small>${escapeHtml(currentLabel)}</small><i style="width:${currentWidth}%"></i><b>${mockMoney(values.current)}</b></div>
+      <div><small>${escapeHtml(previousLabel)}</small><i style="width:${previousWidth}%"></i><b>${mockMoney(values.previous)}</b></div>
     </div>
-    ${card('دسترسی سریع', `<div class="admin-shortcuts">${shortcuts}</div>`, { icon: 'apps' })}
-  `, title);
+  </div>`;
+}
+
+function walletComparisonCard(title: string, description: string, symbol: string, data: MockWalletFlowComparisons, favorableIncrease: boolean): string {
+  const body = `<p class="admin-chart-description">${escapeHtml(description)}</p><div class="admin-comparison-list">
+    ${comparisonRow('روزانه', 'امروز', 'دیروز', data.day, favorableIncrease)}
+    ${comparisonRow('هفتگی', 'این هفته', 'هفته قبل', data.week, favorableIncrease)}
+    ${comparisonRow('ماهانه', 'این ماه', 'ماه قبل', data.month, favorableIncrease)}
+  </div>`;
+  return card(title, body, { icon: symbol, className: 'admin-wallet-chart-card' });
+}
+
+function adminMetricGroup(title: string, symbol: string, items: Array<{ label: string; value: string }>, href?: string): string {
+  return `<article class="admin-metric-group"><header><span>${icon(symbol)}</span><div><h3>${escapeHtml(title)}</h3>${href ? `<a data-link href="${escapeHtml(href)}">مشاهده بخش ${icon('chevron_left')}</a>` : ''}</div></header><dl>${items.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join('')}</dl></article>`;
+}
+
+export async function renderAdminDashboard(): Promise<void> {
+  const overview = getMockAdminDashboardOverview();
+  const isSupport = store.get().identity.role === 'ROLE_SUPPORT';
+  if (isSupport) {
+    renderAppShell(`${pageHeader('نمای کلی پشتیبانی', 'دسترسی سریع به تیکت‌ها و فاکتورها؛ داده‌های آماری این صفحه فعلاً mock هستند.')}
+      ${adminSectionMetrics([
+        { label: 'تیکت‌های باز', value: faNumber(overview.tickets.open), hint: 'نیازمند بررسی', symbol: 'mark_unread_chat_alt', tone: 'orange' },
+        { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered), hint: 'در چرخه جاری', symbol: 'forum', tone: 'cyan' },
+        { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer), hint: 'در انتظار پاسخ', symbol: 'hourglass_top', tone: 'purple' },
+        { label: 'تیکت‌های بسته', value: faNumber(overview.tickets.closed), hint: 'آرشیو پشتیبانی', symbol: 'task_alt', tone: 'blue' },
+      ])}
+      ${card('دسترسی سریع', `<div class="admin-shortcuts"><a data-link href="/admin/tickets">${icon('forum')}<span><b>مدیریت تیکت‌ها</b><small>مشاهده و پاسخ به درخواست کاربران</small></span>${icon('chevron_left')}</a><a data-link href="/admin/invoices">${icon('request_quote')}<span><b>مدیریت فاکتورها</b><small>پیگیری صورت‌حساب‌ها و پرداخت‌ها</small></span>${icon('chevron_left')}</a></div>`, { icon: 'apps' })}
+    `, 'نمای کلی پشتیبانی');
+    return;
+  }
+
+  renderAppShell(`${pageHeader('نمای کلی مدیریت', 'تصویر فشرده‌ای از وضعیت مالی، کاربران، سرویس‌ها، پشتیبانی و نودها؛ تمام داده‌های این صفحه فعلاً mock هستند.')}
+    <div class="stats-grid admin-dashboard-highlights">
+      ${statCard('موجودی کل کیف پول کاربران', mockMoney(overview.wallet.totalUserWalletBalance), 'account_balance_wallet', 'مجموع balance کاربران', 'blue')}
+      ${statCard('کاربران آنلاین', faNumber(overview.users.currentOnline), 'online_prediction', 'Current Online Users', 'cyan')}
+      ${statCard('سرویس‌های در حال اجرا', `${faNumber(overview.services.running)} / ${faNumber(overview.services.total)}`, 'cloud_done', 'Running / Total', 'purple')}
+      ${statCard('تیکت‌های باز', faNumber(overview.tickets.open), 'support_agent', 'نیازمند پیگیری', 'orange')}
+    </div>
+    <div class="admin-wallet-charts">
+      ${walletComparisonCard('شارژهای کیف پول', 'مقایسه دوره جاری با دوره زمانی قبلی برای شارژ حساب کاربران.', 'add_card', overview.wallet.charges, true)}
+      ${walletComparisonCard('خرج‌های کیف پول', 'مقایسه برداشت و مصرف کیف پول کاربران با دوره قبلی.', 'payments', overview.wallet.spending, false)}
+    </div>
+    <div class="admin-overview-metric-groups">
+      ${adminMetricGroup('ثبت‌نام کاربران', 'person_add', [
+        { label: 'امروز', value: faNumber(overview.users.today) },
+        { label: 'این هفته', value: faNumber(overview.users.thisWeek) },
+        { label: 'این ماه', value: faNumber(overview.users.thisMonth) },
+        { label: 'آنلاین فعلی', value: faNumber(overview.users.currentOnline) },
+      ], '/admin/users')}
+      ${adminMetricGroup('وضعیت سرویس‌ها', 'cloud_queue', [
+        { label: 'کل سرویس‌ها', value: faNumber(overview.services.total) },
+        { label: 'در حال اجرا', value: faNumber(overview.services.running) },
+        { label: 'تعلیق‌شده', value: faNumber(overview.services.suspended) },
+        { label: 'منقضی / Provisioning', value: `${faNumber(overview.services.expired)} / ${faNumber(overview.services.pendingProvisioning)}` },
+      ], '/admin/resources')}
+      ${adminMetricGroup('وضعیت تیکت‌ها', 'forum', [
+        { label: 'باز', value: faNumber(overview.tickets.open) },
+        { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered) },
+        { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer) },
+        { label: 'بسته', value: faNumber(overview.tickets.closed) },
+      ], '/admin/tickets')}
+      ${adminMetricGroup('نودهای زیرساخت', 'hub', [
+        { label: 'Query فعال / کل', value: `${faNumber(overview.nodes.query.active)} / ${faNumber(overview.nodes.query.total)}` },
+        { label: 'AudioBot فعال / کل', value: `${faNumber(overview.nodes.audioBot.active)} / ${faNumber(overview.nodes.audioBot.total)}` },
+      ])}
+    </div>
+  `, 'نمای کلی مدیریت');
 }
 
 
@@ -90,7 +180,14 @@ export async function renderAdminUsers(page = 0): Promise<void> {
     const meta = pageOf(response);
     const roles = dataOf(rolesResponse) ?? [];
 
+    const overview = getMockAdminDashboardOverview();
     renderAppShell(`${pageHeader('مدیریت کاربران', 'جست‌وجوی backend، فیلتر نقش و مدیریت وضعیت حساب کاربران.')}
+      ${adminSectionMetrics([
+        { label: 'ثبت‌نام امروز', value: faNumber(overview.users.today), symbol: 'person_add', tone: 'cyan' },
+        { label: 'ثبت‌نام این هفته', value: faNumber(overview.users.thisWeek), symbol: 'date_range', tone: 'blue' },
+        { label: 'ثبت‌نام این ماه', value: faNumber(overview.users.thisMonth), symbol: 'calendar_month', tone: 'purple' },
+        { label: 'کاربران آنلاین', value: faNumber(overview.users.currentOnline), symbol: 'online_prediction', tone: 'orange' },
+      ])}
       <form id="admin-user-filter" class="admin-user-filter">
         <label class="field"><span>جست‌وجو</span><input name="search" type="search" value="${escapeHtml(search)}" placeholder="نام، موبایل یا ایمیل" /></label>
         <label class="field"><span>نقش</span><select name="role"><option value="">همه نقش‌ها</option>${roles.map((item) => `<option value="${Number(item.id)}" ${Number(item.id) === roleId ? 'selected' : ''}>${escapeHtml(roleOptionLabel(item))}</option>`).join('')}</select></label>
@@ -192,6 +289,7 @@ export async function renderAdminResources(page = 0): Promise<void> {
     });
     const resources = contentOf(response);
     const meta = pageOf(response);
+    const overview = getMockAdminDashboardOverview();
     const tabs = `<nav class="segmented resource-type-tabs" aria-label="نوع سرویس">
       <a data-link class="${type === 'TEASPEAK' ? 'active' : ''}" href="${adminResourceTabHref('TEASPEAK', status, ownerId, ownerLabel)}">${icon('dns')} TeaSpeak</a>
       <a data-link class="${type === 'AUDIO_BOT' ? 'active' : ''}" href="${adminResourceTabHref('AUDIO_BOT', status, ownerId, ownerLabel)}">${icon('headphones')} AudioBot</a>
@@ -225,6 +323,13 @@ export async function renderAdminResources(page = 0): Promise<void> {
     </form>`;
 
     renderAppShell(`${pageHeader('سرویس‌های کاربران', 'سرویس‌ها بر اساس نوع زیرساخت در دو تب مستقل نمایش داده می‌شوند.')}
+      ${adminSectionMetrics([
+        { label: 'کل سرویس‌ها', value: faNumber(overview.services.total), symbol: 'cloud_queue', tone: 'blue' },
+        { label: 'در حال اجرا', value: faNumber(overview.services.running), symbol: 'cloud_done', tone: 'cyan' },
+        { label: 'تعلیق‌شده', value: faNumber(overview.services.suspended), symbol: 'pause_circle', tone: 'orange' },
+        { label: 'منقضی‌شده', value: faNumber(overview.services.expired), symbol: 'event_busy', tone: 'purple' },
+        { label: 'در انتظار Provisioning', value: faNumber(overview.services.pendingProvisioning), symbol: 'pending', tone: 'orange' },
+      ], 'admin-section-metrics--five')}
       ${card(type === 'TEASPEAK' ? 'سرویس‌های TeaSpeak' : 'سرویس‌های AudioBot', `${filterBody}<div class="admin-resource-table">${table}</div>${pagination(meta.number, meta.totalPages)}`, { icon: type === 'TEASPEAK' ? 'dns' : 'headphones', actions: tabs, className: 'admin-resource-card' })}
     `, 'سرویس‌های کاربران');
 
@@ -364,8 +469,15 @@ export async function renderAdminTickets(page = 0): Promise<void> {
       : await api.call('getAllTickets', { query: request });
     const tickets = contentOf(response);
     const meta = pageOf(response);
+    const overview = getMockAdminDashboardOverview();
 
     renderAppShell(`${pageHeader('مدیریت تیکت‌ها', 'بررسی، پاسخ‌گویی و ثبت درخواست برای کاربران.', [{ label: 'تیکت جدید', icon: 'add_comment', id: 'admin-new-ticket' }])}
+      ${adminSectionMetrics([
+        { label: 'باز', value: faNumber(overview.tickets.open), symbol: 'mark_unread_chat_alt', tone: 'orange' },
+        { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered), symbol: 'forum', tone: 'cyan' },
+        { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer), symbol: 'hourglass_top', tone: 'purple' },
+        { label: 'بسته', value: faNumber(overview.tickets.closed), symbol: 'task_alt', tone: 'blue' },
+      ])}
       <div class="filter-bar filter-bar--with-user">
         <div class="segmented">
           <a data-link class="${!status ? 'active' : ''}" href="${adminTicketStatusHref(undefined, userId, userLabel)}">همه</a>
@@ -561,10 +673,38 @@ export async function renderAdminTicketDetail(ticketId: number): Promise<void> {
   }
 }
 
-interface AdminInvoiceDetailDto extends Models.InvoiceAdminResponse {
-  token?: string;
-  description?: string;
-  items?: Array<{ title?: string; description?: string; amount?: Models.Money }>;
+const ADMIN_INVOICE_CACHE_KEY = 'teacloud.admin.invoice-list-cache.v1';
+
+function readAdminInvoiceCache(): Record<string, Models.InvoiceAdminResponse> {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_INVOICE_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, Models.InvoiceAdminResponse>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function cacheAdminInvoices(invoices: Models.InvoiceAdminResponse[]): void {
+  try {
+    const cache = readAdminInvoiceCache();
+    invoices.forEach((invoice) => {
+      const token = invoice.invoiceToken?.trim();
+      if (token) cache[token] = invoice;
+    });
+    const compact = Object.fromEntries(Object.entries(cache).slice(-100));
+    sessionStorage.setItem(ADMIN_INVOICE_CACHE_KEY, JSON.stringify(compact));
+  } catch {
+    // Storage can be unavailable in privacy modes; list rendering must still work.
+  }
+}
+
+function cachedAdminInvoice(invoiceToken: string): Models.InvoiceAdminResponse | undefined {
+  const token = invoiceToken.trim();
+  return token ? readAdminInvoiceCache()[token] : undefined;
 }
 
 function invoiceDateTimeLocalValue(value?: string): string {
@@ -624,6 +764,8 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
     } } });
     const invoices = contentOf(response);
     const meta = pageOf(response);
+    cacheAdminInvoices(invoices);
+    const overview = getMockAdminDashboardOverview();
 
     const filterCard = card('فیلتر و دسترسی سریع', `<div class="admin-invoice-tools">
       <form id="admin-invoice-filter" class="admin-invoice-filter">
@@ -640,6 +782,11 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
     </div>`, { icon: 'filter_alt', className: 'admin-invoice-filter-card' });
 
     renderAppShell(`${pageHeader('مدیریت فاکتورها', 'پیگیری پرداخت‌ها، تراکنش‌های درگاه و صدور فاکتور بدهی برای کاربران.', [{ label: 'صدور فاکتور بدهی', icon: 'post_add', id: 'debt-invoice' }])}
+      ${adminSectionMetrics([
+        { label: 'موجودی کل کاربران', value: mockMoney(overview.wallet.totalUserWalletBalance), symbol: 'account_balance_wallet', tone: 'blue' },
+        { label: 'شارژ امروز', value: mockMoney(overview.wallet.charges.day.current), hint: `${faNumber(Math.abs(comparisonPercent(overview.wallet.charges.day.current, overview.wallet.charges.day.previous)))}٪ نسبت به دیروز`, symbol: 'add_card', tone: 'cyan' },
+        { label: 'خرج امروز', value: mockMoney(overview.wallet.spending.day.current), hint: `${faNumber(Math.abs(comparisonPercent(overview.wallet.spending.day.current, overview.wallet.spending.day.previous)))}٪ نسبت به دیروز`, symbol: 'payments', tone: 'orange' },
+      ], 'admin-section-metrics--three')}
       ${filterCard}
       ${card('فاکتورها', dataTable<Models.InvoiceAdminResponse>([
         { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, `/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
@@ -678,6 +825,12 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
       event.preventDefault();
       const token = String(new FormData(event.currentTarget as HTMLFormElement).get('invoiceToken') ?? '').trim();
       if (!token) return;
+      const invoice = invoices.find((item) => item.invoiceToken === token) ?? cachedAdminInvoice(token);
+      if (!invoice) {
+        notify('این token در داده‌های فاکتورهای دریافت‌شده پیدا نشد. ابتدا فیلترها را تنظیم کنید تا فاکتور در فهرست بارگذاری شود.', 'warning');
+        return;
+      }
+      cacheAdminInvoices([invoice]);
       router.navigate(`/admin/invoices/${encodeURIComponent(token)}`);
     });
     document.querySelector('#select-invoice-user')?.addEventListener('click', () => openUserPicker({
@@ -712,22 +865,20 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
 }
 
 export async function renderAdminInvoiceDetail(invoiceToken: string): Promise<void> {
-  renderAppShell(loadingPage(), 'جزئیات فاکتور');
-  try {
-    const response = await api.call('getInvoice', { path: { invoiceToken } });
-    const raw = objectOf(response);
-    const invoice = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as AdminInvoiceDetailDto;
-    const token = invoice.invoiceToken || invoice.token || invoiceToken;
-    const transaction = invoice.paymentTransaction;
-    renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
-      <div class="invoice-layout admin-invoice-detail">
-        <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item) => `<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}<footer><span>مبلغ فاکتور</span><strong>${money(invoice.money)}</strong></footer></section>
-        <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(transaction, invoice.money), { icon: 'account_balance' })}</aside>
-      </div>`, 'جزئیات فاکتور');
-    bindInvoiceTokenCopies();
-  } catch (error) {
-    renderAppShell(`${pageHeader('جزئیات فاکتور', invoiceToken, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}${adminError(error)}`, 'جزئیات فاکتور');
+  const invoice = cachedAdminInvoice(invoiceToken);
+  if (!invoice) {
+    renderAppShell(`${pageHeader('جزئیات فاکتور', invoiceToken, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
+      <div class="notice notice--warning">${icon('info')}<span>اطلاعات کامل این فاکتور در cache فهرست ادمین موجود نیست. برای جلوگیری از فراخوانی API کاربری و نمایش داده ناقص، ابتدا به فهرست فاکتورها برگردید و فاکتور را از همان ردیف باز کنید.</span><a data-link class="button button--ghost button--small" href="/admin/invoices">بازگشت به فهرست</a></div>`, 'جزئیات فاکتور');
+    return;
   }
+
+  const token = invoice.invoiceToken || invoiceToken;
+  renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
+    <div class="invoice-layout admin-invoice-detail">
+      <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>فاکتور خدمات TeaCloud</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl><footer><span>مبلغ فاکتور</span><strong>${money(invoice.money)}</strong></footer></section>
+      <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(invoice.paymentTransaction, invoice.money), { icon: 'account_balance' })}</aside>
+    </div>`, 'جزئیات فاکتور');
+  bindInvoiceTokenCopies();
 }
 
 function openDebtInvoice(): void {
@@ -783,6 +934,7 @@ export async function renderQueryInstances(): Promise<void> {
   try {
     const response = await api.call('getAllQueryInstance', {});
     const instances = dataOf(response) ?? [];
+    const overview = getMockAdminDashboardOverview();
     const table = dataTable<Models.QueryInstanceListResponse>([
       {
         label: 'Query Instance',
@@ -819,7 +971,12 @@ export async function renderQueryInstances(): Promise<void> {
       emptyText: 'برای Provisioning سرورهای TeaSpeak یک instance تعریف کنید.',
     });
 
-    renderAppShell(`${pageHeader('نودهای Query TeaSpeak', 'مدیریت اتصال Query، وضعیت استقرار، محدوده پورت و ظرفیت Provisioning.', [{ label: 'Instance جدید', icon: 'add', id: 'add-query' }])}${card('فهرست Query Instanceها', table, { icon: 'lan', className: 'infrastructure-table-card' })}`, 'نودهای Query');
+    renderAppShell(`${pageHeader('نودهای Query TeaSpeak', 'مدیریت اتصال Query، وضعیت استقرار، محدوده پورت و ظرفیت Provisioning.', [{ label: 'Instance جدید', icon: 'add', id: 'add-query' }])}
+      ${adminSectionMetrics([
+        { label: 'نودهای فعال', value: faNumber(overview.nodes.query.active), symbol: 'sensors', tone: 'cyan' },
+        { label: 'کل نودهای Query', value: faNumber(overview.nodes.query.total), symbol: 'lan', tone: 'blue' },
+      ], 'admin-section-metrics--two')}
+      ${card('فهرست Query Instanceها', table, { icon: 'lan', className: 'infrastructure-table-card' })}`, 'نودهای Query');
 
     document.querySelector('#add-query')?.addEventListener('click', () => openQueryForm());
     qsa<HTMLButtonElement>('[data-edit-query]').forEach((button) => button.addEventListener('click', () => openQueryForm(instances.find((item) => item.id === Number(button.dataset.editQuery)))));
@@ -887,6 +1044,7 @@ export async function renderAudioNodes(): Promise<void> {
   try {
     const response = await api.call('getAllAudioBotNodes', {});
     const nodes = dataOf(response) ?? [];
+    const overview = getMockAdminDashboardOverview();
     const table = dataTable<Models.AudioBotNodeListResponse>([
       {
         label: 'نود AudioBot',
@@ -918,7 +1076,12 @@ export async function renderAudioNodes(): Promise<void> {
       emptyText: 'برای ارائه سرویس ربات صوتی یک نود اضافه کنید.',
     });
 
-    renderAppShell(`${pageHeader('نودهای ربات موزیک', 'مدیریت وضعیت، ظرفیت و اتصال providerهای AudioBot.', [{ label: 'نود جدید', icon: 'add', id: 'add-node' }])}${card('فهرست نودهای AudioBot', table, { icon: 'headphones', className: 'infrastructure-table-card' })}`, 'نودهای ربات موزیک');
+    renderAppShell(`${pageHeader('نودهای ربات موزیک', 'مدیریت وضعیت، ظرفیت و اتصال providerهای AudioBot.', [{ label: 'نود جدید', icon: 'add', id: 'add-node' }])}
+      ${adminSectionMetrics([
+        { label: 'نودهای فعال', value: faNumber(overview.nodes.audioBot.active), symbol: 'sensors', tone: 'cyan' },
+        { label: 'کل نودهای AudioBot', value: faNumber(overview.nodes.audioBot.total), symbol: 'headphones', tone: 'purple' },
+      ], 'admin-section-metrics--two')}
+      ${card('فهرست نودهای AudioBot', table, { icon: 'headphones', className: 'infrastructure-table-card' })}`, 'نودهای ربات موزیک');
 
     document.querySelector('#add-node')?.addEventListener('click', () => openNodeForm());
     qsa<HTMLButtonElement>('[data-edit-node]').forEach((button) => button.addEventListener('click', () => openNodeForm(nodes.find((node) => node.id === Number(button.dataset.editNode)))));

@@ -2,8 +2,8 @@ import { escapeHtml, icon, qsa } from '../core/dom.js';
 import { notify } from '../core/toast.js';
 
 function compactToken(value: string): string {
-  if (value.length <= 18) return value;
-  return `${value.slice(0, 12)}…${value.slice(-5)}`;
+  if (value.length <= 20) return value;
+  return `${value.slice(0, 13)}…${value.slice(-5)}`;
 }
 
 export function invoiceTokenView(value: string | undefined, href?: string): string {
@@ -12,11 +12,11 @@ export function invoiceTokenView(value: string | undefined, href?: string): stri
   const safeToken = escapeHtml(token);
   const compact = escapeHtml(compactToken(token));
   const primary = href
-    ? `<a data-link class="invoice-token__compact text-link strong ltr" href="${escapeHtml(href)}">${compact}</a>`
-    : `<code class="invoice-token__compact ltr">${compact}</code>`;
-  return `<span class="invoice-token" tabindex="0" aria-label="شناسه کامل فاکتور ${safeToken}">
+    ? `<a data-link class="invoice-token__compact text-link strong ltr" href="${escapeHtml(href)}" title="${safeToken}">${compact}</a>`
+    : `<code class="invoice-token__compact ltr" title="${safeToken}">${compact}</code>`;
+  return `<span class="invoice-token" dir="ltr">
     ${primary}
-    <span class="invoice-token__popover" role="tooltip"><code dir="ltr">${safeToken}</code><button type="button" class="icon-button" data-copy-invoice-token="${safeToken}" aria-label="کپی شناسه فاکتور" title="کپی شناسه">${icon('content_copy')}</button></span>
+    <button type="button" class="invoice-token__copy" data-copy-invoice-token="${safeToken}" aria-label="کپی شناسه فاکتور" title="کپی شناسه کامل">${icon('content_copy')}</button>
   </span>`;
 }
 
