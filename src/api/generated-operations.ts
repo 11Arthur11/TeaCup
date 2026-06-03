@@ -55,8 +55,13 @@ export const operations = {
   "editQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}", bodyKind: "json", responseKind: "json" },
   "enableQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}/enable", bodyKind: null, responseKind: "json" },
   "disableQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}/disable", bodyKind: null, responseKind: "json" },
+  "getProvisioningStrategy": { method: "GET", path: "/v1/admin/query-instances/provisioning", bodyKind: null, responseKind: "json" },
+  "changeProvisioningStrategy": { method: "PATCH", path: "/v1/admin/query-instances/provisioning", bodyKind: "json", responseKind: "json" },
   "changeEnabled": { method: "PATCH", path: "/v1/admin/products/{productId}/{enabled}", bodyKind: null, responseKind: "json" },
+  "getProvisioningStrategy_1": { method: "GET", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: null, responseKind: "json" },
+  "changeProvisioningStrategy_1": { method: "PATCH", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: "json", responseKind: "json" },
   "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
+  "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
   "getTickets": { method: "GET", path: "/v1/tickets", bodyKind: null, responseKind: "json" },
   "getTicketDetails": { method: "GET", path: "/v1/tickets/detail/{id}", bodyKind: null, responseKind: "json" },
@@ -69,6 +74,7 @@ export const operations = {
   "getAllGlobalNotifications_1": { method: "GET", path: "/v1/notifications", bodyKind: null, responseKind: "json" },
   "getInvoices": { method: "GET", path: "/v1/invoices", bodyKind: null, responseKind: "json" },
   "getInvoice": { method: "GET", path: "/v1/invoices/{invoiceToken}", bodyKind: null, responseKind: "json" },
+  "getDashboardOverviewResponse": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
   "getCategories": { method: "GET", path: "/v1/categories", bodyKind: null, responseKind: "json" },
   "getAllUsers": { method: "GET", path: "/v1/admin/users", bodyKind: null, responseKind: "json" },
   "getUserById": { method: "GET", path: "/v1/admin/users/{userId}", bodyKind: null, responseKind: "json" },
@@ -82,14 +88,13 @@ export const operations = {
   "deleteProduct": { method: "DELETE", path: "/v1/admin/products/{productId}", bodyKind: null, responseKind: "json" },
   "getGatewayDetails": { method: "GET", path: "/v1/admin/payments/gateways/{gatewayId}", bodyKind: null, responseKind: "json" },
   "getModules": { method: "GET", path: "/v1/admin/payments/gateways/modules", bodyKind: null, responseKind: "json" },
+  "overview": { method: "GET", path: "/v1/admin/dashboard/overview", bodyKind: null, responseKind: "json" },
   "getAllAudioBotNodes": { method: "GET", path: "/v1/admin/audio-bot-nodes", bodyKind: null, responseKind: "json" },
   "getAudioBotNodeDetail": { method: "GET", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
   "deleteAudioBotNode": { method: "DELETE", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
   "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
-  "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
-  "getDashboardOverview": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -327,17 +332,26 @@ export interface OperationInputMap {
     id: number;
   };
   };
+  "getProvisioningStrategy": Record<string, never>;
+  "changeProvisioningStrategy": {
+    body: Models.ChangeProvisioningStrategyRequest;
+  };
   "changeEnabled": {
     path: {
     productId: number;
     enabled: boolean;
   };
   };
+  "getProvisioningStrategy_1": Record<string, never>;
+  "changeProvisioningStrategy_1": {
+    body: Models.ChangeProvisioningStrategyRequest;
+  };
   "getWalletTransactions": {
     query: {
     filter: Models.WalletTransactionFilterRequest;
   };
   };
+  "getBalance": Record<string, never>;
   "getProfile": Record<string, never>;
   "getTickets": {
     query: {
@@ -378,6 +392,7 @@ export interface OperationInputMap {
     invoiceToken: string;
   };
   };
+  "getDashboardOverviewResponse": Record<string, never>;
   "getCategories": Record<string, never>;
   "getAllUsers": {
     query: {
@@ -430,6 +445,7 @@ export interface OperationInputMap {
   };
   };
   "getModules": Record<string, never>;
+  "overview": Record<string, never>;
   "getAllAudioBotNodes": Record<string, never>;
   "getAudioBotNodeDetail": {
     path: {
@@ -457,8 +473,6 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
-  "getBalance": Record<string, never>;
-  "getDashboardOverview": Record<string, never>;
 }
 
 export interface OperationOutputMap {
@@ -516,8 +530,13 @@ export interface OperationOutputMap {
   "editQueryInstance": Models.SimpleResponse;
   "enableQueryInstance": Models.SimpleResponse;
   "disableQueryInstance": Models.SimpleResponse;
+  "getProvisioningStrategy": Models.DataResponseProvisionStrategy;
+  "changeProvisioningStrategy": Models.SimpleResponse;
   "changeEnabled": Models.SimpleResponse;
+  "getProvisioningStrategy_1": Models.DataResponseProvisionStrategy;
+  "changeProvisioningStrategy_1": Models.SimpleResponse;
   "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
+  "getBalance": Models.DataResponseWalletOverviewResponse;
   "getProfile": Models.DataResponseUserDetailResponse;
   "getTickets": Models.DataResponsePagedModelTicketListUserResponse;
   "getTicketDetails": Models.DataResponseTicketDetailBaseResponse;
@@ -534,6 +553,7 @@ export interface OperationOutputMap {
   "getInvoice": {
 
 };
+  "getDashboardOverviewResponse": Models.DataResponseDashboardOverviewResponse;
   "getCategories": Models.DataResponseListCategoryListResponse;
   "getAllUsers": Models.DataResponsePagedModelUserListResponse;
   "getUserById": Models.DataResponseUserDetailAdminResponse;
@@ -547,14 +567,13 @@ export interface OperationOutputMap {
   "deleteProduct": Models.SimpleResponse;
   "getGatewayDetails": Models.DataResponseGateway;
   "getModules": Models.DataResponseListPaymentGatewayType;
+  "overview": Models.DataResponseAdminMetric;
   "getAllAudioBotNodes": Models.DataResponseListAudioBotNodeListResponse;
   "getAudioBotNodeDetail": Models.DataResponseAudioBotNodeDetailResponse;
   "deleteAudioBotNode": Models.SimpleResponse;
   "deleteAudioBotPlaylist": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
-  "getBalance": Models.DataResponseWalletOverviewResponse;
-  "getDashboardOverview": Models.DataResponseUserDashboardOverviewResponse;
 }
 
 export interface OperationMeta {

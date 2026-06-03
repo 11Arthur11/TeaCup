@@ -9,7 +9,7 @@ Frontend production-oriented، کاملاً فارسی و RTL برای فروش�
 - route protection برای public، authenticated و role-based admin routes؛ هر پاسخ HTTP 403 از API ـ به‌جز logout ـ نشست frontend را خاتمه می‌دهد
 - پنل مشتری: سرویس‌ها، TeaSpeak، AudioBot، Playlist، محصولات، کیف پول، فاکتور و پرداخت، تیکت و پیوست، اعلان‌ها و پروفایل
 - پنل ادمین با RBAC: `ROLE_ADMIN` دارای دسترسی کامل؛ `ROLE_SUPPORT` فقط داشبورد پشتیبانی، تیکت‌ها و فاکتورها؛ `ROLE_USER` فقط پنل کاربری
-- ۱۰۷ مدل و ۸۵ operation تولیدشده از OpenAPI همگام‌شده با پروفایل نقش‌محور و موجودی کیف پول
+- ۱۲۶ مدل و ۹۲ operation تولیدشده از OpenAPI همگام‌شده با پروفایل نقش‌محور و موجودی کیف پول
 - toast پیام backend، confirmation dialog، skeleton، empty/error state، pagination و permission-based rendering
 - runtime API configuration بدون rebuild
 
@@ -76,7 +76,7 @@ globalThis.TEACLOUD_API_BASE_URL = 'https://api.example.com';
 - `/admin/resources`: فهرست و فیلتر سرویس‌های همه کاربران
 - `/admin/dns`: فهرست DNS providerها
 - `/admin/dns/liara`: تنظیمات مستقل Liara DNS
-- `/admin/live-status`: صفحه mock وضعیت لحظه‌ای و لاگ ترمینالی زیرساخت
+- `/admin/monitoring`: صفحه mock وضعیت لحظه‌ای و لاگ ترمینالی زیرساخت
 
 قرارداد پیشنهادی داشبورد در `docs/DASHBOARD_API_CONTRACT.md` مستند شده است.
 
@@ -138,6 +138,15 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 
 - گزینه «پروفایل» در سایدبار پنل کاربر و staff در دسترس است؛ مسیرها به‌ترتیب `/panel/account` و `/admin/profile` هستند.
 - redirect درگاه به مسیر `/panel/invoices/{invoiceToken}?result=true|false` پشتیبانی می‌شود. پارامتر `result` پس از نمایش یک‌باره dialog از URL حذف می‌شود تا polling آن را دوباره باز نکند.
-- token فاکتور در جدول‌ها خلاصه نمایش داده می‌شود و با hover/focus، مقدار کامل و دکمه کپی در دسترس است.
+- token فاکتور در جدول‌ها خلاصه نمایش داده می‌شود؛ مقدار کامل در tooltip مرورگر و یک آیکون کوچک کپی کنار آن در دسترس است.
 - صفحه مدیریت فاکتورها دارای فیلتر وضعیت، بازه زمانی، مالک، ورودی مستقیم token، جزئیات تراکنش درگاه و صفحه جزئیات فاکتور است.
 - صفحه جزئیات مدیریتی از `GET /v1/invoices/{invoiceToken}` استفاده می‌کند؛ backend باید دسترسی staff به این endpoint و بازگرداندن `ownerId` و `paymentTransaction` را مجاز کند تا تمام اطلاعات صفحه قابل نمایش باشد.
+
+
+## همگام‌سازی OpenAPI 0.2.1
+
+- داشبورد مدیریت از `GET /v1/admin/dashboard/overview` و cache مشترک پنج‌ثانیه‌ای استفاده می‌کند؛ داده‌های مالی، ثبت‌نام، تیکت، سرویس و نود دیگر mock نیستند.
+- مقایسه دوره جاری و قبلی برای شارژ، مصرف و ثبت‌نام کاربران در UI نمایش داده می‌شود.
+- وضعیت `online` در پروفایل، فهرست کاربران، انتخاب‌گر کاربر و جزئیات مدیریتی با نشان سبز heartbeat یا خاکستری نمایش داده می‌شود.
+- استراتژی‌های Provisioning شامل `BALANCED`, `BIN_PACKING`, `RANDOMIZED`, `ROUND_ROBIN` در داشبورد و صفحات Query/AudioBot ترجمه و نمایش داده می‌شوند.
+- صفحات مدیریت Query و AudioBot وضعیت فعلی استراتژی را از endpoint اختصاصی GET دریافت و تغییر را با PATCH ثبت می‌کنند.

@@ -104,6 +104,12 @@ const enumLabels: Record<string, string> = {
   AQAYE_PARDAKHT: 'آقای پرداخت',
   IRT: 'تومان',
 
+  // Provisioning strategies
+  BALANCED: 'متعادل',
+  BIN_PACKING: 'تجمیع ظرفیت',
+  RANDOMIZED: 'تصادفی',
+  ROUND_ROBIN: 'چرخشی',
+
   // API response states
   SUCCESS: 'موفق',
   ERROR: 'خطا',
@@ -128,6 +134,8 @@ const enumTones: Record<string, BadgeTone> = {
   CREDIT: 'success',
   ROLE_ADMIN: 'success',
   DISPATCHED: 'success',
+  ROUND_ROBIN: 'success',
+  BALANCED: 'info',
 
   // Transitional / attention
   PENDING: 'warning',
@@ -139,6 +147,8 @@ const enumTones: Record<string, BadgeTone> = {
   FULL: 'warning',
   RECONNECTING: 'warning',
   INITIATED: 'info',
+  BIN_PACKING: 'warning',
+  RANDOMIZED: 'info',
 
   // Failed / unavailable
   CANCELLED: 'danger',

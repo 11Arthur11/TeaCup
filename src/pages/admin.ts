@@ -1,6 +1,6 @@
 import { api, ApiError } from '../api/client.js';
 import { getMockLiveServiceStatus } from '../api/live-status.js';
-import { getMockAdminDashboardOverview, type MockPeriodComparison, type MockWalletFlowComparisons } from '../api/admin-dashboard.js';
+import { getAdminDashboardOverview, invalidateAdminDashboardOverview, type PeriodComparison, type ProvisionStrategy, type WalletFlowComparisons } from '../api/admin-dashboard.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -73,7 +73,7 @@ function comparisonTone(change: number, favorableIncrease: boolean): string {
   return favorable ? 'positive' : 'negative';
 }
 
-function comparisonRow(label: string, currentLabel: string, previousLabel: string, values: MockPeriodComparison, favorableIncrease: boolean): string {
+function comparisonRow(label: string, currentLabel: string, previousLabel: string, values: PeriodComparison, favorableIncrease: boolean): string {
   const max = Math.max(1, values.current, values.previous);
   const currentWidth = values.current > 0 ? Math.max(4, Math.round((values.current / max) * 100)) : 0;
   const previousWidth = values.previous > 0 ? Math.max(4, Math.round((values.previous / max) * 100)) : 0;
@@ -89,7 +89,7 @@ function comparisonRow(label: string, currentLabel: string, previousLabel: strin
   </div>`;
 }
 
-function walletComparisonCard(title: string, description: string, symbol: string, data: MockWalletFlowComparisons, favorableIncrease: boolean): string {
+function walletComparisonCard(title: string, description: string, symbol: string, data: WalletFlowComparisons, favorableIncrease: boolean): string {
   const body = `<p class="admin-chart-description">${escapeHtml(description)}</p><div class="admin-comparison-list">
     ${comparisonRow('روزانه', 'امروز', 'دیروز', data.day, favorableIncrease)}
     ${comparisonRow('هفتگی', 'این هفته', 'هفته قبل', data.week, favorableIncrease)}
@@ -102,60 +102,113 @@ function adminMetricGroup(title: string, symbol: string, items: Array<{ label: s
   return `<article class="admin-metric-group"><header><span>${icon(symbol)}</span><div><h3>${escapeHtml(title)}</h3>${href ? `<a data-link href="${escapeHtml(href)}">مشاهده بخش ${icon('chevron_left')}</a>` : ''}</div></header><dl>${items.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join('')}</dl></article>`;
 }
 
+
+function registrationTrendHint(current: number, previous: number, comparisonLabel: string): string {
+  const change = comparisonPercent(current, previous);
+  if (change === 0) return `بدون تغییر نسبت به ${comparisonLabel}`;
+  return `${faNumber(Math.abs(change))}٪ ${change > 0 ? 'افزایش' : 'کاهش'} نسبت به ${comparisonLabel}`;
+}
+
+function userPresenceAvatar(online?: boolean): string {
+  return `<span class="user-presence-avatar" aria-label="${online ? 'کاربر آنلاین' : 'کاربر آفلاین'}">${icon('person')}<i class="user-presence-dot ${online ? 'user-presence-dot--online' : 'user-presence-dot--offline'}"></i></span>`;
+}
+
+const provisioningStrategies: Array<{ value: ProvisionStrategy; title: string; description: string }> = [
+  { value: 'BALANCED', title: 'متعادل', description: 'سرویس جدید روی نودی با کمترین نسبت مصرف ظرفیت قرار می‌گیرد تا بار بین نودها یکنواخت بماند.' },
+  { value: 'BIN_PACKING', title: 'تجمیع ظرفیت', description: 'تا حد امکان ظرفیت یک نود پر می‌شود و سپس نود بعدی انتخاب می‌شود؛ مناسب کاهش تعداد نودهای درگیر.' },
+  { value: 'RANDOMIZED', title: 'تصادفی', description: 'از میان نودهای واجد شرایط یک نود به‌صورت تصادفی انتخاب می‌شود و الگوی توزیع ثابت نیست.' },
+  { value: 'ROUND_ROBIN', title: 'چرخشی', description: 'نودها به‌ترتیب و به‌صورت دورانی انتخاب می‌شوند؛ روشی ساده، منظم و قابل‌پیش‌بینی.' },
+];
+
+function strategyDescription(value?: ProvisionStrategy): string {
+  return provisioningStrategies.find((item) => item.value === value)?.description ?? 'استراتژی تخصیص هنوز از backend دریافت نشده است.';
+}
+
+function provisioningStrategyCard(title: string, current: ProvisionStrategy | undefined, buttonId: string): string {
+  return card(title, `<div class="provision-strategy-summary"><div><span>${icon('account_tree')}</span><div><small>استراتژی فعلی</small><b>${escapeHtml(translateEnum(current))}</b><p>${escapeHtml(strategyDescription(current))}</p></div></div><button type="button" class="button button--secondary" id="${escapeHtml(buttonId)}">${icon('tune')} تغییر استراتژی</button></div>`, { icon: 'schema', className: 'provision-strategy-card' });
+}
+
+function openProvisioningStrategyDialog(kind: 'query' | 'audioBot', current: ProvisionStrategy | undefined): void {
+  const form = document.createElement('form');
+  form.className = 'provision-strategy-form';
+  form.innerHTML = `<div class="provision-strategy-options">${provisioningStrategies.map((item) => `<label class="provision-strategy-option"><input type="radio" name="provisionStrategy" value="${item.value}" ${item.value === current ? 'checked' : ''} required /><span><b>${escapeHtml(item.title)}</b><code>${item.value}</code><small>${escapeHtml(item.description)}</small></span></label>`).join('')}</div>`;
+  openDialog({
+    title: kind === 'query' ? 'استراتژی پخش سرویس‌های TeaSpeak' : 'استراتژی پخش سرویس‌های AudioBot',
+    description: 'این تنظیم تعیین می‌کند سرویس جدید روی کدام نود واجد شرایط Provision شود.',
+    content: form,
+    confirmLabel: 'ذخیره استراتژی',
+    wide: true,
+    onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const value = new FormData(form).get('provisionStrategy') as ProvisionStrategy | null;
+      if (!value) return false;
+      const ok = kind === 'query'
+        ? await runAction(() => api.call('changeProvisioningStrategy', { body: { provisionStrategy: value } }))
+        : await runAction(() => api.call('changeProvisioningStrategy_1', { body: { provisionStrategy: value } }));
+      if (ok) {
+        invalidateAdminDashboardOverview();
+        if (kind === 'query') await renderQueryInstances();
+        else await renderAudioNodes();
+      }
+      return Boolean(ok);
+    },
+  });
+}
+
 export async function renderAdminDashboard(): Promise<void> {
-  const overview = getMockAdminDashboardOverview();
   const isSupport = store.get().identity.role === 'ROLE_SUPPORT';
   if (isSupport) {
-    renderAppShell(`${pageHeader('نمای کلی پشتیبانی', 'دسترسی سریع به تیکت‌ها و فاکتورها؛ داده‌های آماری این صفحه فعلاً mock هستند.')}
-      ${adminSectionMetrics([
-        { label: 'تیکت‌های باز', value: faNumber(overview.tickets.open), hint: 'نیازمند بررسی', symbol: 'mark_unread_chat_alt', tone: 'orange' },
-        { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered), hint: 'در چرخه جاری', symbol: 'forum', tone: 'cyan' },
-        { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer), hint: 'در انتظار پاسخ', symbol: 'hourglass_top', tone: 'purple' },
-        { label: 'تیکت‌های بسته', value: faNumber(overview.tickets.closed), hint: 'آرشیو پشتیبانی', symbol: 'task_alt', tone: 'blue' },
-      ])}
+    renderAppShell(`${pageHeader('نمای کلی پشتیبانی', 'دسترسی سریع به تیکت‌ها و فاکتورها.')}
       ${card('دسترسی سریع', `<div class="admin-shortcuts"><a data-link href="/admin/tickets">${icon('forum')}<span><b>مدیریت تیکت‌ها</b><small>مشاهده و پاسخ به درخواست کاربران</small></span>${icon('chevron_left')}</a><a data-link href="/admin/invoices">${icon('request_quote')}<span><b>مدیریت فاکتورها</b><small>پیگیری صورت‌حساب‌ها و پرداخت‌ها</small></span>${icon('chevron_left')}</a></div>`, { icon: 'apps' })}
     `, 'نمای کلی پشتیبانی');
     return;
   }
 
-  renderAppShell(`${pageHeader('نمای کلی مدیریت', 'تصویر فشرده‌ای از وضعیت مالی، کاربران، سرویس‌ها، پشتیبانی و نودها؛ تمام داده‌های این صفحه فعلاً mock هستند.')}
-    <div class="stats-grid admin-dashboard-highlights">
-      ${statCard('موجودی کل کیف پول کاربران', mockMoney(overview.wallet.totalUserWalletBalance), 'account_balance_wallet', 'مجموع balance کاربران', 'blue')}
-      ${statCard('کاربران آنلاین', faNumber(overview.users.currentOnline), 'online_prediction', 'Current Online Users', 'cyan')}
-      ${statCard('سرویس‌های در حال اجرا', `${faNumber(overview.services.running)} / ${faNumber(overview.services.total)}`, 'cloud_done', 'Running / Total', 'purple')}
-      ${statCard('تیکت‌های باز', faNumber(overview.tickets.open), 'support_agent', 'نیازمند پیگیری', 'orange')}
-    </div>
-    <div class="admin-wallet-charts">
-      ${walletComparisonCard('شارژهای کیف پول', 'مقایسه دوره جاری با دوره زمانی قبلی برای شارژ حساب کاربران.', 'add_card', overview.wallet.charges, true)}
-      ${walletComparisonCard('خرج‌های کیف پول', 'مقایسه برداشت و مصرف کیف پول کاربران با دوره قبلی.', 'payments', overview.wallet.spending, false)}
-    </div>
-    <div class="admin-overview-metric-groups">
-      ${adminMetricGroup('ثبت‌نام کاربران', 'person_add', [
-        { label: 'امروز', value: faNumber(overview.users.today) },
-        { label: 'این هفته', value: faNumber(overview.users.thisWeek) },
-        { label: 'این ماه', value: faNumber(overview.users.thisMonth) },
-        { label: 'آنلاین فعلی', value: faNumber(overview.users.currentOnline) },
-      ], '/admin/users')}
-      ${adminMetricGroup('وضعیت سرویس‌ها', 'cloud_queue', [
-        { label: 'کل سرویس‌ها', value: faNumber(overview.services.total) },
-        { label: 'در حال اجرا', value: faNumber(overview.services.running) },
-        { label: 'تعلیق‌شده', value: faNumber(overview.services.suspended) },
-        { label: 'منقضی / Provisioning', value: `${faNumber(overview.services.expired)} / ${faNumber(overview.services.pendingProvisioning)}` },
-      ], '/admin/resources')}
-      ${adminMetricGroup('وضعیت تیکت‌ها', 'forum', [
-        { label: 'باز', value: faNumber(overview.tickets.open) },
-        { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered) },
-        { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer) },
-        { label: 'بسته', value: faNumber(overview.tickets.closed) },
-      ], '/admin/tickets')}
-      ${adminMetricGroup('نودهای زیرساخت', 'hub', [
-        { label: 'Query فعال / کل', value: `${faNumber(overview.nodes.query.active)} / ${faNumber(overview.nodes.query.total)}` },
-        { label: 'AudioBot فعال / کل', value: `${faNumber(overview.nodes.audioBot.active)} / ${faNumber(overview.nodes.audioBot.total)}` },
-      ])}
-    </div>
-  `, 'نمای کلی مدیریت');
+  renderAppShell(loadingPage(), 'نمای کلی مدیریت');
+  try {
+    const overview = await getAdminDashboardOverview();
+    renderAppShell(`${pageHeader('نمای کلی مدیریت', 'تصویر فشرده و زنده‌ای از وضعیت مالی، کاربران، سرویس‌ها، پشتیبانی و نودها.')}
+      <div class="stats-grid admin-dashboard-highlights">
+        ${statCard('موجودی کل کیف پول کاربران', money(overview.wallet.totalBalance), 'account_balance_wallet', 'مجموع موجودی حساب کاربران', 'blue')}
+        ${statCard('کاربران آنلاین', faNumber(overview.users.currentOnline), 'online_prediction', 'کاربران متصل در لحظه', 'cyan')}
+        ${statCard('سرویس‌های فعال', `${faNumber(overview.services.running)} / ${faNumber(overview.services.total)}`, 'cloud_done', 'فعال نسبت به کل سرویس‌ها', 'purple')}
+        ${statCard('تیکت‌های باز', faNumber(overview.tickets.open), 'support_agent', 'نیازمند پیگیری', 'orange')}
+      </div>
+      <div class="admin-wallet-charts">
+        ${walletComparisonCard('شارژهای کیف پول', 'مقایسه دوره جاری با دوره زمانی قبلی برای شارژ حساب کاربران.', 'add_card', overview.wallet.charges, true)}
+        ${walletComparisonCard('خرج‌های کیف پول', 'مقایسه مصرف کیف پول کاربران با دوره زمانی قبلی.', 'payments', overview.wallet.spending, false)}
+      </div>
+      <div class="admin-overview-metric-groups">
+        ${adminMetricGroup('ثبت‌نام کاربران', 'person_add', [
+          { label: 'امروز / دیروز', value: `${faNumber(overview.users.today)} / ${faNumber(overview.users.yesterday)}` },
+          { label: 'این هفته / هفته قبل', value: `${faNumber(overview.users.thisWeek)} / ${faNumber(overview.users.lastWeek)}` },
+          { label: 'این ماه / ماه قبل', value: `${faNumber(overview.users.thisMonth)} / ${faNumber(overview.users.lastMonth)}` },
+          { label: 'آنلاین فعلی', value: faNumber(overview.users.currentOnline) },
+        ], '/admin/users')}
+        ${adminMetricGroup('وضعیت سرویس‌ها', 'cloud_queue', [
+          { label: 'کل سرویس‌ها', value: faNumber(overview.services.total) },
+          { label: 'فعال', value: faNumber(overview.services.running) },
+          { label: 'تعلیق‌شده', value: faNumber(overview.services.suspended) },
+          { label: 'در حال Provisioning', value: faNumber(overview.services.pendingProvisioning) },
+        ], '/admin/resources')}
+        ${adminMetricGroup('وضعیت تیکت‌ها', 'forum', [
+          { label: 'باز', value: faNumber(overview.tickets.open) },
+          { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered) },
+          { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer) },
+          { label: 'بسته', value: faNumber(overview.tickets.closed) },
+        ], '/admin/tickets')}
+        ${adminMetricGroup('نودهای زیرساخت', 'hub', [
+          { label: 'Query فعال / کل', value: `${faNumber(overview.nodes.query.active)} / ${faNumber(overview.nodes.query.total)}` },
+          { label: 'استراتژی Query', value: translateEnum(overview.nodes.query.strategy) },
+          { label: 'AudioBot فعال / کل', value: `${faNumber(overview.nodes.audioBot.active)} / ${faNumber(overview.nodes.audioBot.total)}` },
+          { label: 'استراتژی AudioBot', value: translateEnum(overview.nodes.audioBot.strategy) },
+        ])}
+      </div>
+    `, 'نمای کلی مدیریت');
+  } catch (error) {
+    renderAppShell(`${pageHeader('نمای کلی مدیریت', 'وضعیت زنده سامانه')}${adminError(error)}`, 'نمای کلی مدیریت');
+  }
 }
-
 
 export async function renderAdminUsers(page = 0): Promise<void> {
   renderAppShell(loadingPage(), 'کاربران');
@@ -180,12 +233,12 @@ export async function renderAdminUsers(page = 0): Promise<void> {
     const meta = pageOf(response);
     const roles = dataOf(rolesResponse) ?? [];
 
-    const overview = getMockAdminDashboardOverview();
+    const overview = await getAdminDashboardOverview();
     renderAppShell(`${pageHeader('مدیریت کاربران', 'جست‌وجوی backend، فیلتر نقش و مدیریت وضعیت حساب کاربران.')}
       ${adminSectionMetrics([
-        { label: 'ثبت‌نام امروز', value: faNumber(overview.users.today), symbol: 'person_add', tone: 'cyan' },
-        { label: 'ثبت‌نام این هفته', value: faNumber(overview.users.thisWeek), symbol: 'date_range', tone: 'blue' },
-        { label: 'ثبت‌نام این ماه', value: faNumber(overview.users.thisMonth), symbol: 'calendar_month', tone: 'purple' },
+        { label: 'ثبت‌نام امروز', value: faNumber(overview.users.today), hint: registrationTrendHint(overview.users.today, overview.users.yesterday, 'دیروز'), symbol: 'person_add', tone: 'cyan' },
+        { label: 'ثبت‌نام این هفته', value: faNumber(overview.users.thisWeek), hint: registrationTrendHint(overview.users.thisWeek, overview.users.lastWeek, 'هفته قبل'), symbol: 'date_range', tone: 'blue' },
+        { label: 'ثبت‌نام این ماه', value: faNumber(overview.users.thisMonth), hint: registrationTrendHint(overview.users.thisMonth, overview.users.lastMonth, 'ماه قبل'), symbol: 'calendar_month', tone: 'purple' },
         { label: 'کاربران آنلاین', value: faNumber(overview.users.currentOnline), symbol: 'online_prediction', tone: 'orange' },
       ])}
       <form id="admin-user-filter" class="admin-user-filter">
@@ -196,7 +249,7 @@ export async function renderAdminUsers(page = 0): Promise<void> {
         <a data-link href="/admin/users" class="button button--ghost">پاک‌کردن</a>
       </form>
       ${card('فهرست کاربران', dataTable<Models.UserListResponse>([
-        { label: 'کاربر', render: (row) => `<a data-link class="table-primary" href="/admin/users/${row.id}">${icon('person')}<span><b>${escapeHtml(row.fullName || 'بدون نام')}</b><small dir="ltr">${escapeHtml(row.phone)}</small></span></a>` },
+        { label: 'کاربر', render: (row) => `<a data-link class="table-primary" href="/admin/users/${row.id}">${userPresenceAvatar(row.online)}<span><b>${escapeHtml(row.fullName || 'بدون نام')}</b><small dir="ltr">${escapeHtml(row.phone)}</small></span></a>` },
         { label: 'ایمیل', render: (row) => `<span class="ltr">${escapeHtml(row.email || '—')}</span>` },
         { label: 'نقش', render: (row) => badge(row.role) },
         { label: 'آخرین ورود', render: (row) => faDate(row.lastLogin) },
@@ -231,9 +284,9 @@ export async function renderAdminUserDetail(userId:number): Promise<void> {
     const [detailResponse,rolesResponse,ticketsResponse]=await Promise.all([api.call('getUserById',{path:{userId}}),api.call('getRoles',{}),api.call('getAllUserTickets',{path:{userId},query:{filterRequest:{page:0,size:5}}})]);
     const user=dataOf(detailResponse); const roles=dataOf(rolesResponse)??[]; const tickets=contentOf(ticketsResponse); if(!user)throw new Error('اطلاعات کاربر دریافت نشد.');
     renderAppShell(`${pageHeader(`${user.firstName??''} ${user.lastName??''}`.trim()||`کاربر #${userId}`, `شناسه ${faNumber(user.id)} — ${escapeHtml(user.phone)}`, [{label:'بازگشت',icon:'arrow_forward',href:'/admin/users',variant:'ghost'}])}
-      <div class="detail-grid"><div class="detail-main">${card('اطلاعات حساب',`<dl class="description-list description-list--grid"><div><dt>شماره موبایل</dt><dd dir="ltr">${escapeHtml(user.phone)}</dd></div><div><dt>ایمیل</dt><dd class="ltr">${escapeHtml(user.email||'—')}</dd></div><div><dt>نقش فعلی</dt><dd>${badge(user.role)}</dd></div><div><dt>تاریخ عضویت</dt><dd>${faDate(user.createdAt)}</dd></div><div><dt>آخرین ورود</dt><dd>${faDate(user.lastLogin)}</dd></div><div><dt>آخرین ویرایش</dt><dd>${faDate(user.updatedAt)}</dd></div></dl><div class="quick-actions"><button class="quick-action" id="edit-user">${icon('edit')}<span><b>ویرایش</b><small>نام و ایمیل</small></span></button><button class="quick-action" id="role-user">${icon('admin_panel_settings')}<span><b>تغییر نقش</b><small>سطح دسترسی</small></span></button><button class="quick-action" id="${user.locked?'unlock-user':'lock-user'}">${icon(user.locked?'lock_open':'lock')}<span><b>${user.locked?'بازکردن قفل':'قفل حساب'}</b><small>کنترل ورود</small></span></button></div>`,{icon:'manage_accounts'})}
+      <div class="detail-grid"><div class="detail-main">${card('اطلاعات حساب',`<dl class="description-list description-list--grid"><div><dt>شماره موبایل</dt><dd dir="ltr">${escapeHtml(user.phone)}</dd></div><div><dt>ایمیل</dt><dd class="ltr">${escapeHtml(user.email||'—')}</dd></div><div><dt>نقش فعلی</dt><dd>${badge(user.role)}</dd></div><div><dt>وضعیت اتصال</dt><dd><span class="user-online-status">${userPresenceAvatar(user.online)}<b>${user.online ? 'آنلاین' : 'آفلاین'}</b></span></dd></div><div><dt>تاریخ عضویت</dt><dd>${faDate(user.createdAt)}</dd></div><div><dt>آخرین ورود</dt><dd>${faDate(user.lastLogin)}</dd></div><div><dt>آخرین ویرایش</dt><dd>${faDate(user.updatedAt)}</dd></div></dl><div class="quick-actions"><button class="quick-action" id="edit-user">${icon('edit')}<span><b>ویرایش</b><small>نام و ایمیل</small></span></button><button class="quick-action" id="role-user">${icon('admin_panel_settings')}<span><b>تغییر نقش</b><small>سطح دسترسی</small></span></button><button class="quick-action" id="${user.locked?'unlock-user':'lock-user'}">${icon(user.locked?'lock_open':'lock')}<span><b>${user.locked?'بازکردن قفل':'قفل حساب'}</b><small>کنترل ورود</small></span></button></div>`,{icon:'manage_accounts'})}
       ${card('تیکت‌های اخیر کاربر',dataTable<Models.TicketListAdminResponse>([{label:'موضوع',render:r=>`<a data-link class="text-link strong" href="/admin/tickets/${r.id}">${escapeHtml(r.subject)}</a>`},{label:'وضعیت',render:r=>badge(r.status)},{label:'تاریخ',render:r=>faDateShort(r.lastModified)}],tickets),{icon:'forum',actions:`<a data-link class="text-link" href="/admin/tickets?user=${userId}">همه تیکت‌ها</a>`})}</div>
-      <aside>${card('وضعیت امنیتی',`<div class="security-status"><div>${icon(user.enabled?'check_circle':'block')}<span><b>حساب کاربری</b><small>${user.enabled?'فعال':'غیرفعال'}</small></span>${badge(user.enabled?'ACTIVE':'DISABLED')}</div><div>${icon(user.locked?'lock':'lock_open')}<span><b>وضعیت قفل</b><small>${user.locked?'ورود مسدود است':'ورود مجاز است'}</small></span>${badge(user.locked?'CLOSED':'ACTIVE')}</div><div>${icon(user.emailVerified?'verified':'mark_email_unread')}<span><b>تأیید ایمیل</b><small>${user.emailVerified?'تأیید شده':'تأیید نشده'}</small></span>${badge(user.emailVerified?'ACTIVE':'PENDING')}</div></div>`,{icon:'security'})}</aside></div>`, 'جزئیات کاربر');
+      <aside>${card('وضعیت امنیتی',`<div class="security-status"><div>${icon(user.online?'online_prediction':'wifi_off')}<span><b>وضعیت لحظه‌ای</b><small>${user.online?'کاربر اکنون آنلاین است':'کاربر در حال حاضر آفلاین است'}</small></span>${badge(user.online?'ONLINE':'OFFLINE')}</div><div>${icon(user.enabled?'check_circle':'block')}<span><b>حساب کاربری</b><small>${user.enabled?'فعال':'غیرفعال'}</small></span>${badge(user.enabled?'ACTIVE':'DISABLED')}</div><div>${icon(user.locked?'lock':'lock_open')}<span><b>وضعیت قفل</b><small>${user.locked?'ورود مسدود است':'ورود مجاز است'}</small></span>${badge(user.locked?'CLOSED':'ACTIVE')}</div><div>${icon(user.emailVerified?'verified':'mark_email_unread')}<span><b>تأیید ایمیل</b><small>${user.emailVerified?'تأیید شده':'تأیید نشده'}</small></span>${badge(user.emailVerified?'ACTIVE':'PENDING')}</div></div>`,{icon:'security'})}</aside></div>`, 'جزئیات کاربر');
     bindAdminUserActions(user,roles);
   } catch(error){renderAppShell(`${pageHeader('جزئیات کاربر','مدیریت حساب')}${adminError(error)}`,'جزئیات کاربر');}
 }
@@ -289,7 +342,7 @@ export async function renderAdminResources(page = 0): Promise<void> {
     });
     const resources = contentOf(response);
     const meta = pageOf(response);
-    const overview = getMockAdminDashboardOverview();
+    const overview = await getAdminDashboardOverview();
     const tabs = `<nav class="segmented resource-type-tabs" aria-label="نوع سرویس">
       <a data-link class="${type === 'TEASPEAK' ? 'active' : ''}" href="${adminResourceTabHref('TEASPEAK', status, ownerId, ownerLabel)}">${icon('dns')} TeaSpeak</a>
       <a data-link class="${type === 'AUDIO_BOT' ? 'active' : ''}" href="${adminResourceTabHref('AUDIO_BOT', status, ownerId, ownerLabel)}">${icon('headphones')} AudioBot</a>
@@ -327,9 +380,8 @@ export async function renderAdminResources(page = 0): Promise<void> {
         { label: 'کل سرویس‌ها', value: faNumber(overview.services.total), symbol: 'cloud_queue', tone: 'blue' },
         { label: 'در حال اجرا', value: faNumber(overview.services.running), symbol: 'cloud_done', tone: 'cyan' },
         { label: 'تعلیق‌شده', value: faNumber(overview.services.suspended), symbol: 'pause_circle', tone: 'orange' },
-        { label: 'منقضی‌شده', value: faNumber(overview.services.expired), symbol: 'event_busy', tone: 'purple' },
-        { label: 'در انتظار Provisioning', value: faNumber(overview.services.pendingProvisioning), symbol: 'pending', tone: 'orange' },
-      ], 'admin-section-metrics--five')}
+        { label: 'در حال Provisioning', value: faNumber(overview.services.pendingProvisioning), symbol: 'pending', tone: 'purple' },
+      ])}
       ${card(type === 'TEASPEAK' ? 'سرویس‌های TeaSpeak' : 'سرویس‌های AudioBot', `${filterBody}<div class="admin-resource-table">${table}</div>${pagination(meta.number, meta.totalPages)}`, { icon: type === 'TEASPEAK' ? 'dns' : 'headphones', actions: tabs, className: 'admin-resource-card' })}
     `, 'سرویس‌های کاربران');
 
@@ -469,15 +521,15 @@ export async function renderAdminTickets(page = 0): Promise<void> {
       : await api.call('getAllTickets', { query: request });
     const tickets = contentOf(response);
     const meta = pageOf(response);
-    const overview = getMockAdminDashboardOverview();
+    const overview = store.get().identity.role === 'ROLE_ADMIN' ? await getAdminDashboardOverview() : undefined;
 
     renderAppShell(`${pageHeader('مدیریت تیکت‌ها', 'بررسی، پاسخ‌گویی و ثبت درخواست برای کاربران.', [{ label: 'تیکت جدید', icon: 'add_comment', id: 'admin-new-ticket' }])}
-      ${adminSectionMetrics([
+      ${overview ? adminSectionMetrics([
         { label: 'باز', value: faNumber(overview.tickets.open), symbol: 'mark_unread_chat_alt', tone: 'orange' },
         { label: 'پاسخ‌داده‌شده', value: faNumber(overview.tickets.answered), symbol: 'forum', tone: 'cyan' },
         { label: 'منتظر مشتری', value: faNumber(overview.tickets.waitingCustomer), symbol: 'hourglass_top', tone: 'purple' },
         { label: 'بسته', value: faNumber(overview.tickets.closed), symbol: 'task_alt', tone: 'blue' },
-      ])}
+      ]) : ''}
       <div class="filter-bar filter-bar--with-user">
         <div class="segmented">
           <a data-link class="${!status ? 'active' : ''}" href="${adminTicketStatusHref(undefined, userId, userLabel)}">همه</a>
@@ -765,7 +817,7 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
     const invoices = contentOf(response);
     const meta = pageOf(response);
     cacheAdminInvoices(invoices);
-    const overview = getMockAdminDashboardOverview();
+    const overview = store.get().identity.role === 'ROLE_ADMIN' ? await getAdminDashboardOverview() : undefined;
 
     const filterCard = card('فیلتر و دسترسی سریع', `<div class="admin-invoice-tools">
       <form id="admin-invoice-filter" class="admin-invoice-filter">
@@ -782,11 +834,11 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
     </div>`, { icon: 'filter_alt', className: 'admin-invoice-filter-card' });
 
     renderAppShell(`${pageHeader('مدیریت فاکتورها', 'پیگیری پرداخت‌ها، تراکنش‌های درگاه و صدور فاکتور بدهی برای کاربران.', [{ label: 'صدور فاکتور بدهی', icon: 'post_add', id: 'debt-invoice' }])}
-      ${adminSectionMetrics([
-        { label: 'موجودی کل کاربران', value: mockMoney(overview.wallet.totalUserWalletBalance), symbol: 'account_balance_wallet', tone: 'blue' },
+      ${overview ? adminSectionMetrics([
+        { label: 'موجودی کل کاربران', value: money(overview.wallet.totalBalance), symbol: 'account_balance_wallet', tone: 'blue' },
         { label: 'شارژ امروز', value: mockMoney(overview.wallet.charges.day.current), hint: `${faNumber(Math.abs(comparisonPercent(overview.wallet.charges.day.current, overview.wallet.charges.day.previous)))}٪ نسبت به دیروز`, symbol: 'add_card', tone: 'cyan' },
         { label: 'خرج امروز', value: mockMoney(overview.wallet.spending.day.current), hint: `${faNumber(Math.abs(comparisonPercent(overview.wallet.spending.day.current, overview.wallet.spending.day.previous)))}٪ نسبت به دیروز`, symbol: 'payments', tone: 'orange' },
-      ], 'admin-section-metrics--three')}
+      ], 'admin-section-metrics--three') : ''}
       ${filterCard}
       ${card('فاکتورها', dataTable<Models.InvoiceAdminResponse>([
         { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, `/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
@@ -932,9 +984,13 @@ function openGatewayForm(gateway?:Models.Gateway):void{const form=document.creat
 export async function renderQueryInstances(): Promise<void> {
   renderAppShell(loadingPage(), 'نودهای Query');
   try {
-    const response = await api.call('getAllQueryInstance', {});
+    const [response, strategyResponse, overview] = await Promise.all([
+      api.call('getAllQueryInstance', {}),
+      api.call('getProvisioningStrategy', {}),
+      getAdminDashboardOverview(),
+    ]);
     const instances = dataOf(response) ?? [];
-    const overview = getMockAdminDashboardOverview();
+    const currentStrategy = dataOf(strategyResponse) as ProvisionStrategy | undefined;
     const table = dataTable<Models.QueryInstanceListResponse>([
       {
         label: 'Query Instance',
@@ -975,9 +1031,12 @@ export async function renderQueryInstances(): Promise<void> {
       ${adminSectionMetrics([
         { label: 'نودهای فعال', value: faNumber(overview.nodes.query.active), symbol: 'sensors', tone: 'cyan' },
         { label: 'کل نودهای Query', value: faNumber(overview.nodes.query.total), symbol: 'lan', tone: 'blue' },
-      ], 'admin-section-metrics--two')}
+        { label: 'استراتژی پخش', value: translateEnum(currentStrategy), symbol: 'account_tree', tone: 'purple' },
+      ])}
+      ${provisioningStrategyCard('پخش سرویس روی Query Instanceها', currentStrategy, 'change-query-strategy')}
       ${card('فهرست Query Instanceها', table, { icon: 'lan', className: 'infrastructure-table-card' })}`, 'نودهای Query');
 
+    document.querySelector('#change-query-strategy')?.addEventListener('click', () => openProvisioningStrategyDialog('query', currentStrategy));
     document.querySelector('#add-query')?.addEventListener('click', () => openQueryForm());
     qsa<HTMLButtonElement>('[data-edit-query]').forEach((button) => button.addEventListener('click', () => openQueryForm(instances.find((item) => item.id === Number(button.dataset.editQuery)))));
     qsa<HTMLButtonElement>('[data-toggle-query]').forEach((button) => button.addEventListener('click', () => {
@@ -1042,9 +1101,13 @@ function openQueryForm(instance?:Models.QueryInstanceListResponse):void{const fo
 export async function renderAudioNodes(): Promise<void> {
   renderAppShell(loadingPage(), 'نودهای ربات موزیک');
   try {
-    const response = await api.call('getAllAudioBotNodes', {});
+    const [response, strategyResponse, overview] = await Promise.all([
+      api.call('getAllAudioBotNodes', {}),
+      api.call('getProvisioningStrategy_1', {}),
+      getAdminDashboardOverview(),
+    ]);
     const nodes = dataOf(response) ?? [];
-    const overview = getMockAdminDashboardOverview();
+    const currentStrategy = dataOf(strategyResponse) as ProvisionStrategy | undefined;
     const table = dataTable<Models.AudioBotNodeListResponse>([
       {
         label: 'نود AudioBot',
@@ -1080,9 +1143,12 @@ export async function renderAudioNodes(): Promise<void> {
       ${adminSectionMetrics([
         { label: 'نودهای فعال', value: faNumber(overview.nodes.audioBot.active), symbol: 'sensors', tone: 'cyan' },
         { label: 'کل نودهای AudioBot', value: faNumber(overview.nodes.audioBot.total), symbol: 'headphones', tone: 'purple' },
-      ], 'admin-section-metrics--two')}
+        { label: 'استراتژی پخش', value: translateEnum(currentStrategy), symbol: 'account_tree', tone: 'blue' },
+      ])}
+      ${provisioningStrategyCard('پخش سرویس روی نودهای AudioBot', currentStrategy, 'change-audio-strategy')}
       ${card('فهرست نودهای AudioBot', table, { icon: 'headphones', className: 'infrastructure-table-card' })}`, 'نودهای ربات موزیک');
 
+    document.querySelector('#change-audio-strategy')?.addEventListener('click', () => openProvisioningStrategyDialog('audioBot', currentStrategy));
     document.querySelector('#add-node')?.addEventListener('click', () => openNodeForm());
     qsa<HTMLButtonElement>('[data-edit-node]').forEach((button) => button.addEventListener('click', () => openNodeForm(nodes.find((node) => node.id === Number(button.dataset.editNode)))));
     qsa<HTMLButtonElement>('[data-delete-node]').forEach((button) => button.addEventListener('click', () => confirmDialog(

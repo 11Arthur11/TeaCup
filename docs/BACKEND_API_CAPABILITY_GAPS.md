@@ -294,23 +294,19 @@ GET /v1/admin/permissions
 
 ## داشبورد مدیریت
 
-### API پیشنهادی
+### موجود در 0.2.1
 
 ```http
 GET /v1/admin/dashboard/overview
 ```
 
-متریک‌های پیشنهادی:
+پاسخ شامل مقایسه مالی دوره جاری/قبلی، موجودی کل کاربران، ثبت‌نام‌ها، کاربران آنلاین، وضعیت سرویس‌ها، تیکت‌ها، شمار نودها و استراتژی Provisioning هر خانواده نود است. فرانت‌اند این داده را با cache مشترک پنج‌ثانیه‌ای مصرف می‌کند.
 
-- user counts و registration trend
-- resource counts by type/status
-- node capacity/utilization
-- pending/paid invoice totals
-- open tickets by department/status
-- payment success rate
-- infrastructure alerts
+### شکاف‌های باقی‌مانده
 
-**شکاف فعلی:** داشبورد ادمین عمداً metric API فراخوانی نمی‌کند.
+- payment success rate و reconciliation summary وجود ندارد.
+- infrastructure alert و health incident در پاسخ نیست.
+- utilization تاریخی نودها و resourceها ارائه نمی‌شود.
 
 ## مدیریت منابع ادمین
 
@@ -339,17 +335,11 @@ POST /v1/admin/resources/{id}/suspend
 
 ## Query Instance
 
-### شکاف schema
+### موجود در 0.2.1
 
-`QueryInstanceListResponse.status` هنوز string است و باید enum زیر باشد:
-
-- `DISABLED`
-- `FULL`
-- `UNREACHABLE`
-- `RECONNECTING`
-- `LOGIN_FAILED`
-- `DISPATCHED`
-- `INITIATED`
+- `QueryInstanceListResponse.status` به enum کامل تبدیل شده است.
+- استراتژی Provisioning با GET/PATCH روی `/v1/admin/query-instances/provisioning` مدیریت می‌شود.
+- استراتژی‌های مجاز: `BALANCED`, `BIN_PACKING`, `RANDOMIZED`, `ROUND_ROBIN`.
 
 ### قابلیت‌های پیشنهادی
 
@@ -372,7 +362,9 @@ GET  /v1/admin/query-instances/{id}/resources
 
 ### موجود
 
-status enum در OpenAPI تعریف شده است.
+- status enum در OpenAPI تعریف شده است.
+- استراتژی Provisioning با GET/PATCH روی `/v1/admin/audio-bot-nodes/provisioning` مدیریت می‌شود.
+- استراتژی‌های مجاز: `BALANCED`, `BIN_PACKING`, `RANDOMIZED`, `ROUND_ROBIN`.
 
 ### شکاف‌ها و پیشنهادها
 

@@ -34,4 +34,14 @@ GET /v1/dashboard/overview
 
 # داشبورد مدیریت
 
-داشبورد مدیریت فعلاً متریک‌های خود را از mock می‌گیرد. برای جلوگیری از چند درخواست هم‌زمان، endpoint سبک و تجمیعی مستقل برای staff dashboard پیشنهاد می‌شود.
+داشبورد مدیریت از endpoint تجمیعی backend استفاده می‌کند؛ داده‌های mock حذف شده‌اند.
+
+## بروزرسانی 0.2.1 — داشبورد مدیریت
+
+داشبورد مدیریت اکنون به endpoint واقعی زیر متصل است:
+
+```http
+GET /v1/admin/dashboard/overview
+```
+
+پاسخ شامل `financeMetric`, `userMetric`, `ticketMetric`, `resourceMetric`, `queryInstanceMetric` و `audioBotNodeMetric` است. فرانت‌اند آن را با cache مشترک پنج‌ثانیه‌ای مصرف می‌کند و مقایسه دوره جاری/قبلی و استراتژی Provisioning نودها را نمایش می‌دهد.

@@ -63,7 +63,7 @@ export function openUserPicker(options: UserPickerOptions): HTMLDialogElement {
           const id = Number(user.id);
           const label = selectionLabel(user);
           return `<button type="button" class="owner-picker__item" data-user-id="${id}" data-user-label="${escapeHtml(label)}" data-user-phone="${escapeHtml(user.phone ?? '')}" data-user-email="${escapeHtml(user.email ?? '')}" data-user-role="${escapeHtml(user.role ?? '')}">
-            <span class="owner-picker__avatar">${icon('person')}</span><span><b>${escapeHtml(label)}</b><small><i dir="ltr">${escapeHtml(user.phone || '—')}</i>${user.email ? `<i class="ltr">${escapeHtml(user.email)}</i>` : ''}</small></span>${badge(user.role)}${icon('chevron_left')}
+            <span class="owner-picker__avatar">${icon('person')}<i class="user-presence-dot ${user.online ? 'user-presence-dot--online' : 'user-presence-dot--offline'}"></i></span><span><b>${escapeHtml(label)}</b><small><i dir="ltr">${escapeHtml(user.phone || '—')}</i>${user.email ? `<i class="ltr">${escapeHtml(user.email)}</i>` : ''}</small></span>${badge(user.role)}${icon('chevron_left')}
           </button>`;
         }).join('')}</div>`
       : emptyState('کاربری پیدا نشد', 'عبارت جست‌وجو یا فیلترها را تغییر دهید.');

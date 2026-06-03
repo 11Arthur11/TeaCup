@@ -177,9 +177,8 @@ export interface ResourceListAdminResponse {
   resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   expiration?: string;
-  ownerId?: number;
   period?: ProductPeriod;
-  /** Provider node identifier. Query instance for TEASPEAK and AudioBot node for AUDIO_BOT. */
+  ownerId?: number;
   nodeId?: number;
 }
 
@@ -288,6 +287,10 @@ export interface QueryInstanceEditRequest {
   enabled: boolean;
 }
 
+export interface ChangeProvisioningStrategyRequest {
+  provisionStrategy?: "BALANCED" | "BIN_PACKING" | "RANDOMIZED" | "ROUND_ROBIN";
+}
+
 export interface WalletTransactionFilterRequest {
   page?: number;
   size?: number;
@@ -321,6 +324,23 @@ export interface WalletTransactionResponse {
 }
 
 /** DataResponse, the type of responses with data only */
+export interface DataResponseWalletOverviewResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: WalletOverviewResponse;
+}
+
+export interface WalletOverviewResponse {
+  balance?: Money;
+  spentLast30days?: Money;
+  spentLast7days?: Money;
+  spentLastDay?: Money;
+  autoRenewalCoverageUntil?: string;
+}
+
+/** DataResponse, the type of responses with data only */
 export interface DataResponseUserDetailResponse {
   /** Operation success state, boolean */
   success?: boolean;
@@ -338,6 +358,7 @@ export interface UserDetailResponse {
   lastLogin?: string;
   createdAt?: string;
   emailVerified?: boolean;
+  online?: boolean;
 }
 
 export interface TicketFilterRequest {
@@ -430,10 +451,10 @@ export interface AbstractResourceDetailResponse {
   productName?: string;
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  period?: ProductPeriod;
   orderDate?: string;
   expiration?: string;
   autoProlong?: boolean;
-  period?: ProductPeriod;
   /** TeaSpeak connection address when resourceType is TEASPEAK. */
   address?: string;
   maxClients?: number;
@@ -527,6 +548,26 @@ export interface PagedModelInvoiceUserResponse {
   page?: PageMetadata;
 }
 
+export interface DashboardOverviewResponse {
+  resourceMetric?: ResourceOverviewResponse;
+  openTickets?: number;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseDashboardOverviewResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: DashboardOverviewResponse;
+}
+
+export interface ResourceOverviewResponse {
+  total?: number;
+  active?: number;
+  suspended?: number;
+}
+
 export interface CategoryListResponse {
   name?: string;
   description?: string;
@@ -572,6 +613,7 @@ export interface UserListResponse {
   email?: string;
   role?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
   lastLogin?: string;
+  online?: boolean;
 }
 
 /** DataResponse, the type of responses with data only */
@@ -592,6 +634,7 @@ export interface UserDetailAdminResponse {
   lastLogin?: string;
   createdAt?: string;
   emailVerified?: boolean;
+  online?: boolean;
   id?: number;
   updatedAt?: string;
   enabled?: boolean;
@@ -610,7 +653,7 @@ export interface DataResponseListRoleListResponse {
 
 export interface RoleListResponse {
   id?: number;
-  name?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
+  name?: string;
   hierarchy?: number;
 }
 
@@ -681,6 +724,15 @@ export interface QueryInstanceListResponse {
   startPort?: number;
   stopPort?: number;
   active?: boolean;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseProvisionStrategy {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: "BALANCED" | "BIN_PACKING" | "RANDOMIZED" | "ROUND_ROBIN";
 }
 
 /** DataResponse, the type of responses with data only */
@@ -801,6 +853,77 @@ export interface LiaraDnsProviderDetailResponse {
   dnsZones?: Array<DnsZoneListResponse>;
 }
 
+export interface AdminMetric {
+  financeMetric?: FinanceMetric;
+  userMetric?: UserMetric;
+  ticketMetric?: TicketMetric;
+  resourceMetric?: ResourceMetric;
+  queryInstanceMetric?: NodeMetric;
+  audioBotNodeMetric?: NodeMetric;
+}
+
+export interface CountSummary {
+  total?: number;
+  count?: number;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseAdminMetric {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: AdminMetric;
+}
+
+export interface FinanceFlowComparison {
+  daily?: PeriodComparisonBigDecimal;
+  weekly?: PeriodComparisonBigDecimal;
+  monthly?: PeriodComparisonBigDecimal;
+}
+
+export interface FinanceMetric {
+  totalBalance?: Money;
+  income?: FinanceFlowComparison;
+  spending?: FinanceFlowComparison;
+}
+
+export interface NodeMetric {
+  nodeSummary?: CountSummary;
+  nodeStrategy?: "BALANCED" | "BIN_PACKING" | "RANDOMIZED" | "ROUND_ROBIN";
+}
+
+export interface PeriodComparisonBigDecimal {
+  current?: number;
+  previous?: number;
+}
+
+export interface PeriodComparisonLong {
+  current?: number;
+  previous?: number;
+}
+
+export interface ResourceMetric {
+  total?: number;
+  active?: number;
+  suspended?: number;
+  deploying?: number;
+}
+
+export interface TicketMetric {
+  pending?: number;
+  waiting?: number;
+  closed?: number;
+  responded?: number;
+}
+
+export interface UserMetric {
+  currentOnline?: number;
+  dailyRegisters?: PeriodComparisonLong;
+  weeklyRegisters?: PeriodComparisonLong;
+  monthlyRegisters?: PeriodComparisonLong;
+}
+
 export interface CategoryListAdminResponse {
   id?: number;
   name?: string;
@@ -862,46 +985,8 @@ export interface DataResponseAudioBotNodeDetailResponse {
   data?: AudioBotNodeDetailResponse;
 }
 
-/** Billing period of a product/resource. */
-export type ProductPeriod = "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
-
 export interface PrivilegeTokenResponse {
   token?: string;
 }
 
-export interface WalletOverviewResponse {
-  balance?: Money;
-  spentLast30days?: Money;
-  spentLast7days?: Money;
-  spentLastDay?: Money;
-  autoRenewalCoverageUntil?: string;
-}
-
-/** DataResponse, the type of responses with data only */
-export interface DataResponseWalletOverviewResponse {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: WalletOverviewResponse;
-}
-
-export interface ResourceMetricResponse {
-  total?: number;
-  active?: number;
-  suspended?: number;
-}
-
-export interface UserDashboardOverviewResponse {
-  resourceMetric?: ResourceMetricResponse;
-  openTickets?: number;
-}
-
-/** DataResponse, the type of responses with data only */
-export interface DataResponseUserDashboardOverviewResponse {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: UserDashboardOverviewResponse;
-}
+export type ProductPeriod = "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";

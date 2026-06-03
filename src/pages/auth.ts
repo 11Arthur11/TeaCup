@@ -36,13 +36,33 @@ function renderPhone(): void {
     const button = qs<HTMLButtonElement>('button[type="submit"]', form);
     phone = normalizeIranMobileInput(phoneInput.value);
     let backendPhone: string;
+
     try {
-      backendPhone = iranMobileToE164(phone);
+
+      const normalized = normalizeIranMobileInput(phone).replace(/\D/g, '');
+
+
+
+      if (!/^09\d{9}$/.test(normalized)) {
+
+        throw new Error('شماره موبایل معتبر نیست.');
+
+      }
+
+
+
+      backendPhone = normalized.substring(1);
+
     } catch (error) {
+
       phoneInput.setCustomValidity(error instanceof Error ? error.message : 'شماره موبایل معتبر نیست.');
+
       phoneInput.reportValidity();
+
       phoneInput.focus();
+
       return;
+
     }
     button.disabled = true; button.dataset.loading = 'true';
     try {
