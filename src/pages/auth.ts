@@ -5,7 +5,7 @@ import { escapeHtml, icon, qs } from '../core/dom.js';
 import { router } from '../core/router.js';
 import { store } from '../core/store.js';
 import { markSessionEstablished } from '../core/session.js';
-import { iranMobileToE164, normalizeIranMobileInput } from '../core/phone.js';
+import { normalizeIranMobileInput } from '../core/phone.js';
 import { notify } from '../core/toast.js';
 import { renderPublic } from '../ui/layout.js';
 
@@ -34,35 +34,21 @@ function renderPhone(): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const button = qs<HTMLButtonElement>('button[type="submit"]', form);
-    phone = normalizeIranMobileInput(phoneInput.value);
+    phone = phoneInput.value;
     let backendPhone: string;
-
     try {
-
       const normalized = normalizeIranMobileInput(phone).replace(/\D/g, '');
 
-
-
       if (!/^09\d{9}$/.test(normalized)) {
-
         throw new Error('شماره موبایل معتبر نیست.');
-
       }
 
-
-
       backendPhone = normalized.substring(1);
-
     } catch (error) {
-
       phoneInput.setCustomValidity(error instanceof Error ? error.message : 'شماره موبایل معتبر نیست.');
-
       phoneInput.reportValidity();
-
       phoneInput.focus();
-
       return;
-
     }
     button.disabled = true; button.dataset.loading = 'true';
     try {

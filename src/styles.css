@@ -1466,6 +1466,8 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
 .admin-wallet-chart-card { margin: 0; }
 .admin-chart-description { margin: 0 0 14px; color: var(--text-3); font-size: .64rem; line-height: 1.8; }
 .admin-comparison-list { display: grid; gap: 14px; }
+.admin-comparison-calendar-note { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; color: var(--text-3); font-size: .55rem; line-height: 1.7; }
+.admin-comparison-calendar-note .material-symbols-rounded { font-size: 14px; }
 .admin-comparison-row { display: grid; gap: 8px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
 .admin-comparison-row:last-child { padding-bottom: 0; border-bottom: 0; }
 .admin-comparison-row > header { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 9px; align-items: center; }
@@ -1516,7 +1518,7 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
 /* User online presence */
 .user-presence-avatar {
   position: relative;
-  display: inline-grid;
+  display: inline-grid !important;
   place-items: center;
   flex: 0 0 auto;
   width: 2.35rem;

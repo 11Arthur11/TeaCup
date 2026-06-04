@@ -94,7 +94,7 @@ function walletComparisonCard(title: string, description: string, symbol: string
     ${comparisonRow('روزانه', 'امروز', 'دیروز', data.day, favorableIncrease)}
     ${comparisonRow('هفتگی', 'این هفته', 'هفته قبل', data.week, favorableIncrease)}
     ${comparisonRow('ماهانه', 'این ماه', 'ماه قبل', data.month, favorableIncrease)}
-  </div>`;
+  </div><small class="admin-comparison-calendar-note">${icon('calendar_month')} مقایسه دوره‌ها بر اساس تقویم شمسی محاسبه شده است.</small>`;
   return card(title, body, { icon: symbol, className: 'admin-wallet-chart-card' });
 }
 
@@ -176,7 +176,7 @@ export async function renderAdminDashboard(): Promise<void> {
       </div>
       <div class="admin-wallet-charts">
         ${walletComparisonCard('شارژهای کیف پول', 'مقایسه دوره جاری با دوره زمانی قبلی برای شارژ حساب کاربران.', 'add_card', overview.wallet.charges, true)}
-        ${walletComparisonCard('خرج‌های کیف پول', 'مقایسه مصرف کیف پول کاربران با دوره زمانی قبلی.', 'payments', overview.wallet.spending, false)}
+        ${walletComparisonCard('خرج‌های کیف پول', 'مقایسه مصرف کیف پول کاربران با دوره زمانی قبلی.', 'payments', overview.wallet.spending, true)}
       </div>
       <div class="admin-overview-metric-groups">
         ${adminMetricGroup('ثبت‌نام کاربران', 'person_add', [
