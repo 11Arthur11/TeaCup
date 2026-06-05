@@ -95,6 +95,7 @@ export const operations = {
   "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
+  "checkSession": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -473,6 +474,7 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
+  "checkSession": Record<string, never>;
 }
 
 export interface OperationOutputMap {
@@ -574,6 +576,7 @@ export interface OperationOutputMap {
   "deleteAudioBotPlaylist": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
+  "checkSession": void;
 }
 
 export interface OperationMeta {

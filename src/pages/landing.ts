@@ -1,42 +1,165 @@
 import { renderPublic, syncBackendAvailabilityUi } from '../ui/layout.js';
 import { apiBaseUrl } from '../api/client.js';
 import { probeBackendAvailability } from '../core/backend-availability.js';
-import { brandLogo, icon } from '../core/dom.js';
+import { brandLogo, escapeHtml, icon } from '../core/dom.js';
+
+interface PublicProductMock {
+  name: string;
+  type: 'TeaSpeak' | 'AudioBot';
+  duration: string;
+  capacity: string;
+  description: string;
+  icon: string;
+  featured?: boolean;
+}
+
+const publicProductsMock: PublicProductMock[] = [
+  {
+    name: 'TeaSpeak ساعتی',
+    type: 'TeaSpeak',
+    duration: 'شروع از ۱ ساعت',
+    capacity: '۳۲ کاربر',
+    description: 'برای یک بازی کوتاه، دورهمی یا تست سریع؛ فقط به‌اندازه زمانی که نیاز دارید.',
+    icon: 'mic',
+    featured: true,
+  },
+  {
+    name: 'TeaSpeak روزانه',
+    type: 'TeaSpeak',
+    duration: 'شروع از ۱ روز',
+    capacity: '۶۴ کاربر',
+    description: 'انتخاب مناسب برای رویدادها، مسابقه‌ها و جمع‌های چندساعته یا یک‌روزه.',
+    icon: 'groups',
+  },
+  {
+    name: 'TeaSpeak ماهانه',
+    type: 'TeaSpeak',
+    duration: 'تمدید ماهانه',
+    capacity: '۱۲۸ کاربر',
+    description: 'برای تیم‌ها و کامیونیتی‌هایی که یک فضای صوتی همیشگی و قابل مدیریت می‌خواهند.',
+    icon: 'dns',
+  },
+  {
+    name: 'AudioBot روزانه',
+    type: 'AudioBot',
+    duration: 'پخش ۲۴ ساعته',
+    capacity: 'Playlist نامحدود',
+    description: 'موزیک و محتوای صوتی را در کانال خود پخش و فهرست‌های پخش را مدیریت کنید.',
+    icon: 'headphones',
+  },
+];
+
+function productCards(limit?: number): string {
+  return publicProductsMock.slice(0, limit).map((product) => `<article class="public-product-card ${product.featured ? 'public-product-card--featured' : ''}">
+    <div class="public-product-card__top"><span class="public-product-card__icon">${icon(product.icon)}</span><span class="public-product-card__mock">نمونه نمایشی</span></div>
+    <div><small>${escapeHtml(product.type)}</small><h3>${escapeHtml(product.name)}</h3><p>${escapeHtml(product.description)}</p></div>
+    <div class="public-product-card__facts"><span>${icon('schedule')} ${escapeHtml(product.duration)}</span><span>${icon('group')} ${escapeHtml(product.capacity)}</span></div>
+    <a data-link data-dashboard-access href="/auth" class="public-product-card__action">انتخاب در داشبورد ${icon('arrow_back')}</a>
+  </article>`).join('');
+}
 
 export function renderLanding(): void {
   renderPublic(`
-    <section class="hero">
-      <div class="hero__glow hero__glow--one"></div><div class="hero__glow hero__glow--two"></div>
-      <div class="hero__content">
-        <div class="hero__copy"><span class="pill">${icon('verified')} زیرساخت صوتی حرفه‌ای و مدیریت‌شده</span>
-          <h1>صدای پایدار،<br/><em>مدیریت ابری ساده.</em></h1>
-          <p>ابر چایی پلتفرم یکپارچه خرید، راه‌اندازی و مدیریت سرورهای TeaSpeak و سرویس‌های AudioBot است؛ با تمدید خودکار، صورتحساب شفاف و پشتیبانی فارسی.</p>
-          <div class="hero__actions"><a data-link data-dashboard-access href="/auth" class="button button--primary button--large">شروع استفاده ${icon('arrow_back')}</a><a href="#services" class="button button--glass button--large">مشاهده سرویس‌ها</a></div>
-          <div class="trust-row"><div><b>راه‌اندازی سریع</b><span>Provisioning خودکار</span></div><div><b>مدیریت متمرکز</b><span>از یک پنل واحد</span></div><div><b>پشتیبانی فارسی</b><span>فنی و فروش</span></div></div>
-        </div>
-        <div class="hero__visual" aria-label="نمای پنل ابر چایی">
-          <div class="dashboard-preview">
-            <div class="preview-sidebar"><span class="preview-logo">${brandLogo('preview-logo__image')}</span>${['dashboard','dns','headphones','receipt_long','support_agent'].map((name, i) => `<i class="${i === 0 ? 'active' : ''}">${icon(name)}</i>`).join('')}</div>
-            <div class="preview-main"><div class="preview-top"><span></span><div><i></i><i></i><i></i></div></div><div class="preview-stats"><article><span>سرویس‌های فعال</span><b>۱۲</b><small>+۲ این ماه</small></article><article><span>مصرف منابع</span><b>۶۸٪</b><small>وضعیت پایدار</small></article><article><span>کیف پول</span><b>۲۴۵,۰۰۰</b><small>تومان</small></article></div><div class="preview-chart"><div class="chart-grid"></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><path d="M0,145 C70,130 90,90 150,105 S250,150 310,80 S430,20 600,55" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M0,145 C70,130 90,90 150,105 S250,150 310,80 S430,20 600,55 L600,180 L0,180 Z" fill="currentColor" opacity=".08"/></svg></div><div class="preview-list">${['TeaSpeak تهران — ۶۴ اسلات','AudioBot موزیک روم','TeaSpeak گیمینگ'].map((text, i) => `<div><span class="dot dot--${i === 1 ? 'warning' : 'success'}"></span><b>${text}</b><em>${i === 1 ? 'در حال اتصال' : 'فعال'}</em></div>`).join('')}</div></div>
+    <section class="tea-hero">
+      <div class="tea-hero__pattern"></div>
+      <div class="tea-hero__inner">
+        <div class="tea-hero__copy">
+          <span class="tea-kicker">${icon('local_cafe')} سرویس صوتی، به سبک ابر چایی</span>
+          <h1>خرید سرور TeaSpeak،<br/><em>به آسانی نوشیدن چای.</em></h1>
+          <p>خسته شدی برای یک روز بازی، مجبور باشی هزینه یک ماه سرور را بدهی؟ کیف پول ابر چایی را یک‌بار شارژ کن و هر زمان خواستی، سرویس را دقیقاً برای همان مدتی که نیاز داری فعال کن.</p>
+          <div class="tea-hero__actions">
+            <a data-link data-dashboard-access href="/auth" class="button button--primary button--large">ورود و شروع خرید ${icon('arrow_back')}</a>
+            <a data-link href="/products" class="button button--glass button--large">دیدن محصولات</a>
           </div>
-          <div class="floating-card floating-card--status">${icon('check_circle')}<div><b>سرویس آماده شد</b><span>در کمتر از یک دقیقه</span></div></div>
-          <div class="floating-card floating-card--audio">${icon('graphic_eq')}<div><b>AudioBot آنلاین</b><span>پخش بدون وقفه</span></div></div>
+          <div class="tea-hero__promises">
+            <span>${icon('timer')} خرید از یک ساعت</span>
+            <span>${icon('account_balance_wallet')} پرداخت با کیف پول</span>
+            <span>${icon('support_agent')} پشتیبانی فارسی</span>
+          </div>
+        </div>
+
+        <div class="tea-hero__visual" aria-label="نمای مفهومی ابر چایی">
+          <div class="tea-cup-scene">
+            <div class="tea-steam tea-steam--one"></div><div class="tea-steam tea-steam--two"></div><div class="tea-steam tea-steam--three"></div>
+            <div class="tea-cup"><span>${brandLogo('tea-cup__logo')}</span></div>
+            <div class="tea-saucer"></div>
+            <article class="tea-float-card tea-float-card--service">${icon('graphic_eq')}<div><b>TeaSpeak آماده است</b><small>فعال تا ۵ ساعت دیگر</small></div></article>
+            <article class="tea-float-card tea-float-card--wallet">${icon('account_balance_wallet')}<div><b>کیف پول شما</b><small>آماده خرید بعدی</small></div></article>
+            <article class="tea-float-card tea-float-card--period">${icon('schedule')}<div><b>مدت دلخواه</b><small>ساعتی، روزانه یا ماهانه</small></div></article>
+          </div>
         </div>
       </div>
-      <div class="hero__logos"><span>زیرساخت سازگار با</span><b>TeaSpeak</b><b>AudioBot</b><b>پرداخت امن</b><b>DNS ابری</b></div>
     </section>
 
-    <section id="services" class="section services-section"><div class="section-heading"><span>محصولات ابر چایی</span><h2>همه‌چیز برای یک تجربه صوتی حرفه‌ای</h2><p>سرویس‌ها با معماری مقیاس‌پذیر، کنترل کامل و تجربه کاربری یکپارچه ارائه می‌شوند.</p></div>
-      <div class="service-grid">
-        <article class="service-card service-card--primary"><div class="service-card__icon">${icon('dns')}</div><span class="service-tag">محبوب</span><h3>سرور TeaSpeak</h3><p>سرور صوتی پایدار با انتخاب ظرفیت، راه‌اندازی خودکار، کنترل روشن/خاموش و ساخت کلید دسترسی.</p><ul><li>${icon('check')} مدیریت وضعیت لحظه‌ای</li><li>${icon('check')} تمدید دستی یا خودکار</li><li>${icon('check')} ظرفیت‌های متنوع</li></ul><a data-link data-dashboard-access href="/auth">مشاهده پلن‌ها ${icon('arrow_back')}</a></article>
-        <article class="service-card"><div class="service-card__icon">${icon('headphones')}</div><h3>سرویس AudioBot</h3><p>ربات صوتی همیشه‌فعال با اتصال به سرور، مدیریت Playlist و افزودن Track از لینک.</p><ul><li>${icon('check')} مدیریت Playlistها</li><li>${icon('check')} ویرایش اتصال و نام ربات</li><li>${icon('check')} کنترل اجرای سرویس</li></ul><a data-link data-dashboard-access href="/auth">ساخت AudioBot ${icon('arrow_back')}</a></article>
-        <article class="service-card"><div class="service-card__icon">${icon('support_agent')}</div><h3>مدیریت و پشتیبانی</h3><p>صورتحساب، کیف پول، اعلان‌های سیستمی و تیکت‌های فنی و فروش در یک فضای شفاف.</p><ul><li>${icon('check')} پیگیری گفتگوها و فایل‌ها</li><li>${icon('check')} تاریخچه تراکنش‌ها</li><li>${icon('check')} پرداخت آنلاین امن</li></ul><a data-link data-dashboard-access href="/auth">ورود به پنل ${icon('arrow_back')}</a></article>
+    <section class="tea-story-strip">
+      <div><span>۱</span><b>کیف پول را شارژ کن</b><small>یک‌بار پرداخت، خریدهای بعدی سریع‌تر</small></div>
+      <i>${icon('arrow_back')}</i>
+      <div><span>۲</span><b>مدت را انتخاب کن</b><small>از چند ساعت تا دوره‌های بلندتر</small></div>
+      <i>${icon('arrow_back')}</i>
+      <div><span>۳</span><b>سرویس را تحویل بگیر</b><small>مشخصات اتصال در داشبورد شما</small></div>
+    </section>
+
+    <section id="products" class="public-products-section">
+      <div class="public-section-heading public-section-heading--split">
+        <div><span>محصولات پیشنهادی</span><h2>همان‌قدر بخر که استفاده می‌کنی</h2><p>این محصولات فعلاً نمونه نمایشی‌اند و پس از آماده‌شدن فهرست عمومی، اطلاعات واقعی جایگزین می‌شود.</p></div>
+        <a data-link href="/products" class="button button--secondary">همه محصولات ${icon('arrow_back')}</a>
+      </div>
+      <div class="public-product-grid">${productCards(3)}</div>
+    </section>
+
+    <section id="features" class="tea-benefits-section">
+      <div class="tea-benefits-section__intro"><span class="tea-kicker tea-kicker--dark">${icon('auto_awesome')} تجربه‌ای ساده و قابل‌فهم</span><h2>همه‌چیز برای اینکه کمتر درگیر تنظیمات شوی و بیشتر بازی کنی.</h2><p>از خرید تا تمدید و پشتیبانی، هر چیزی که لازم داری در یک داشبورد مرتب در دسترس است.</p></div>
+      <div class="tea-benefits-grid">
+        <article>${icon('hourglass_top')}<h3>مدت‌های کوتاه و منعطف</h3><p>برای یک شب بازی، یک روز مسابقه یا استفاده دائمی، دوره مناسب خودت را انتخاب کن.</p></article>
+        <article>${icon('payments')}<h3>خرید سریع با کیف پول</h3><p>موجودی را شارژ کن و بدون تکرار مراحل پرداخت، سرویس‌های بعدی را سریع‌تر بخر.</p></article>
+        <article>${icon('notifications_active')}<h3>زمان باقی‌مانده روشن</h3><p>تاریخ پایان سرویس، تمدید خودکار و وضعیت پرداخت همیشه واضح نمایش داده می‌شود.</p></article>
+        <article>${icon('forum')}<h3>پشتیبانی کنار سرویس</h3><p>تیکت بساز، فایل بفرست و پاسخ‌ها را همان‌جا در یک گفت‌وگوی مرتب دنبال کن.</p></article>
       </div>
     </section>
 
-    <section id="features" class="section feature-section"><div class="feature-copy"><span class="eyebrow">کنترل کامل</span><h2>پنلی که برای مدیریت سرویس ساخته شده، نه فقط نمایش اطلاعات</h2><p>از خرید و Provisioning تا تمدید، پرداخت و پشتیبانی، تمام چرخه عمر سرویس در ابر چایی مدیریت می‌شود.</p><div class="feature-list"><div>${icon('bolt')}<span><b>عملیات سریع</b><small>شروع، توقف، تمدید و ویرایش در چند کلیک</small></span></div><div>${icon('security')}<span><b>احراز هویت امن</b><small>ورود OTP و مدیریت session توسط backend</small></span></div><div>${icon('monitoring')}<span><b>دید مدیریتی</b><small>آمار زنده، فیلتر و وضعیت منابع</small></span></div><div>${icon('devices')}<span><b>تجربه پاسخ‌گو</b><small>بهینه برای موبایل، تبلت و دسکتاپ</small></span></div></div></div><div class="feature-orbit"><div class="orbit orbit--1"></div><div class="orbit orbit--2"></div><div class="orbit-center">${brandLogo('orbit-center__logo')}<b>TeaCloud</b><span>مرکز کنترل</span></div>${[['dns','TeaSpeak'],['headphones','AudioBot'],['payments','پرداخت'],['support_agent','پشتیبانی']].map(([i,t],n)=>`<div class="orbit-item orbit-item--${n+1}">${icon(i ?? '')}<span>${t ?? ''}</span></div>`).join('')}</div></section>
+    <section class="tea-quote-section">
+      <div class="tea-quote-section__mark">${icon('format_quote')}</div>
+      <div><span>فلسفه ابر چایی</span><h2>قرار نیست برای چند ساعت استفاده، هزینه یک ماه را بپردازی.</h2><p>سرویس ابری یعنی انتخاب آزادانه مدت، ظرفیت و زمان شروع؛ درست همان لحظه‌ای که نیازش داری.</p></div>
+    </section>
 
-    <section id="pricing" class="section cta-section"><div><span class="pill pill--light">آماده برای شروع؟</span><h2>زیرساخت صوتی خود را همین امروز راه‌اندازی کنید.</h2><p>پلن مناسب را انتخاب کنید و مدیریت حرفه‌ای سرویس را به ابر چایی بسپارید.</p></div><a data-link data-dashboard-access href="/auth" class="button button--light button--large">ساخت حساب و ورود ${icon('arrow_back')}</a></section>
+    <section class="tea-cta-section">
+      <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
+      <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
+    </section>
   `, { transparent: true });
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
+}
+
+export function renderPublicProducts(): void {
+  renderPublic(`
+    <section class="public-page-hero public-page-hero--products">
+      <span class="tea-kicker">${icon('shopping_bag')} فهرست عمومی محصولات</span>
+      <h1>سرویس مناسب زمان و جمع خودت را پیدا کن.</h1>
+      <p>فهرست زیر فعلاً برای طراحی و تجربه کاربری به‌صورت نمایشی ساخته شده است. قیمت و موجودی واقعی بعداً از فهرست عمومی محصولات دریافت می‌شود.</p>
+    </section>
+    <section class="public-products-page">
+      <div class="public-product-page-note">${icon('info')} اطلاعات این صفحه نمونه است و برای خرید نهایی باید وارد داشبورد شوید.</div>
+      <div class="public-product-grid public-product-grid--page">${productCards()}</div>
+    </section>
+    <section class="public-page-cta"><div><h2>مدت کوتاه می‌خواهی یا سرویس دائمی؟</h2><p>در داشبورد می‌توانی دوره و ظرفیت مناسب را دقیق‌تر انتخاب کنی.</p></div><a data-link data-dashboard-access href="/auth" class="button button--primary">ورود به داشبورد ${icon('arrow_back')}</a></section>
+  `);
+  void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
+}
+
+export function renderRules(): void {
+  const rules = [
+    ['person_check', 'حساب کاربری', 'اطلاعات حساب باید صحیح و متعلق به خود کاربر باشد. مسئولیت نگهداری دسترسی شماره موبایل و پیگیری فعالیت‌های حساب بر عهده صاحب حساب است.'],
+    ['account_balance_wallet', 'کیف پول و پرداخت', 'مبالغ شارژشده برای خرید و تمدید سرویس‌های ابر چایی استفاده می‌شوند. سوابق پرداخت و تراکنش‌ها از بخش مالی قابل مشاهده‌اند.'],
+    ['schedule', 'مدت سرویس', 'زمان سرویس پس از فعال‌شدن محاسبه می‌شود. تاریخ پایان و زمان باقی‌مانده در داشبورد نمایش داده می‌شود و انتخاب دوره پیش از خرید باید بررسی شود.'],
+    ['autorenew', 'تمدید خودکار', 'در صورت فعال‌بودن تمدید خودکار و کافی‌بودن موجودی، سرویس مطابق دوره خود تمدید می‌شود. این گزینه هر زمان از صفحه سرویس قابل تغییر است.'],
+    ['verified_user', 'استفاده مجاز', 'استفاده از سرویس برای فعالیت‌های غیرقانونی، ایجاد مزاحمت، آسیب به دیگران یا نقض حقوق اشخاص مجاز نیست. در موارد ضروری ممکن است دسترسی سرویس محدود شود.'],
+    ['support_agent', 'پشتیبانی و رسیدگی', 'برای مشکلات خرید، اتصال یا پرداخت از بخش تیکت‌ها استفاده کنید. ارائه شناسه سرویس یا فاکتور، رسیدگی را سریع‌تر می‌کند.'],
+  ];
+  renderPublic(`
+    <section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>قواعد ساده برای یک تجربه روشن و قابل اعتماد.</h1><p>این متن نسخه اولیه قوانین ابر چایی است و پیش از انتشار نهایی می‌تواند با شرایط دقیق خدمات تکمیل شود.</p></section>
+    <section class="rules-page">
+      <aside class="rules-page__summary"><span>نسخه اولیه</span><h2>پیش از خرید بدانید</h2><p>خرید یا استفاده از سرویس به‌معنای پذیرش قوانین جاری است. تغییرات مهم از طریق همین صفحه یا اعلان‌های عمومی اطلاع‌رسانی می‌شوند.</p><a data-link href="/products" class="button button--secondary button--block">مشاهده محصولات</a></aside>
+      <div class="rules-list">${rules.map(([ruleIcon, title, text], index) => `<article id="rule-${index + 1}"><span>${icon(ruleIcon ?? 'article')}</span><div><small>بند ${index + 1}</small><h3>${escapeHtml(title ?? '')}</h3><p>${escapeHtml(text ?? '')}</p></div></article>`).join('')}</div>
+    </section>
+  `);
 }

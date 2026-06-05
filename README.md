@@ -41,7 +41,7 @@ globalThis.TEACLOUD_API_BASE_URL = 'https://api.example.com';
 - `src/api/client.ts`: typed HTTP client، query serialization، multipart/blob و خطای backend
 - `src/api/session-profile.ts`: دریافت پروفایل احراز‌شده و استخراج نقش برای RBAC
 - `src/core/authorization.ts`: ماتریس دسترسی role-based و نام فارسی نقش‌ها
-- `src/core`: router، store، session hint غیرحساس، dialog، toast، format و action orchestration
+- `src/core`: router، store، بررسی نشست با HEAD، dialog، toast، format و action orchestration
 - `src/ui`: layout و component primitives
 - `src/pages`: صفحات landing/auth/user/admin
 - `scripts`: generator، build، dev server و coverage check
@@ -150,3 +150,8 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - وضعیت `online` در پروفایل، فهرست کاربران، انتخاب‌گر کاربر و جزئیات مدیریتی با نشان سبز heartbeat یا خاکستری نمایش داده می‌شود.
 - استراتژی‌های Provisioning شامل `BALANCED`, `BIN_PACKING`, `RANDOMIZED`, `ROUND_ROBIN` در داشبورد و صفحات Query/AudioBot ترجمه و نمایش داده می‌شوند.
 - صفحات مدیریت Query و AudioBot وضعیت فعلی استراتژی را از endpoint اختصاصی GET دریافت و تغییر را با PATCH ثبت می‌کنند.
+
+
+## Session validation
+
+اعتبار ورود فقط با `HEAD /v1/auth/session` بررسی می‌شود. پاسخ `204` به‌معنای نشست فعال و `401` به‌معنای مهمان است. هیچ نشانه ورود در localStorage یا sessionStorage به‌عنوان معیار احراز هویت نگهداری نمی‌شود.

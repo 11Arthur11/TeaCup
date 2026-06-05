@@ -106,7 +106,7 @@ export class ApiClient {
 
   async call<K extends OperationId>(operationId: K, input: OperationInputMap[K]): Promise<OperationOutputMap[K]> {
     const operation = operations[operationId];
-    const isReadOnly = operation.method === 'GET' || READ_ONLY_POST_OPERATIONS.has(operationId);
+    const isReadOnly = operation.method === 'GET' || operation.method === 'HEAD' || READ_ONLY_POST_OPERATIONS.has(operationId);
     const requestKey = isReadOnly ? `${operationId}:${stableSerialize(input)}` : undefined;
     const existing = requestKey ? this.inFlightReads.get(requestKey) : undefined;
     if (existing) return existing as Promise<OperationOutputMap[K]>;

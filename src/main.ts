@@ -1,19 +1,18 @@
 import { fetchSessionProfile } from './api/session-profile.js';
+import { hasActiveAuthSession } from './api/auth-session.js';
 import { primeProductCategoryNavigation } from './api/catalog.js';
-import { ApiError, apiBaseUrl, setForbiddenHandler, setNetworkFailureHandler } from './api/client.js';
+import { ApiError, setForbiddenHandler, setNetworkFailureHandler } from './api/client.js';
 import { canAccessAdminArea, hasAdminPanelAccess, type AdminArea } from './core/authorization.js';
-import { getBackendAvailability, probeBackendAvailability } from './core/backend-availability.js';
 import { openDialog } from './core/dialog.js';
 import { appRoot, escapeHtml, icon } from './core/dom.js';
 import { router, type RouteContext, type RouteHandler } from './core/router.js';
-import { clearSessionHint, hasSessionHint } from './core/session.js';
 import { pageRefresh } from './core/page-refresh.js';
 import { beginRouteLoading, finishRouteLoading } from './core/route-loading.js';
 import { store } from './core/store.js';
 import { notify } from './core/toast.js';
 import { renderAppShell, renderPublic } from './ui/layout.js';
 import { renderAuth } from './pages/auth.js';
-import { renderLanding } from './pages/landing.js';
+import { renderLanding, renderPublicProducts, renderRules } from './pages/landing.js';
 import {
   renderAccount, renderFinance, renderInvoiceDetail, renderNotifications, renderProducts, renderServiceDetail,
   renderServices, renderTicketDetail, renderTickets, renderUserDashboard
@@ -34,7 +33,7 @@ function showBackendUnavailableDialog(): void {
   pageRefresh.stop();
   const dialog = openDialog({
     title: 'داشبورد موقتاً در دسترس نیست',
-    description: 'ارتباط با سرور برقرار نشد. برای جلوگیری از نمایش اطلاعات ناقص، دسترسی به پنل تا بازگشت backend متوقف شده است.',
+    description: 'ارتباط با سرور برقرار نشد. برای جلوگیری از نمایش اطلاعات ناقص، دسترسی به پنل تا برقراری دوباره ارتباط متوقف شده است.',
     content: `<div class="maintenance-dialog__content">${icon('cloud_off')}<p>به صفحه اصلی منتقل می‌شوید. وضعیت نگهداری و امکان بررسی مجدد در همان صفحه نمایش داده می‌شود.</p><button type="button" class="button button--primary" data-maintenance-landing>بازگشت به صفحه اصلی</button></div>`,
     compact: true,
     hideFooter: true,
@@ -45,16 +44,6 @@ function showBackendUnavailableDialog(): void {
   };
   dialog.querySelector<HTMLButtonElement>('[data-maintenance-landing]')?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', goLanding, { once: true });
-}
-
-async function allowProtectedRoute(): Promise<boolean> {
-  let availability = getBackendAvailability();
-  if (availability === 'unknown') availability = await probeBackendAvailability(apiBaseUrl);
-  if (availability === 'unavailable') {
-    showBackendUnavailableDialog();
-    return false;
-  }
-  return true;
 }
 
 setNetworkFailureHandler(() => {
@@ -72,7 +61,6 @@ let redirectingAfterForbidden = false;
 setForbiddenHandler(() => {
   if (redirectingAfterForbidden) return;
   redirectingAfterForbidden = true;
-  clearSessionHint();
   store.setIdentity({ status: 'guest', userId: null, role: null });
 
   const current = `${location.pathname}${location.search}`;
@@ -86,38 +74,38 @@ setForbiddenHandler(() => {
 });
 
 /**
- * Profile is not used to probe anonymous visitors. It is requested only after a successful login/register or while restoring a previously established backend session.
+ * Session validity is checked exclusively through HEAD /v1/auth/session.
+ * The profile endpoint is requested only after the backend confirms an active session.
  */
 async function ensureIdentity(): Promise<IdentityResolution> {
-  if (store.get().identity.status === 'authenticated') return { kind: 'ready' };
-  if (!hasSessionHint()) {
-    store.setIdentity({ status: 'guest', userId: null, role: null });
-    return { kind: 'guest' };
-  }
-
-  store.setIdentity({ status: 'checking', userId: null, role: null });
   try {
+    const sessionActive = await hasActiveAuthSession();
+    if (!sessionActive) {
+      store.setIdentity({ status: 'guest', userId: null, role: null });
+      return { kind: 'guest' };
+    }
+
+    if (store.get().identity.status === 'authenticated') return { kind: 'ready' };
+
+    store.setIdentity({ status: 'checking', userId: null, role: null });
     store.setIdentity(await fetchSessionProfile());
     void primeProductCategoryNavigation().catch(() => undefined);
     return { kind: 'ready' };
   } catch (error) {
-    // A 403 is handled globally by ApiClient and clears the frontend session.
-    if (!hasSessionHint() || store.get().identity.status === 'guest') return { kind: 'guest' };
+    if (store.get().identity.status === 'guest') return { kind: 'guest' };
     return { kind: 'error', error };
   }
 }
 
 async function renderAuthRoute(context: RouteContext): Promise<void> {
-  if (hasSessionHint()) {
-    const resolution = await ensureIdentity();
-    if (resolution.kind === 'ready') {
-      router.navigate(hasAdminPanelAccess(store.get().identity.role) ? '/admin' : '/panel', true);
-      return;
-    }
-    if (resolution.kind === 'error') {
-      renderIdentityUnavailable(resolution.error);
-      return;
-    }
+  const resolution = await ensureIdentity();
+  if (resolution.kind === 'ready') {
+    router.navigate(hasAdminPanelAccess(store.get().identity.role) ? '/admin' : '/panel', true);
+    return;
+  }
+  if (resolution.kind === 'error') {
+    renderIdentityUnavailable(resolution.error);
+    return;
   }
 
   renderAuth();
@@ -129,7 +117,6 @@ async function renderAuthRoute(context: RouteContext): Promise<void> {
 }
 
 const authenticated = (handler: RouteHandler): RouteHandler => async (context) => {
-  if (!await allowProtectedRoute()) return;
   const resolution = await ensureIdentity();
   if (resolution.kind === 'guest') {
     router.navigate(`/auth?next=${encodeURIComponent(context.path)}`, true);
@@ -192,6 +179,8 @@ router
   .setBeforeResolve(() => { store.set({ sidebarOpen: false }); document.querySelector('.app-shell')?.classList.remove('app-shell--sidebar-open'); pageRefresh.stop(); beginRouteLoading(); })
   .setAfterResolve(() => finishRouteLoading())
   .register('/', () => renderLanding())
+  .register('/products', () => renderPublicProducts())
+  .register('/rules', () => renderRules())
   .register('/auth', (ctx) => renderAuthRoute(ctx))
   .register('/panel', authenticated(() => renderUserDashboard()))
   .register('/panel/services', liveAuthenticated(() => renderServices()))

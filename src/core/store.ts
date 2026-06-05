@@ -1,5 +1,4 @@
 import type { UserRole } from './authorization.js';
-import { hasSessionHint } from './session.js';
 
 export interface IdentityState {
   status: 'checking' | 'guest' | 'authenticated';
@@ -24,7 +23,7 @@ type Listener = (state: Readonly<AppState>) => void;
 
 class Store {
   private state: AppState = {
-    identity: { status: hasSessionHint() ? 'checking' : 'guest', userId: null, role: null },
+    identity: { status: 'guest', userId: null, role: null },
     sidebarOpen: false,
     productCategories: [],
     productSubtreeOpen: false,
