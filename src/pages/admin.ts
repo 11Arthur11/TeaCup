@@ -17,9 +17,10 @@ import { openUserPicker } from '../ui/user-picker.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
-import { createProductPresentationEditor, parseProductPresentation, renderProductBadges } from '../ui/product-presentation.js';
+import { createProductPresentationEditor } from '../ui/product-presentation.js';
 
-interface AdminProductDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; presentation?: Models.ProductPresentation; }
+interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
+interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
 const adminError = (error: unknown): string => `<div class="notice notice--warning">${icon('warning')}<span>${escapeHtml(error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'دریافت اطلاعات با خطا مواجه شد.')}</span><button onclick="location.reload()">تلاش دوباره</button></div>`;
@@ -483,17 +484,14 @@ export async function renderAdminProducts(): Promise<void> {
       api.call('getAllCategories', {}),
       api.call('getAllAudioBotNodes', {}),
     ]);
-    const products = arrayOf<AdminProductDto>(objectOf(productsResponse).data);
+    const products = arrayOf<AdminProductListDto>(objectOf(productsResponse).data);
     const categories = dataOf(categoriesResponse) ?? [];
     const nodes = dataOf(nodesResponse) ?? [];
 
-    const productTable = dataTable<AdminProductDto>([
+    const productTable = dataTable<AdminProductListDto>([
       {
         label: 'محصول',
-        render: (product) => {
-          const presentation = parseProductPresentation(product.presentation);
-          return `<div class="admin-product-identity"><span class="table-primary">${icon(product.productType?.includes('AUDIO') ? 'headphones' : 'dns')}<span><b>${escapeHtml(product.productName)}</b><small>${escapeHtml(product.categoryName || product.categorySlug)}</small></span></span>${renderProductBadges(presentation.badges, { compact: true, max: 3 })}</div>`;
-        },
+        render: (product) => `<div class="admin-product-identity"><span class="table-primary">${icon(product.productType?.includes('AUDIO') ? 'headphones' : 'dns')}<span><b>${escapeHtml(product.productName)}</b><small>${escapeHtml(product.categoryName || product.categorySlug)}</small></span></span></div>`,
       },
       { label: 'نوع', render: (product) => translateEnum(product.productType?.replace('_PRODUCT', '')) },
       { label: 'قیمت', render: (product) => money(product.price) },
@@ -514,7 +512,7 @@ export async function renderAdminProducts(): Promise<void> {
       const id = Number(button.dataset.editProduct);
       try {
         const response = await api.call('getProduct', { path: { productId: id } });
-        openProductForm(objectOf(response).data as AdminProductDto, categories, nodes);
+        openProductForm(objectOf(response).data as AdminProductDetailDto, categories, nodes);
       } catch (error) {
         notify(error instanceof ApiError ? error.message : 'جزئیات محصول دریافت نشد.', 'error');
       }
@@ -538,7 +536,7 @@ export async function renderAdminProducts(): Promise<void> {
 }
 
 function openProductForm(
-  product: AdminProductDto | undefined,
+  product: AdminProductDetailDto | undefined,
   categories: Models.CategoryListAdminResponse[],
   nodes: Models.AudioBotNodeListResponse[],
 ): void {
@@ -556,7 +554,18 @@ function openProductForm(
     ${!editing ? toggleField('enabled', 'محصول از ابتدا فعال باشد', true) : ''}`;
 
   const productNameInput = qs<HTMLInputElement>('input[name="productName"]', form);
-  const presentationEditor = createProductPresentationEditor(product?.presentation, productNameInput);
+  const priceInput = qs<HTMLInputElement>('input[name="price"]', form);
+  const productTypeInput = qs<HTMLSelectElement>('select[name="type"]', form);
+  const maxClientsInput = qs<HTMLInputElement>('input[name="maxClients"]', form);
+  const periodInput = form.querySelector<HTMLSelectElement>('select[name="productPeriod"]') ?? undefined;
+  const presentationEditor = createProductPresentationEditor(product?.presentation, {
+    productNameInput,
+    priceInput,
+    productTypeInput,
+    maxClientsInput,
+    periodInput,
+    initialPeriod: product?.period,
+  });
   form.append(presentationEditor.element);
 
   const syncTypeFields = (): void => {

@@ -65,3 +65,12 @@ Renderer مشترک در این بخش‌ها استفاده می‌شود:
 فایل اصلی قرارداد و renderer:
 
 `src/ui/product-presentation.ts`
+
+## Admin list/detail rule
+
+`GET /v1/admin/products` is treated as a lightweight list response and the frontend does not read `presentation` from its rows.
+When the administrator clicks Edit, the frontend first calls `GET /v1/admin/products/{productId}` and initializes the presentation editor from that detail response. This prevents stale or missing presentation data from the list endpoint from overwriting the saved configuration.
+
+## Shared card renderer
+
+The customer product card and the admin live preview use the same `renderProductCard` function. The preview includes product name, price, period, presentation badges/features and a disabled order button. Empty feature arrays remain empty; the frontend does not invent fallback features.

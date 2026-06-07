@@ -18,7 +18,7 @@ import { renderAppShell } from '../ui/layout.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
-import { parseProductPresentation, renderProductBadges, renderProductFeatures } from '../ui/product-presentation.js';
+import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -443,28 +443,16 @@ export async function renderProducts(categorySlug = ''): Promise<void> {
     const productsResponse = selectedSlug ? await api.call('getProductByCategorySlug', { path: { categorySlug: selectedSlug } }) : undefined;
     const products = arrayOf<ProductDto>(objectOf(productsResponse).data);
 
-    const cards = products.map((product) => {
-      const presentation = parseProductPresentation(product.presentation);
-      const fallbackDescription = product.productType === 'TEASPEAK'
-        ? `مناسب تیم‌ها و کامیونیتی‌ها با ظرفیت ${faNumber(product.maxClients)} کاربر`
-        : 'ربات موسیقی مدیریت‌شده با کنترل Playlist و اتصال پایدار';
-      const fallbackFeatures = [
-        { text: 'راه‌اندازی خودکار', enabled: true },
-        { text: 'پنل مدیریت کامل', enabled: true },
-        { text: 'تمدید خودکار اختیاری', enabled: true },
-        { text: 'پشتیبانی فارسی', enabled: true },
-      ];
-      const visibleFeatures = presentation.features.length ? presentation.features : fallbackFeatures;
-      const highlighted = presentation.badges.some((item) => ['primary', 'royal', 'aurora', 'success'].includes(item.variant));
-      return `<article class="pricing-card pricing-card--presentation ${highlighted ? 'pricing-card--featured' : ''}">
-        <div class="pricing-card__presentation-top">${renderProductBadges(presentation.badges, { max: 4 })}<div class="pricing-card__icon">${icon(product.productType === 'AUDIO_BOT' ? 'headphones' : 'dns')}</div></div>
-        <h3>${escapeHtml(product.productName)}</h3>
-        <p>${escapeHtml(presentation.description || fallbackDescription)}</p>
-        <div class="pricing-card__price"><b>${money(product.price).replace(' تومان', '')}</b><span>تومان / ${escapeHtml(translateEnum(product.period))}</span></div>
-        ${renderProductFeatures(visibleFeatures)}
-        <button type="button" class="button ${highlighted ? 'button--primary' : 'button--secondary'} button--block" data-buy-product="${product.id}" data-product-type="${product.productType}" data-product-name="${escapeHtml(product.productName)}">انتخاب و راه‌اندازی ${icon('arrow_back')}</button>
-      </article>`;
-    }).join('');
+    const cards = products.map((product) => renderProductCard({
+      productId: product.id,
+      productName: product.productName,
+      productType: product.productType,
+      price: product.price,
+      period: product.period,
+      maxClients: product.maxClients,
+      presentation: parseProductPresentation(product.presentation),
+      actionLabel: 'انتخاب و راه‌اندازی',
+    })).join('');
 
     renderAppShell(`${pageHeader('محصولات', selectedCategory?.description || 'دسته موردنظر را انتخاب و محصول مناسب را راه‌اندازی کنید.')}
       <div class="product-browser">

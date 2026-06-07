@@ -2189,3 +2189,28 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
   .product-presentation-preview-card .product-presentation-features { grid-template-columns: 1fr; }
   .pricing-card__presentation-top { flex-direction: column-reverse; }
 }
+
+/* Product presentation refinements */
+.pricing-card--presentation > h3 {
+  font-size: 1.18rem;
+  line-height: 1.55;
+}
+.pricing-card--presentation .product-presentation-badge {
+  min-height: 28px;
+  padding: 5px 11px;
+  font-size: .72rem;
+}
+.pricing-card--presentation > .button:last-child {
+  margin-top: auto;
+}
+.product-editor-row--badge input[type="text"] {
+  cursor: text;
+}
+.product-presentation-editor__preview > [data-product-presentation-preview] {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.product-presentation-editor__preview .pricing-card {
+  width: min(440px, 100%);
+}
