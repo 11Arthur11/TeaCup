@@ -146,20 +146,40 @@ export function renderPublicProducts(): void {
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
 }
 
-export function renderRules(): void {
-  const rules = [
-    ['person_check', 'حساب کاربری', 'اطلاعات حساب باید صحیح و متعلق به خود کاربر باشد. مسئولیت نگهداری دسترسی شماره موبایل و پیگیری فعالیت‌های حساب بر عهده صاحب حساب است.'],
-    ['account_balance_wallet', 'کیف پول و پرداخت', 'مبالغ شارژشده برای خرید و تمدید سرویس‌های ابر چایی استفاده می‌شوند. سوابق پرداخت و تراکنش‌ها از بخش مالی قابل مشاهده‌اند.'],
-    ['schedule', 'مدت سرویس', 'زمان سرویس پس از فعال‌شدن محاسبه می‌شود. تاریخ پایان و زمان باقی‌مانده در داشبورد نمایش داده می‌شود و انتخاب دوره پیش از خرید باید بررسی شود.'],
-    ['autorenew', 'تمدید خودکار', 'در صورت فعال‌بودن تمدید خودکار و کافی‌بودن موجودی، سرویس مطابق دوره خود تمدید می‌شود. این گزینه هر زمان از صفحه سرویس قابل تغییر است.'],
-    ['verified_user', 'استفاده مجاز', 'استفاده از سرویس برای فعالیت‌های غیرقانونی، ایجاد مزاحمت، آسیب به دیگران یا نقض حقوق اشخاص مجاز نیست. در موارد ضروری ممکن است دسترسی سرویس محدود شود.'],
-    ['support_agent', 'پشتیبانی و رسیدگی', 'برای مشکلات خرید، اتصال یا پرداخت از بخش تیکت‌ها استفاده کنید. ارائه شناسه سرویس یا فاکتور، رسیدگی را سریع‌تر می‌کند.'],
-  ];
-  renderPublic(`
-    <section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>قواعد ساده برای یک تجربه روشن و قابل اعتماد.</h1><p>این متن نسخه اولیه قوانین ابر چایی است و پیش از انتشار نهایی می‌تواند با شرایط دقیق خدمات تکمیل شود.</p></section>
-    <section class="rules-page">
-      <aside class="rules-page__summary"><span>نسخه اولیه</span><h2>پیش از خرید بدانید</h2><p>خرید یا استفاده از سرویس به‌معنای پذیرش قوانین جاری است. تغییرات مهم از طریق همین صفحه یا اعلان‌های عمومی اطلاع‌رسانی می‌شوند.</p><a data-link href="/products" class="button button--secondary button--block">مشاهده محصولات</a></aside>
-      <div class="rules-list">${rules.map(([ruleIcon, title, text], index) => `<article id="rule-${index + 1}"><span>${icon(ruleIcon ?? 'article')}</span><div><small>بند ${index + 1}</small><h3>${escapeHtml(title ?? '')}</h3><p>${escapeHtml(text ?? '')}</p></div></article>`).join('')}</div>
-    </section>
-  `);
+interface RulesContent {
+  versionLabel: string;
+  hero: { kicker: string; title: string; description: string };
+  summary: { title: string; text: string; buttonLabel: string; buttonHref: string };
+  items: Array<{ icon: string; title: string; text: string }>;
 }
+
+function isRulesContent(value: unknown): value is RulesContent {
+  if (!value || typeof value !== 'object') return false;
+  const root = value as Partial<RulesContent>;
+  return typeof root.versionLabel === 'string'
+    && Boolean(root.hero && typeof root.hero.title === 'string' && typeof root.hero.description === 'string')
+    && Boolean(root.summary && typeof root.summary.title === 'string' && typeof root.summary.text === 'string')
+    && Array.isArray(root.items);
+}
+
+export async function renderRules(): Promise<void> {
+  renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>در حال دریافت قوانین...</h1><p>متن قوانین از فایل قابل‌ویرایش سایت بارگذاری می‌شود.</p></section><section class="rules-page"><div class="skeleton-page"></div></section>`);
+  try {
+    const response = await fetch('/content/rules.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Rules content returned ${response.status}`);
+    const raw: unknown = await response.json();
+    if (!isRulesContent(raw)) throw new Error('ساختار فایل قوانین معتبر نیست.');
+    const rules = raw;
+    renderPublic(`
+      <section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} ${escapeHtml(rules.hero.kicker)}</span><h1>${escapeHtml(rules.hero.title)}</h1><p>${escapeHtml(rules.hero.description)}</p></section>
+      <section class="rules-page">
+        <aside class="rules-page__summary"><span>${escapeHtml(rules.versionLabel)}</span><h2>${escapeHtml(rules.summary.title)}</h2><p>${escapeHtml(rules.summary.text)}</p><a data-link href="${escapeHtml(rules.summary.buttonHref)}" class="button button--secondary button--block">${escapeHtml(rules.summary.buttonLabel)}</a></aside>
+        <div class="rules-list">${rules.items.map((rule, index) => `<article id="rule-${index + 1}"><span>${icon(rule.icon || 'article')}</span><div><small>بند ${index + 1}</small><h3>${escapeHtml(rule.title)}</h3><p>${escapeHtml(rule.text)}</p></div></article>`).join('')}</div>
+      </section>
+    `);
+  } catch {
+    renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>فایل قوانین در دسترس نیست.</h1><p>فایل <code dir="ltr">public/content/rules.json</code> را بررسی کنید و صفحه را دوباره بارگذاری کنید.</p></section><section class="public-page-cta"><div><h2>امکان نمایش قوانین وجود ندارد</h2><p>ساختار JSON باید شامل hero، summary و items باشد.</p></div><button class="button button--primary" onclick="location.reload()">تلاش دوباره</button></section>`);
+  }
+  void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
+}
+

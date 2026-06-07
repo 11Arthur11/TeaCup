@@ -177,7 +177,7 @@ export interface ResourceListAdminResponse {
   resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   expiration?: string;
-  period?: ProductPeriod;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
   ownerId?: number;
   nodeId?: number;
 }
@@ -200,11 +200,18 @@ export interface AbstractProductEditRequest {
   productName?: string;
   categoryId?: number;
   price?: Money;
+  presentation?: ProductPresentation;
 }
 
 export interface Money {
   amount?: number;
   currency?: "IRT";
+}
+
+export interface ProductPresentation {
+  description?: string;
+  features?: string;
+  badges?: string;
 }
 
 export type TeaSpeakProductEditRequest = (AbstractProductEditRequest) & ({
@@ -442,7 +449,7 @@ export interface ResourceListResponse {
   resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   expiration?: string;
-  period?: ProductPeriod;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
 }
 
 export interface AbstractResourceDetailResponse {
@@ -451,16 +458,17 @@ export interface AbstractResourceDetailResponse {
   productName?: string;
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
-  period?: ProductPeriod;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
   orderDate?: string;
   expiration?: string;
   autoProlong?: boolean;
-  /** TeaSpeak connection address when resourceType is TEASPEAK. */
-  address?: string;
   maxClients?: number;
+  address?: string;
   port?: number;
   teaSpeakStatus?: "ONLINE" | "OFFLINE";
-  privilegeToken?: PrivilegeTokenResponse;
+  privilegeToken?: {
+  token?: string;
+};
 }
 
 /** DataResponse, the type of responses with data only */
@@ -611,7 +619,7 @@ export interface UserListResponse {
   phone?: string;
   fullName?: string;
   email?: string;
-  role?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
+  role?: string;
   lastLogin?: string;
   online?: boolean;
 }
@@ -984,9 +992,3 @@ export interface DataResponseAudioBotNodeDetailResponse {
   type?: string;
   data?: AudioBotNodeDetailResponse;
 }
-
-export interface PrivilegeTokenResponse {
-  token?: string;
-}
-
-export type ProductPeriod = "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";

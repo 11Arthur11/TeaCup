@@ -9,4 +9,5 @@ cpSync('src/styles.css', 'dist/assets/styles.css');
 cpSync('public/assets', 'dist/assets', { recursive: true });
 cpSync('public/manifest.webmanifest', 'dist/manifest.webmanifest');
 cpSync('public/config.js', 'dist/config.js');
+cpSync('public/content', 'dist/content', { recursive: true });
 console.log('TeaCloud build completed: dist/');

@@ -6,7 +6,7 @@ import { api, ApiError } from './client.js';
  */
 export async function hasActiveAuthSession(): Promise<boolean> {
   try {
-    await api.call('checkSession', {});
+    await api.call('checkAuthentication', {});
     return true;
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return false;

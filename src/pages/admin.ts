@@ -17,8 +17,9 @@ import { openUserPicker } from '../ui/user-picker.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
+import { createProductPresentationEditor, parseProductPresentation, renderProductBadges } from '../ui/product-presentation.js';
 
-interface AdminProductDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
+interface AdminProductDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; presentation?: Models.ProductPresentation; }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
 const adminError = (error: unknown): string => `<div class="notice notice--warning">${icon('warning')}<span>${escapeHtml(error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'دریافت اطلاعات با خطا مواجه شد.')}</span><button onclick="location.reload()">تلاش دوباره</button></div>`;
@@ -474,23 +475,143 @@ export async function renderAdminResourceDetail(resourceId:number):Promise<void>
   }catch(error){renderAppShell(`${pageHeader('جزئیات منبع','مدیریت سرویس')}${adminError(error)}`,'جزئیات منبع');}
 }
 
-export async function renderAdminProducts():Promise<void>{
-  renderAppShell(loadingPage(),'محصولات');
-  try{const [productsResponse,categoriesResponse,nodesResponse]=await Promise.all([api.call('getAllProducts',{}),api.call('getAllCategories',{}),api.call('getAllAudioBotNodes',{})]);const products=arrayOf<AdminProductDto>(objectOf(productsResponse).data);const categories=dataOf(categoriesResponse)??[];const nodes=dataOf(nodesResponse)??[];renderAppShell(`${pageHeader('مدیریت محصولات','تعریف پلن‌ها، قیمت‌گذاری و کنترل انتشار محصولات.',[{label:'محصول جدید',icon:'add',id:'add-product'}])}
-    ${card('محصولات',dataTable<AdminProductDto>([{label:'محصول',render:r=>`<span class="table-primary">${icon(r.productType?.includes('AUDIO')?'headphones':'dns')}<span><b>${escapeHtml(r.productName)}</b><small>${escapeHtml(r.categoryName||r.categorySlug)}</small></span></span>`},{label:'نوع',render:r=>translateEnum(r.productType?.replace('_PRODUCT',''))},{label:'قیمت',render:r=>money(r.price)},{label:'دوره',render:r=>translateEnum(r.period)},{label:'سفارش‌ها',render:r=>faNumber(r.orderedResources)},{label:'وضعیت',render:r=>badge(r.enabled?'ACTIVE':'DISABLED')},{label:'عملیات',render:r=>`<div class="table-actions"><button class="icon-button" data-edit-product="${r.id}" title="ویرایش">${icon('edit')}</button><button class="icon-button" data-toggle-product="${r.id}" data-enabled="${r.enabled}" title="تغییر وضعیت">${icon(r.enabled?'toggle_on':'toggle_off')}</button><button class="icon-button icon-button--danger" data-delete-product="${r.id}" title="حذف">${icon('delete')}</button></div>`}],products),{icon:'inventory_2'})}`,'محصولات');
-    document.querySelector('#add-product')?.addEventListener('click',()=>openProductForm(undefined,categories,nodes));qsa<HTMLButtonElement>('[data-edit-product]').forEach(button=>button.addEventListener('click',async()=>{const id=Number(button.dataset.editProduct);try{const response=await api.call('getProduct',{path:{productId:id}});openProductForm(objectOf(response).data as AdminProductDto,categories,nodes);}catch(error){notify(error instanceof ApiError?error.message:'جزئیات محصول دریافت نشد.','error');}}));
-    qsa<HTMLButtonElement>('[data-toggle-product]').forEach(button=>button.addEventListener('click',()=>{const id=Number(button.dataset.toggleProduct);const enabled=button.dataset.enabled!=='true';confirmDialog('تغییر وضعیت محصول',`محصول ${enabled?'فعال':'غیرفعال'} شود؟`,'اعمال',async()=>{if(await runAction(()=>api.call('changeEnabled',{path:{productId:id,enabled}})))await renderAdminProducts();});}));
-    qsa<HTMLButtonElement>('[data-delete-product]').forEach(button=>button.addEventListener('click',()=>{const id=Number(button.dataset.deleteProduct);confirmDialog('حذف محصول','محصول به‌صورت دائمی حذف می‌شود.','حذف',async()=>{if(await runAction(()=>api.call('deleteProduct',{path:{productId:id}})))await renderAdminProducts();},true);}));
-  }catch(error){renderAppShell(`${pageHeader('مدیریت محصولات','تعریف محصولات')}${adminError(error)}`,'محصولات');}
+export async function renderAdminProducts(): Promise<void> {
+  renderAppShell(loadingPage(), 'محصولات');
+  try {
+    const [productsResponse, categoriesResponse, nodesResponse] = await Promise.all([
+      api.call('getAllProducts', {}),
+      api.call('getAllCategories', {}),
+      api.call('getAllAudioBotNodes', {}),
+    ]);
+    const products = arrayOf<AdminProductDto>(objectOf(productsResponse).data);
+    const categories = dataOf(categoriesResponse) ?? [];
+    const nodes = dataOf(nodesResponse) ?? [];
+
+    const productTable = dataTable<AdminProductDto>([
+      {
+        label: 'محصول',
+        render: (product) => {
+          const presentation = parseProductPresentation(product.presentation);
+          return `<div class="admin-product-identity"><span class="table-primary">${icon(product.productType?.includes('AUDIO') ? 'headphones' : 'dns')}<span><b>${escapeHtml(product.productName)}</b><small>${escapeHtml(product.categoryName || product.categorySlug)}</small></span></span>${renderProductBadges(presentation.badges, { compact: true, max: 3 })}</div>`;
+        },
+      },
+      { label: 'نوع', render: (product) => translateEnum(product.productType?.replace('_PRODUCT', '')) },
+      { label: 'قیمت', render: (product) => money(product.price) },
+      { label: 'دوره', render: (product) => translateEnum(product.period) },
+      { label: 'سفارش‌ها', render: (product) => faNumber(product.orderedResources) },
+      { label: 'وضعیت', render: (product) => badge(product.enabled ? 'ACTIVE' : 'DISABLED') },
+      {
+        label: 'عملیات',
+        render: (product) => `<div class="table-actions"><button class="icon-button" data-edit-product="${product.id}" title="ویرایش">${icon('edit')}</button><button class="icon-button" data-toggle-product="${product.id}" data-enabled="${product.enabled}" title="تغییر وضعیت">${icon(product.enabled ? 'toggle_on' : 'toggle_off')}</button><button class="icon-button icon-button--danger" data-delete-product="${product.id}" title="حذف">${icon('delete')}</button></div>`,
+      },
+    ], products);
+
+    renderAppShell(`${pageHeader('مدیریت محصولات', 'تعریف پلن‌ها، قیمت‌گذاری و شیوه نمایش محصول برای مشتری.', [{ label: 'محصول جدید', icon: 'add', id: 'add-product' }])}
+      ${card('محصولات', productTable, { icon: 'inventory_2' })}`, 'محصولات');
+
+    document.querySelector('#add-product')?.addEventListener('click', () => openProductForm(undefined, categories, nodes));
+    qsa<HTMLButtonElement>('[data-edit-product]').forEach((button) => button.addEventListener('click', async () => {
+      const id = Number(button.dataset.editProduct);
+      try {
+        const response = await api.call('getProduct', { path: { productId: id } });
+        openProductForm(objectOf(response).data as AdminProductDto, categories, nodes);
+      } catch (error) {
+        notify(error instanceof ApiError ? error.message : 'جزئیات محصول دریافت نشد.', 'error');
+      }
+    }));
+    qsa<HTMLButtonElement>('[data-toggle-product]').forEach((button) => button.addEventListener('click', () => {
+      const id = Number(button.dataset.toggleProduct);
+      const enabled = button.dataset.enabled !== 'true';
+      confirmDialog('تغییر وضعیت محصول', `محصول ${enabled ? 'فعال' : 'غیرفعال'} شود؟`, 'اعمال', async () => {
+        if (await runAction(() => api.call('changeEnabled', { path: { productId: id, enabled } }))) await renderAdminProducts();
+      });
+    }));
+    qsa<HTMLButtonElement>('[data-delete-product]').forEach((button) => button.addEventListener('click', () => {
+      const id = Number(button.dataset.deleteProduct);
+      confirmDialog('حذف محصول', 'محصول به‌صورت دائمی حذف می‌شود.', 'حذف', async () => {
+        if (await runAction(() => api.call('deleteProduct', { path: { productId: id } }))) await renderAdminProducts();
+      }, true);
+    }));
+  } catch (error) {
+    renderAppShell(`${pageHeader('مدیریت محصولات', 'تعریف محصولات')}${adminError(error)}`, 'محصولات');
+  }
 }
 
-function openProductForm(product:AdminProductDto|undefined,categories:Models.CategoryListAdminResponse[],nodes:Models.AudioBotNodeListResponse[]):void{
-  const editing=Boolean(product?.id);const rawType=(product?.productType??'TEASPEAK').replace('_PRODUCT','');const form=document.createElement('form');form.className='form-grid';form.innerHTML=`${selectField('type','نوع محصول',[{value:'TEASPEAK',label:'TeaSpeak'},{value:'AUDIO_BOT',label:'AudioBot'}],rawType,true)}${field('productName','نام محصول',{value:product?.productName,required:true})}${selectField('categoryId','دسته‌بندی',categories.map(c=>({value:c.id??'',label:c.name??''})),categories.find(c=>c.slug===product?.categorySlug)?.id,true)}${field('price','قیمت (تومان)',{type:'number',value:product?.price?.amount,required:true,min:0})}<div id="teaspeak-fields" class="field--full">${field('maxClients','حداکثر کاربر',{type:'number',value:product?.maxClients??32,min:1})}</div><div id="audio-fields" class="field--full" hidden>${selectField('providerNodeId','نود ارائه‌دهنده',[{value:'',label:'انتخاب خودکار'},...nodes.map(n=>({value:n.id??'',label:n.name??''}))],product?.providerNodeId??'')}</div>${!editing?selectField('productPeriod','دوره محصول',[{value:'HOURLY',label:'ساعتی'},{value:'DAILY',label:'روزانه'},{value:'MONTHLY',label:'ماهانه'},{value:'BIMONTHLY',label:'دوماهه'},{value:'QUARTERLY',label:'سه‌ماهه'},{value:'SEMIANNUAL',label:'شش‌ماهه'},{value:'ANNUAL',label:'سالانه'}],'MONTHLY',true):''}${!editing?toggleField('enabled','محصول از ابتدا فعال باشد',true):''}`;
-  const sync=()=>{const type=qs<HTMLSelectElement>('select[name="type"]',form).value;qs<HTMLElement>('#teaspeak-fields',form).hidden=type!=='TEASPEAK';qs<HTMLElement>('#audio-fields',form).hidden=type!=='AUDIO_BOT';};qs<HTMLSelectElement>('select[name="type"]',form).addEventListener('change',sync);sync();
-  openDialog({title:editing?'ویرایش محصول':'افزودن محصول',description:!editing?'فیلدهای درخواست مطابق مثال‌های OpenAPI ساخته می‌شوند؛ schema بدنه addProduct در فایل به اشتباه AbstractNewResourceRequest است.':undefined,content:form,confirmLabel:editing?'ذخیره':'ایجاد محصول',wide:true,onConfirm:async()=>{if(!form.reportValidity())return false;const data=new FormData(form);const type=String(data.get('type'));const price={amount:requiredNumber(data.get('price')),currency:'IRT' as const};let ok:unknown;
-    if(editing){const body:Record<string,unknown>={type,productName:String(data.get('productName')??''),categoryId:requiredNumber(data.get('categoryId')),price};if(type==='TEASPEAK')body.maxClients=requiredNumber(data.get('maxClients'));ok=await runAction(()=>api.call('editProduct',{path:{productId:Number(product?.id)},body:body as Models.AbstractProductEditRequest}));}
-    else{const body:Record<string,unknown>={type,productName:String(data.get('productName')??''),categoryId:requiredNumber(data.get('categoryId')),price:Number(data.get('price')),enabled:data.get('enabled')==='on',productPeriod:String(data.get('productPeriod')??'MONTHLY')};if(type==='TEASPEAK')body.maxClients=requiredNumber(data.get('maxClients'));else if(data.get('providerNodeId'))body.providerNodeId=requiredNumber(data.get('providerNodeId'));ok=await runAction(()=>api.call('addProduct',{body:body as unknown as Models.AbstractNewResourceRequest}));}
-    if(ok)await renderAdminProducts();return Boolean(ok);}});
+function openProductForm(
+  product: AdminProductDto | undefined,
+  categories: Models.CategoryListAdminResponse[],
+  nodes: Models.AudioBotNodeListResponse[],
+): void {
+  const editing = Boolean(product?.id);
+  const rawType = (product?.productType ?? 'TEASPEAK').replace('_PRODUCT', '');
+  const form = document.createElement('form');
+  form.className = 'form-grid product-admin-form';
+  form.innerHTML = `${selectField('type', 'نوع محصول', [{ value: 'TEASPEAK', label: 'TeaSpeak' }, { value: 'AUDIO_BOT', label: 'AudioBot' }], rawType, true)}
+    ${field('productName', 'نام محصول', { value: product?.productName, required: true })}
+    ${selectField('categoryId', 'دسته‌بندی', categories.map((category) => ({ value: category.id ?? '', label: category.name ?? '' })), categories.find((category) => category.slug === product?.categorySlug)?.id, true)}
+    ${field('price', 'قیمت (تومان)', { type: 'number', value: product?.price?.amount, required: true, min: 0 })}
+    <div id="teaspeak-fields" class="field--full">${field('maxClients', 'حداکثر کاربر', { type: 'number', value: product?.maxClients ?? 32, min: 1 })}</div>
+    <div id="audio-fields" class="field--full" hidden>${selectField('providerNodeId', 'نود ارائه‌دهنده', [{ value: '', label: 'انتخاب خودکار' }, ...nodes.map((node) => ({ value: node.id ?? '', label: node.name ?? '' }))], product?.providerNodeId ?? '')}</div>
+    ${!editing ? selectField('productPeriod', 'دوره محصول', [{ value: 'HOURLY', label: 'ساعتی' }, { value: 'DAILY', label: 'روزانه' }, { value: 'MONTHLY', label: 'ماهانه' }, { value: 'BIMONTHLY', label: 'دوماهه' }, { value: 'QUARTERLY', label: 'سه‌ماهه' }, { value: 'SEMIANNUAL', label: 'شش‌ماهه' }, { value: 'ANNUAL', label: 'سالانه' }], 'MONTHLY', true) : ''}
+    ${!editing ? toggleField('enabled', 'محصول از ابتدا فعال باشد', true) : ''}`;
+
+  const productNameInput = qs<HTMLInputElement>('input[name="productName"]', form);
+  const presentationEditor = createProductPresentationEditor(product?.presentation, productNameInput);
+  form.append(presentationEditor.element);
+
+  const syncTypeFields = (): void => {
+    const type = qs<HTMLSelectElement>('select[name="type"]', form).value;
+    qs<HTMLElement>('#teaspeak-fields', form).hidden = type !== 'TEASPEAK';
+    qs<HTMLElement>('#audio-fields', form).hidden = type !== 'AUDIO_BOT';
+  };
+  qs<HTMLSelectElement>('select[name="type"]', form).addEventListener('change', syncTypeFields);
+  syncTypeFields();
+
+  openDialog({
+    title: editing ? 'ویرایش محصول' : 'افزودن محصول',
+    description: 'اطلاعات فروش و Presentation محصول را تنظیم کنید. قابلیت‌ها و نشان‌ها به‌صورت JSON string برای ذخیره ارسال می‌شوند.',
+    content: form,
+    confirmLabel: editing ? 'ذخیره' : 'ایجاد محصول',
+    wide: true,
+    onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const data = new FormData(form);
+      const type = String(data.get('type'));
+      const presentation = presentationEditor.getPresentation();
+      const price = { amount: requiredNumber(data.get('price')), currency: 'IRT' as const };
+      let result: unknown;
+
+      if (editing) {
+        const body: Record<string, unknown> = {
+          type,
+          productName: String(data.get('productName') ?? ''),
+          categoryId: requiredNumber(data.get('categoryId')),
+          price,
+          presentation,
+        };
+        if (type === 'TEASPEAK') body.maxClients = requiredNumber(data.get('maxClients'));
+        result = await runAction(() => api.call('editProduct', {
+          path: { productId: Number(product?.id) },
+          body: body as Models.AbstractProductEditRequest,
+        }));
+      } else {
+        const body: Record<string, unknown> = {
+          type,
+          productName: String(data.get('productName') ?? ''),
+          categoryId: requiredNumber(data.get('categoryId')),
+          price: Number(data.get('price')),
+          enabled: data.get('enabled') === 'on',
+          productPeriod: String(data.get('productPeriod') ?? 'MONTHLY'),
+          presentation,
+        };
+        if (type === 'TEASPEAK') body.maxClients = requiredNumber(data.get('maxClients'));
+        else if (data.get('providerNodeId')) body.providerNodeId = requiredNumber(data.get('providerNodeId'));
+        result = await runAction(() => api.call('addProduct', { body: body as unknown as Models.AbstractNewResourceRequest }));
+      }
+      if (result) await renderAdminProducts();
+      return Boolean(result);
+    },
+  });
 }
 
 export async function renderAdminCategories():Promise<void>{

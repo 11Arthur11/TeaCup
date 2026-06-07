@@ -18,9 +18,10 @@ import { renderAppShell } from '../ui/layout.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
+import { parseProductPresentation, renderProductBadges, renderProductFeatures } from '../ui/product-presentation.js';
 
 interface ProductDto {
-  id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number;
+  id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
 }
 
 type ResourceKind = 'TEASPEAK' | 'AUDIO_BOT';
@@ -441,13 +442,44 @@ export async function renderProducts(categorySlug = ''): Promise<void> {
     const selectedCategory = categories.find((category) => category.slug === selectedSlug);
     const productsResponse = selectedSlug ? await api.call('getProductByCategorySlug', { path: { categorySlug: selectedSlug } }) : undefined;
     const products = arrayOf<ProductDto>(objectOf(productsResponse).data);
+
+    const cards = products.map((product) => {
+      const presentation = parseProductPresentation(product.presentation);
+      const fallbackDescription = product.productType === 'TEASPEAK'
+        ? `مناسب تیم‌ها و کامیونیتی‌ها با ظرفیت ${faNumber(product.maxClients)} کاربر`
+        : 'ربات موسیقی مدیریت‌شده با کنترل Playlist و اتصال پایدار';
+      const fallbackFeatures = [
+        { text: 'راه‌اندازی خودکار', enabled: true },
+        { text: 'پنل مدیریت کامل', enabled: true },
+        { text: 'تمدید خودکار اختیاری', enabled: true },
+        { text: 'پشتیبانی فارسی', enabled: true },
+      ];
+      const visibleFeatures = presentation.features.length ? presentation.features : fallbackFeatures;
+      const highlighted = presentation.badges.some((item) => ['primary', 'royal', 'aurora', 'success'].includes(item.variant));
+      return `<article class="pricing-card pricing-card--presentation ${highlighted ? 'pricing-card--featured' : ''}">
+        <div class="pricing-card__presentation-top">${renderProductBadges(presentation.badges, { max: 4 })}<div class="pricing-card__icon">${icon(product.productType === 'AUDIO_BOT' ? 'headphones' : 'dns')}</div></div>
+        <h3>${escapeHtml(product.productName)}</h3>
+        <p>${escapeHtml(presentation.description || fallbackDescription)}</p>
+        <div class="pricing-card__price"><b>${money(product.price).replace(' تومان', '')}</b><span>تومان / ${escapeHtml(translateEnum(product.period))}</span></div>
+        ${renderProductFeatures(visibleFeatures)}
+        <button type="button" class="button ${highlighted ? 'button--primary' : 'button--secondary'} button--block" data-buy-product="${product.id}" data-product-type="${product.productType}" data-product-name="${escapeHtml(product.productName)}">انتخاب و راه‌اندازی ${icon('arrow_back')}</button>
+      </article>`;
+    }).join('');
+
     renderAppShell(`${pageHeader('محصولات', selectedCategory?.description || 'دسته موردنظر را انتخاب و محصول مناسب را راه‌اندازی کنید.')}
       <div class="product-browser">
         <aside class="product-category-panel"><header>${icon('category')}<div><b>دسته‌بندی محصولات</b><small>${faNumber(categories.length)} دسته فعال</small></div></header><nav>${categories.map((category) => `<a data-link class="${category.slug === selectedSlug ? 'active' : ''}" href="/panel/products/${encodeURIComponent(category.slug ?? '')}">${icon(category.name?.toLowerCase().includes('audio') ? 'headphones' : 'dns')}<span><b>${escapeHtml(category.name)}</b><small>${escapeHtml(category.description)}</small></span>${icon('chevron_left')}</a>`).join('') || '<p class="muted">دسته‌بندی فعالی وجود ندارد.</p>'}</nav></aside>
-        <section><div class="pricing-grid">${products.map((product, index) => `<article class="pricing-card ${index === 0 ? 'pricing-card--featured' : ''}">${index === 0 ? '<span class="pricing-card__badge">پیشنهاد ابر چایی</span>' : ''}<div class="pricing-card__icon">${icon(product.productType === 'AUDIO_BOT' ? 'headphones' : 'dns')}</div><h3>${escapeHtml(product.productName)}</h3><p>${product.productType === 'TEASPEAK' ? `مناسب تیم‌ها و کامیونیتی‌ها با ظرفیت ${faNumber(product.maxClients)} کاربر` : 'ربات موسیقی مدیریت‌شده با کنترل Playlist و اتصال پایدار'}</p><div class="pricing-card__price"><b>${money(product.price).replace(' تومان','')}</b><span>تومان / ${escapeHtml(translateEnum(product.period))}</span></div><ul><li>${icon('check')} راه‌اندازی خودکار</li><li>${icon('check')} پنل مدیریت کامل</li><li>${icon('check')} تمدید خودکار اختیاری</li><li>${icon('check')} پشتیبانی فارسی</li></ul><button type="button" class="button ${index === 0 ? 'button--primary' : 'button--secondary'} button--block" data-buy-product="${product.id}" data-product-type="${product.productType}" data-product-name="${escapeHtml(product.productName)}">انتخاب و راه‌اندازی ${icon('arrow_back')}</button></article>`).join('') || emptyState('محصولی در این دسته وجود ندارد', 'پاسخ NO_DATA به‌عنوان حالت خالی نمایش داده می‌شود و خطا محسوب نمی‌شود.')}</div></section>
+        <section><div class="pricing-grid">${cards || emptyState('محصولی در این دسته وجود ندارد', 'پاسخ NO_DATA به‌عنوان حالت خالی نمایش داده می‌شود و خطا محسوب نمی‌شود.')}</div></section>
       </div>`, 'محصولات');
-    qsa<HTMLButtonElement>('[data-buy-product]').forEach((button) => button.addEventListener('click', () => openPurchaseDialog({ id: Number(button.dataset.buyProduct), productType: button.dataset.productType as ProductDto['productType'], productName: button.dataset.productName })));
-  } catch (error) { renderAppShell(`${pageHeader('محصولات', 'فهرست محصولات')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'محصولات'); }
+
+    qsa<HTMLButtonElement>('[data-buy-product]').forEach((button) => button.addEventListener('click', () => openPurchaseDialog({
+      id: Number(button.dataset.buyProduct),
+      productType: button.dataset.productType as ProductDto['productType'],
+      productName: button.dataset.productName,
+    })));
+  } catch (error) {
+    renderAppShell(`${pageHeader('محصولات', 'فهرست محصولات')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'محصولات');
+  }
 }
 
 function openPurchaseDialog(product: ProductDto): void {

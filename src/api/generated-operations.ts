@@ -60,6 +60,7 @@ export const operations = {
   "changeEnabled": { method: "PATCH", path: "/v1/admin/products/{productId}/{enabled}", bodyKind: null, responseKind: "json" },
   "getProvisioningStrategy_1": { method: "GET", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: null, responseKind: "json" },
   "changeProvisioningStrategy_1": { method: "PATCH", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: "json", responseKind: "json" },
+  "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
   "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
   "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
@@ -95,7 +96,6 @@ export const operations = {
   "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
-  "checkSession": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -347,6 +347,7 @@ export interface OperationInputMap {
   "changeProvisioningStrategy_1": {
     body: Models.ChangeProvisioningStrategyRequest;
   };
+  "checkAuthentication": Record<string, never>;
   "getWalletTransactions": {
     query: {
     filter: Models.WalletTransactionFilterRequest;
@@ -474,7 +475,6 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
-  "checkSession": Record<string, never>;
 }
 
 export interface OperationOutputMap {
@@ -537,6 +537,7 @@ export interface OperationOutputMap {
   "changeEnabled": Models.SimpleResponse;
   "getProvisioningStrategy_1": Models.DataResponseProvisionStrategy;
   "changeProvisioningStrategy_1": Models.SimpleResponse;
+  "checkAuthentication": void;
   "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
   "getBalance": Models.DataResponseWalletOverviewResponse;
   "getProfile": Models.DataResponseUserDetailResponse;
@@ -576,7 +577,6 @@ export interface OperationOutputMap {
   "deleteAudioBotPlaylist": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
-  "checkSession": void;
 }
 
 export interface OperationMeta {
