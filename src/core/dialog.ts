@@ -1,5 +1,11 @@
 import { escapeHtml, icon, qs } from './dom.js';
 
+let submittingDialog: HTMLDialogElement | undefined;
+
+export function closeSubmittingDialogOnError(): void {
+  if (submittingDialog?.open) submittingDialog.close();
+}
+
 export interface DialogOptions {
   title: string;
   description?: string;
@@ -40,10 +46,12 @@ export function openDialog(options: DialogOptions): HTMLDialogElement {
   confirm?.addEventListener('click', async () => {
     confirm.disabled = true;
     confirm.dataset.loading = 'true';
+    submittingDialog = dialog;
     try {
       const result = await options.onConfirm?.(dialog);
-      if (result !== false) close();
+      if (result !== false && dialog.open) close();
     } finally {
+      if (submittingDialog === dialog) submittingDialog = undefined;
       confirm.disabled = false;
       delete confirm.dataset.loading;
     }

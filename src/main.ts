@@ -11,6 +11,7 @@ import { beginRouteLoading, finishRouteLoading } from './core/route-loading.js';
 import { store } from './core/store.js';
 import { notify } from './core/toast.js';
 import { renderAppShell, renderPublic } from './ui/layout.js';
+import { initializeTheme } from './core/theme.js';
 import { renderAuth } from './pages/auth.js';
 import { renderLanding, renderPublicProducts, renderRules } from './pages/landing.js';
 import {
@@ -225,4 +226,5 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 window.addEventListener('error', (event) => console.error(event.error));
 
+initializeTheme();
 try { router.start(); } catch (error) { renderFatal(error); }

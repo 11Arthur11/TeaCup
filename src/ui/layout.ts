@@ -9,6 +9,7 @@ import { router } from '../core/router.js';
 import { store } from '../core/store.js';
 import { userChrome } from '../core/user-chrome.js';
 import { openChargeWalletDialog } from '../core/wallet-action.js';
+import { initializeTheme, themeToggleButton } from '../core/theme.js';
 
 interface NavItem { label: string; href: string; icon: string; area?: AdminArea; }
 
@@ -108,7 +109,14 @@ function bindPublicShell(): void {
   publicShellController = controller;
   const signal = controller.signal;
   const publicHeader = document.querySelector<HTMLElement>('[data-public-header]');
-  const syncHeader = (): void => { publicHeader?.classList.toggle('public-header--scrolled', window.scrollY > 18); };
+  let frame = 0;
+  const syncHeader = (): void => {
+    if (frame) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      publicHeader?.classList.toggle('public-header-wrap--scrolled', window.scrollY > 24);
+    });
+  };
   window.addEventListener('scroll', syncHeader, { passive: true, signal });
   syncHeader();
 
@@ -132,11 +140,12 @@ export function renderPublic(content: string, options: { transparent?: boolean }
   userChrome.stop();
   const root = appRoot();
   root.innerHTML = `<div class="public-shell ${options.transparent ? 'public-shell--transparent' : ''}">
-    <header class="public-header" data-public-header><a data-link href="/" class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a>
+    <div class="public-header-wrap" data-public-header><header class="public-header"><a data-link href="/" class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a>
     <nav><a data-link href="/products">محصولات</a><a data-link href="/#features">امکانات</a><a data-link href="/rules">قوانین</a></nav>
-    <div class="public-header__actions"><a data-link data-dashboard-access class="button button--primary" href="/auth">ورود به پنل</a></div></header>
+    <div class="public-header__actions">${themeToggleButton('icon-button public-theme-toggle')}<a data-link data-dashboard-access class="button button--primary" href="/auth">ورود به پنل</a></div></header></div>
     <section class="maintenance-banner" data-maintenance-banner hidden>${icon('engineering')}<div><b>سامانه موقتاً در حالت نگهداری است</b><span>ارتباط با سامانه برقرار نیست و ورود به داشبورد تا بازگشت سرویس غیرفعال شده است.</span></div><button type="button" class="button button--ghost button--small" data-maintenance-retry>${icon('refresh')} بررسی دوباره</button></section>
     <main>${content}</main><footer class="public-footer"><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div><p>خرید و مدیریت سرویس‌های صوتی، ساده و مطمئن.</p><span>© ۱۴۰۵ ابر چایی</span></footer></div>`;
+  initializeTheme();
   bindPublicShell();
 }
 
@@ -158,14 +167,16 @@ export function renderAppShell(content: string, title = ''): void {
     <aside class="sidebar">
       <div class="sidebar__top"><a data-link href="${isAdminSection ? '/admin' : '/panel'}" class="brand brand--sidebar"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a><button type="button" class="icon-button sidebar__mobile-close" data-sidebar-close>${icon('close')}</button></div>
       <div class="sidebar__scroll"><span class="nav-label">${panelTitle}</span><nav>${nav}</nav></div>
-      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b>${panelTitle}</b><small>${escapeHtml(roleLabel(state.identity.role))}</small></div></div><button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
+      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b>${panelTitle}</b><small>${escapeHtml(roleLabel(state.identity.role))}</small></div></div>${themeToggleButton('icon-button sidebar-theme-toggle')}<button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
     </aside>
     <section class="workspace"><header class="topbar"><div><button type="button" class="icon-button topbar__menu" data-sidebar-open>${icon('menu')}</button><div class="topbar__title"><small>${panelTitle}</small><b>${escapeHtml(title || 'ابر چایی')}</b></div></div><div class="topbar__actions">
       ${!isAdminSection ? `<div class="topbar-wallet"><span><small>موجودی</small><b data-user-wallet-balance>۰ تومان</b></span><button type="button" class="topbar-wallet__add" data-charge-wallet-header aria-label="شارژ کیف پول" title="شارژ کیف پول">${icon('add')}</button></div><button type="button" class="icon-button topbar-notification" data-user-notifications-open aria-label="اعلان‌های عمومی" title="اعلان‌های عمومی">${bellIcon('topbar-notification__icon')}<span class="topbar-notification__count" data-user-notification-count>۰</span></button>` : ''}
       ${hasAdminPanelAccess(state.identity.role) ? `<a data-link href="${switchHref}" class="button button--secondary button--small panel-switch">${icon(switchIcon)} ${switchLabel}</a>` : ''}
+      ${themeToggleButton('icon-button topbar-theme-toggle')}
       <a data-link href="${isAdminSection ? '/admin/profile' : '/panel/account'}" class="avatar avatar--small" aria-label="حساب کاربری">${icon('person')}</a>
     </div></header><main class="content">${content}</main></section>
   </div>`;
+  initializeTheme();
   bindShell();
   if (isAdminSection) userChrome.stop(); else userChrome.start();
 }

@@ -4,7 +4,7 @@ Frontend production-oriented، کاملاً فارسی و RTL برای فروش�
 
 ## قابلیت‌ها
 
-- Landing حرفه‌ای SaaS، responsive و رابط dark-only یکپارچه
+- Landing حرفه‌ای SaaS، responsive و رابط دوتمِ روشن/تیره با هویت آبی یکپارچه
 - OTP login/register مطابق lifecycle کوکی‌محور backend؛ پس از موفقیت login یا register، نشست توسط backend برقرار و سپس پروفایل `/v1/users` برای دریافت نقش enum حساب فراخوانی می‌شود؛ ورودی موبایل در قالب `09xxxxxxxxx` دریافت و هنگام initiate به `+989xxxxxxxxx` تبدیل می‌شود؛ هیچ JWT یا refresh token در storage نگهداری نمی‌شود
 - route protection برای public، authenticated و role-based admin routes؛ هر پاسخ HTTP 403 از API ـ به‌جز logout ـ نشست frontend را خاتمه می‌دهد
 - پنل مشتری: سرویس‌ها، TeaSpeak، AudioBot، Playlist، محصولات، کیف پول، فاکتور و پرداخت، تیکت و پیوست، اعلان‌ها و پروفایل
@@ -61,7 +61,7 @@ globalThis.TEACLOUD_API_BASE_URL = 'https://api.example.com';
 
 ## تغییرات معماری رابط و Refresh
 
-- رابط کاربری کاملاً dark-only است و light mode حذف شده است.
+- رابط کاربری دارای تم تیره و روشن است؛ انتخاب کاربر در مرورگر نگهداری می‌شود و همه صفحات عمومی و پنل‌ها از یک design token مشترک استفاده می‌کنند.
 - هر route داده‌محور در ورود به صفحه یک بار fetch می‌شود و سپس هر ۵ ثانیه refresh می‌شود.
 - polling فقط به route فعال تعلق دارد و هنگام خروج از صفحه پاک می‌شود.
 - هیچ click listener عمومی برای refresh وجود ندارد؛ کلیک روی ناحیه‌های غیرتعاملی fetch ایجاد نمی‌کند.
@@ -155,3 +155,11 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 ## Session validation
 
 اعتبار ورود فقط با `HEAD /v1/auth/session` بررسی می‌شود. پاسخ `204` به‌معنای نشست فعال و `401` به‌معنای مهمان است. هیچ نشانه ورود در localStorage یا sessionStorage به‌عنوان معیار احراز هویت نگهداری نمی‌شود.
+
+
+## سیستم تم
+
+- تم پیش‌فرض تیره است و کاربر می‌تواند از هدر عمومی، Topbar یا سایدبار موبایل به تم روشن تغییر دهد.
+- انتخاب تم در `localStorage` با کلید `teacloud-theme` ذخیره می‌شود؛ این مقدار فقط ترجیح ظاهری است و در احراز هویت نقشی ندارد.
+- تم روشن همچنان هویت آبی TeaCloud را حفظ می‌کند و کارت‌ها، جدول‌ها، فرم‌ها، دیالوگ‌ها، Toastها، صفحات عمومی، داشبوردها و Product Editor را پوشش می‌دهد.
+- مانیتورینگ و log viewer عمداً در هر دو تم تیره باقی مانده‌اند تا خوانایی متن‌های ترمینالی حفظ شود.
