@@ -14,6 +14,7 @@ function currentLocationKey(): string {
 }
 
 export function hasPendingPageInteraction(): boolean {
+  if (document.querySelector('[data-dashboard-tour-root]')) return true;
   const replyTextareas = document.querySelectorAll<HTMLTextAreaElement>('#ticket-reply textarea, #admin-ticket-reply textarea');
   if ([...replyTextareas].some((textarea) => textarea.value.trim().length > 0)) return true;
   return Boolean(document.querySelector('[data-file-list][data-has-files="true"]'));

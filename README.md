@@ -163,3 +163,13 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - انتخاب تم در `localStorage` با کلید `teacloud-theme` ذخیره می‌شود؛ این مقدار فقط ترجیح ظاهری است و در احراز هویت نقشی ندارد.
 - تم روشن همچنان هویت آبی TeaCloud را حفظ می‌کند و کارت‌ها، جدول‌ها، فرم‌ها، دیالوگ‌ها، Toastها، صفحات عمومی، داشبوردها و Product Editor را پوشش می‌دهد.
 - مانیتورینگ و log viewer عمداً در هر دو تم تیره باقی مانده‌اند تا خوانایی متن‌های ترمینالی حفظ شود.
+
+## Dashboard tour and persisted theme
+
+- Theme choice is stored under `teacloud-theme` in `localStorage` and is applied in `public/index.html` before CSS paints the page.
+- The former dark-only override in the application store has been removed.
+- `auth-visual` has dedicated light-theme styling.
+- A configurable first-registration dashboard tour is loaded from `public/content/dashboard-tour.json`.
+- The tour starts only after a `REGISTER_SUCCESS` response and a successful render of `/panel`.
+- The user can restart it through the guide control above the user sidebar footer.
+- Sidebar tour targets are addressed by their visual order through `sidebar-index`, so tour order/text can be updated without changing TypeScript.

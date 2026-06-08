@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "enabled": true,
+  "autoStartAfterRegister": true,
+  "storage": {
+    "registrationPendingKey": "teacloud-dashboard-tour-registration-pending",
+    "manualPendingKey": "teacloud-dashboard-tour-manual-pending",
+    "completedKey": "teacloud-dashboard-tour-completed-v1"
+  },
+  "ui": {
+    "guideLabel": "راهنما",
+    "guideTitle": "شروع راهنمای داشبورد",
+    "counterTemplate": "مرحله {current} از {total}",
+    "previousLabel": "مرحله قبل",
+    "nextLabel": "مرحله بعد",
+    "finishLabel": "شروع کار با داشبورد",
+    "cancelLabel": "انصراف از راهنما",
+    "closeAriaLabel": "بستن راهنما",
+    "loadingError": "فایل تنظیمات راهنما دریافت نشد. دوباره تلاش کنید."
+  },
+  "settings": {
+    "spotlightPadding": 9,
+    "cardGap": 16,
+    "mobileBreakpoint": 820,
+    "scrollBehavior": "auto"
+  },
+  "steps": [
+    {
+      "id": "header-theme",
+      "target": {
+        "type": "selector",
+        "selector": "[data-tour-target=\"HEADER_THEME\"]",
+        "mobileSelector": "[data-tour-target=\"SIDEBAR_THEME\"]",
+        "context": "workspace",
+        "mobileContext": "sidebar"
+      },
+      "placement": "bottom",
+      "icon": "contrast",
+      "title": "تم مناسب خودت را انتخاب کن",
+      "text": "از این دکمه می‌توانی بین تم روشن و تیره جابه‌جا شوی. انتخابت در همین مرورگر ذخیره می‌شود."
+    },
+    {
+      "id": "header-profile",
+      "target": {
+        "type": "selector",
+        "selector": "[data-tour-target=\"HEADER_PROFILE\"]",
+        "context": "workspace"
+      },
+      "placement": "bottom",
+      "icon": "manage_accounts",
+      "title": "پروفایل و اطلاعات حساب",
+      "text": "برای مشاهده اطلاعات حساب و وضعیت پروفایل، از این بخش وارد صفحه پروفایل شو."
+    },
+    {
+      "id": "header-wallet",
+      "target": {
+        "type": "selector",
+        "selector": "[data-tour-target=\"HEADER_WALLET\"]",
+        "context": "workspace"
+      },
+      "placement": "bottom",
+      "icon": "account_balance_wallet",
+      "title": "موجودی همیشه جلوی چشم توست",
+      "text": "موجودی کیف پول و دکمه شارژ سریع در هدر قرار دارد تا بدون رفتن به صفحه مالی، حسابت را شارژ کنی."
+    },
+    {
+      "id": "sidebar-overview",
+      "target": { "type": "sidebar-index", "index": 1 },
+      "placement": "left",
+      "icon": "dashboard",
+      "title": "داشبورد نمای کلی",
+      "text": "خلاصه وضعیت سرویس‌ها، کیف پول، تیکت‌های باز و آخرین فعالیت‌های مهم حساب از اینجا در دسترس است."
+    },
+    {
+      "id": "sidebar-services",
+      "target": { "type": "sidebar-index", "index": 2 },
+      "placement": "left",
+      "icon": "dns",
+      "title": "سرویس‌های من",
+      "text": "همه سرورهای TeaSpeak و سرویس‌های AudioBot، وضعیت اجرا، تمدید و تنظیمات آن‌ها را در این بخش مدیریت کن."
+    },
+    {
+      "id": "sidebar-products",
+      "target": { "type": "sidebar-index", "index": 3 },
+      "placement": "left",
+      "icon": "shopping_bag",
+      "title": "محصولات",
+      "text": "دسته‌بندی‌ها و محصولات قابل سفارش اینجا قرار می‌گیرند؛ مدت و امکانات مناسب را انتخاب و سرویس جدید بساز."
+    },
+    {
+      "id": "sidebar-finance",
+      "target": { "type": "sidebar-index", "index": 4 },
+      "placement": "left",
+      "icon": "account_balance_wallet",
+      "title": "امور مالی",
+      "text": "موجودی، شارژ کیف پول، تراکنش‌ها و فاکتورها را از بخش مالی بررسی کن."
+    },
+    {
+      "id": "sidebar-support",
+      "target": { "type": "sidebar-index", "index": 5 },
+      "placement": "left",
+      "icon": "support_agent",
+      "title": "پشتیبانی",
+      "text": "برای سؤال‌های فروش یا مشکلات فنی تیکت بساز و پاسخ تیم پشتیبانی را در همین بخش دنبال کن."
+    },
+    {
+      "id": "sidebar-profile",
+      "target": { "type": "sidebar-index", "index": 6 },
+      "placement": "left",
+      "icon": "manage_accounts",
+      "title": "پروفایل",
+      "text": "اطلاعات حساب، وضعیت ایمیل و آخرین ورود از این بخش قابل مشاهده است."
+    },
+    {
+      "id": "welcome",
+      "target": { "type": "center" },
+      "placement": "center",
+      "icon": "celebration",
+      "title": "به ابر چایی خوش آمدی!",
+      "text": "حالا همه‌چیز آماده است. کیف پولت را شارژ کن، محصول دلخواهت را انتخاب کن و سرویس را به آسانی نوشیدن چای راه بینداز."
+    }
+  ]
+}

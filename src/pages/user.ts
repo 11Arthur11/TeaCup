@@ -19,6 +19,7 @@ import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
+import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -148,6 +149,7 @@ export async function renderUserDashboard(): Promise<void> {
       </div>
       ${card('تیکت‌های اخیر', recentTicketsHtml, { icon: 'forum', actions: '<a data-link class="button button--ghost button--small" href="/panel/tickets">همه تیکت‌ها</a>', className: 'dashboard-recent-tickets-card' })}
     `, 'نمای کلی');
+    scheduleDashboardTourAutoStart();
   } catch (error) {
     renderAppShell(`${pageHeader('داشبورد نمای کلی', 'اطلاعات حساب')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'نمای کلی');
   }

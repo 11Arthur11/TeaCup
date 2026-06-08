@@ -10,6 +10,7 @@ import { store } from '../core/store.js';
 import { userChrome } from '../core/user-chrome.js';
 import { openChargeWalletDialog } from '../core/wallet-action.js';
 import { initializeTheme, themeToggleButton } from '../core/theme.js';
+import { bindDashboardTourGuide } from './dashboard-tour.js';
 
 interface NavItem { label: string; href: string; icon: string; area?: AdminArea; }
 
@@ -45,13 +46,14 @@ function isActive(href: string, current: string): boolean {
   return href === current || (href !== '/panel' && href !== '/admin' && current.startsWith(`${href}/`));
 }
 
-function navItemHtml(item: NavItem, current: string): string {
-  return `<a data-link class="nav-item ${isActive(item.href, current) ? 'nav-item--active' : ''}" href="${item.href}">${icon(item.icon)}<span>${escapeHtml(item.label)}</span></a>`;
+function navItemHtml(item: NavItem, current: string, tourIndex?: number): string {
+  const tourAttribute = tourIndex ? ` data-tour-menu-index="${tourIndex}"` : '';
+  return `<a data-link class="nav-item ${isActive(item.href, current) ? 'nav-item--active' : ''}" href="${item.href}"${tourAttribute}>${icon(item.icon)}<span>${escapeHtml(item.label)}</span></a>`;
 }
 
 function userNavHtml(current: string): string {
-  return userNav.map((item) => {
-    const base = navItemHtml(item, current);
+  return userNav.map((item, index) => {
+    const base = navItemHtml(item, current, index + 1);
     if (item.href !== '/panel/products') return base;
     const categories = store.get().productCategories;
     const isOpen = store.get().productSubtreeOpen;
@@ -167,17 +169,19 @@ export function renderAppShell(content: string, title = ''): void {
     <aside class="sidebar">
       <div class="sidebar__top"><a data-link href="${isAdminSection ? '/admin' : '/panel'}" class="brand brand--sidebar"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a><button type="button" class="icon-button sidebar__mobile-close" data-sidebar-close>${icon('close')}</button></div>
       <div class="sidebar__scroll"><span class="nav-label">${panelTitle}</span><nav>${nav}</nav></div>
-      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b>${panelTitle}</b><small>${escapeHtml(roleLabel(state.identity.role))}</small></div></div>${themeToggleButton('icon-button sidebar-theme-toggle')}<button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
+      ${!isAdminSection ? `<div class="sidebar-guide-wrap"><button type="button" class="sidebar-guide" data-dashboard-tour-start hidden>${icon('help')}<span data-dashboard-tour-guide-label></span>${icon('arrow_back')}</button></div>` : ''}
+      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b>${panelTitle}</b><small>${escapeHtml(roleLabel(state.identity.role))}</small></div></div>${themeToggleButton('icon-button sidebar-theme-toggle', !isAdminSection ? 'data-tour-target="SIDEBAR_THEME"' : '')}<button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
     </aside>
     <section class="workspace"><header class="topbar"><div><button type="button" class="icon-button topbar__menu" data-sidebar-open>${icon('menu')}</button><div class="topbar__title"><small>${panelTitle}</small><b>${escapeHtml(title || 'ابر چایی')}</b></div></div><div class="topbar__actions">
-      ${!isAdminSection ? `<div class="topbar-wallet"><span><small>موجودی</small><b data-user-wallet-balance>۰ تومان</b></span><button type="button" class="topbar-wallet__add" data-charge-wallet-header aria-label="شارژ کیف پول" title="شارژ کیف پول">${icon('add')}</button></div><button type="button" class="icon-button topbar-notification" data-user-notifications-open aria-label="اعلان‌های عمومی" title="اعلان‌های عمومی">${bellIcon('topbar-notification__icon')}<span class="topbar-notification__count" data-user-notification-count>۰</span></button>` : ''}
+      ${!isAdminSection ? `<div class="topbar-wallet" data-tour-target="HEADER_WALLET"><span><small>موجودی</small><b data-user-wallet-balance>۰ تومان</b></span><button type="button" class="topbar-wallet__add" data-charge-wallet-header aria-label="شارژ کیف پول" title="شارژ کیف پول">${icon('add')}</button></div><button type="button" class="icon-button topbar-notification" data-user-notifications-open aria-label="اعلان‌های عمومی" title="اعلان‌های عمومی">${bellIcon('topbar-notification__icon')}<span class="topbar-notification__count" data-user-notification-count>۰</span></button>` : ''}
       ${hasAdminPanelAccess(state.identity.role) ? `<a data-link href="${switchHref}" class="button button--secondary button--small panel-switch">${icon(switchIcon)} ${switchLabel}</a>` : ''}
-      ${themeToggleButton('icon-button topbar-theme-toggle')}
-      <a data-link href="${isAdminSection ? '/admin/profile' : '/panel/account'}" class="avatar avatar--small" aria-label="حساب کاربری">${icon('person')}</a>
+      ${themeToggleButton('icon-button topbar-theme-toggle', !isAdminSection ? 'data-tour-target="HEADER_THEME"' : '')}
+      <a data-link href="${isAdminSection ? '/admin/profile' : '/panel/account'}" class="avatar avatar--small" aria-label="حساب کاربری" ${!isAdminSection ? 'data-tour-target="HEADER_PROFILE"' : ''}>${icon('person')}</a>
     </div></header><main class="content">${content}</main></section>
   </div>`;
   initializeTheme();
   bindShell();
+  if (!isAdminSection) bindDashboardTourGuide();
   if (isAdminSection) userChrome.stop(); else userChrome.start();
 }
 

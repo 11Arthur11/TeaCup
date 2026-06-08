@@ -8,6 +8,7 @@ import { store } from '../core/store.js';
 import { normalizeIranMobileInput } from '../core/phone.js';
 import { notify } from '../core/toast.js';
 import { renderPublic } from '../ui/layout.js';
+import { markDashboardTourPendingAfterRegistration } from '../ui/dashboard-tour.js';
 
 let stage: 'phone' | 'login' | 'register' = 'phone';
 let phone = '';
@@ -87,7 +88,11 @@ function bindSubmit(mode: 'login' | 'register'): void {
       const response = mode === 'login'
         ? await api.call('login', { body: { twoFactorCode: String(data.get('otp') ?? ''), rememberMe } })
         : await api.call('register', { body: { twoFactorCode: String(data.get('otp') ?? ''), firstName: String(data.get('firstName') ?? ''), lastName: String(data.get('lastName') ?? ''), email: String(data.get('email') ?? '') || undefined } });
+      const payload = response as { type?: string };
       const message = backendMessage(response); if (message) notify(message, 'success');
+      if (mode === 'register' && payload.type === 'REGISTER_SUCCESS') {
+        await markDashboardTourPendingAfterRegistration();
+      }
 
       const sessionActive = await hasActiveAuthSession();
       if (!sessionActive) throw new ApiError('ورود تأیید نشد. دوباره تلاش کنید.', 401);

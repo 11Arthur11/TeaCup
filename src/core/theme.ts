@@ -55,7 +55,8 @@ export function initializeTheme(): void {
   syncControls();
 }
 
-export function themeToggleButton(className = 'icon-button'): string {
+export function themeToggleButton(className = 'icon-button', attributes = ''): string {
   const isLight = currentTheme() === 'light';
-  return `<button type="button" class="${className}" data-theme-toggle aria-label="${isLight ? 'فعال‌کردن تم تیره' : 'فعال‌کردن تم روشن'}" title="${isLight ? 'تم تیره' : 'تم روشن'}" aria-pressed="${isLight}">${icon(isLight ? 'dark_mode' : 'light_mode')}</button>`;
+  const extraAttributes = attributes.trim() ? ` ${attributes.trim()}` : '';
+  return `<button type="button" class="${className}" data-theme-toggle${extraAttributes} aria-label="${isLight ? 'فعال‌کردن تم تیره' : 'فعال‌کردن تم روشن'}" title="${isLight ? 'تم تیره' : 'تم روشن'}" aria-pressed="${isLight}">${icon(isLight ? 'dark_mode' : 'light_mode')}</button>`;
 }

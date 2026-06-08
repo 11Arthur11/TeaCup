@@ -36,3 +36,9 @@ Design tokenهای روشن/تیره و overrideهای ضروری برای ای�
 ## Dialog submission errors
 
 هنگام خطای API داخل submit یک Dialog، فقط همان Dialog درحال‌ارسال بسته می‌شود و Toast خطا باقی می‌ماند. خطای validation محلی Dialog را نمی‌بندد.
+
+## Persistence fix
+
+The active theme is stored in `localStorage` with the key `teacloud-theme`. An inline script in `public/index.html` applies it before the stylesheet is painted. No application module clears or overrides this preference during startup.
+
+The authentication visual panel has separate light-theme colors instead of retaining its dark navy gradient.

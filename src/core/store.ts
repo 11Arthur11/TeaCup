@@ -48,9 +48,3 @@ class Store {
 }
 
 export const store = new Store();
-
-// TeaCloud is intentionally dark-only. Keeping this assignment here prevents
-// browser or stale localStorage preferences from flashing a light theme.
-document.documentElement.dataset.theme = 'dark';
-document.documentElement.style.colorScheme = 'dark';
-localStorage.removeItem('teacloud-theme');
