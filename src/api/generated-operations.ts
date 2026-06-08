@@ -31,7 +31,6 @@ export const operations = {
   "lockUser": { method: "POST", path: "/v1/admin/users/{userId}/lock", bodyKind: null, responseKind: "json" },
   "editUser": { method: "POST", path: "/v1/admin/users/{userId}/edit", bodyKind: "json", responseKind: "json" },
   "submitTicket_1": { method: "POST", path: "/v1/admin/tickets/submit", bodyKind: "multipart", responseKind: "json" },
-  "getAllResources": { method: "POST", path: "/v1/admin/resources", bodyKind: null, responseKind: "json" },
   "getAllQueryInstance": { method: "GET", path: "/v1/admin/query-instances", bodyKind: null, responseKind: "json" },
   "initQueryInstance": { method: "POST", path: "/v1/admin/query-instances", bodyKind: "json", responseKind: "json" },
   "editProduct": { method: "POST", path: "/v1/admin/products/{productId}/edit", bodyKind: "json", responseKind: "json" },
@@ -51,6 +50,7 @@ export const operations = {
   "editCategory": { method: "POST", path: "/v1/admin/categories/edit/{categoryId}", bodyKind: "json", responseKind: "json" },
   "editAudioBotNode": { method: "POST", path: "/v1/admin/audio-bot-nodes/{nodeId}/edit", bodyKind: "json", responseKind: "json" },
   "initAudioBotNode": { method: "POST", path: "/v1/admin/audio-bot-nodes/initiate", bodyKind: "json", responseKind: "json" },
+  "forceProlongResource": { method: "PATCH", path: "/v1/admin/resources/{resourceId}/force-prolong", bodyKind: null, responseKind: "json" },
   "removeQueryInstance": { method: "DELETE", path: "/v1/admin/query-instances/{id}", bodyKind: null, responseKind: "json" },
   "editQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}", bodyKind: "json", responseKind: "json" },
   "enableQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}/enable", bodyKind: null, responseKind: "json" },
@@ -60,7 +60,7 @@ export const operations = {
   "changeEnabled": { method: "PATCH", path: "/v1/admin/products/{productId}/{enabled}", bodyKind: null, responseKind: "json" },
   "getProvisioningStrategy_1": { method: "GET", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: null, responseKind: "json" },
   "changeProvisioningStrategy_1": { method: "PATCH", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: "json", responseKind: "json" },
-  "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
+  "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "json" },
   "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
   "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
@@ -75,15 +75,19 @@ export const operations = {
   "getAllGlobalNotifications_1": { method: "GET", path: "/v1/notifications", bodyKind: null, responseKind: "json" },
   "getInvoices": { method: "GET", path: "/v1/invoices", bodyKind: null, responseKind: "json" },
   "getInvoice": { method: "GET", path: "/v1/invoices/{invoiceToken}", bodyKind: null, responseKind: "json" },
+  "getProductByCategorySlug_1": { method: "GET", path: "/v1/global/products/{categorySlug}", bodyKind: null, responseKind: "json" },
+  "getCategories": { method: "GET", path: "/v1/global/categories", bodyKind: null, responseKind: "json" },
   "getDashboardOverviewResponse": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
-  "getCategories": { method: "GET", path: "/v1/categories", bodyKind: null, responseKind: "json" },
+  "getCategories_1": { method: "GET", path: "/v1/categories", bodyKind: null, responseKind: "json" },
   "getAllUsers": { method: "GET", path: "/v1/admin/users", bodyKind: null, responseKind: "json" },
   "getUserById": { method: "GET", path: "/v1/admin/users/{userId}", bodyKind: null, responseKind: "json" },
   "getRoles": { method: "GET", path: "/v1/admin/users/roles", bodyKind: null, responseKind: "json" },
   "getAllTickets": { method: "GET", path: "/v1/admin/tickets", bodyKind: null, responseKind: "json" },
   "getAllUserTickets": { method: "GET", path: "/v1/admin/tickets/{userId}", bodyKind: null, responseKind: "json" },
   "getTicketDetails_1": { method: "GET", path: "/v1/admin/tickets/detail/{ticketId}", bodyKind: null, responseKind: "json" },
+  "getAllResources": { method: "GET", path: "/v1/admin/resources", bodyKind: null, responseKind: "json" },
   "getResource": { method: "GET", path: "/v1/admin/resources/{resourceId}", bodyKind: null, responseKind: "json" },
+  "deleteResource": { method: "DELETE", path: "/v1/admin/resources/{resourceId}", bodyKind: null, responseKind: "json" },
   "getAllProducts": { method: "GET", path: "/v1/admin/products", bodyKind: null, responseKind: "json" },
   "getProduct": { method: "GET", path: "/v1/admin/products/{productId}", bodyKind: null, responseKind: "json" },
   "deleteProduct": { method: "DELETE", path: "/v1/admin/products/{productId}", bodyKind: null, responseKind: "json" },
@@ -244,11 +248,6 @@ export interface OperationInputMap {
   };
     body: FormData;
   };
-  "getAllResources": {
-    query: {
-    filter: Models.ResourceFilterRequest;
-  };
-  };
   "getAllQueryInstance": Record<string, never>;
   "initQueryInstance": {
     body: Models.QueryInstanceInitRequest;
@@ -311,6 +310,11 @@ export interface OperationInputMap {
   };
   "initAudioBotNode": {
     body: Models.AudioBotNodeInitRequest;
+  };
+  "forceProlongResource": {
+    path: {
+    resourceId: number;
+  };
   };
   "removeQueryInstance": {
     path: {
@@ -394,8 +398,14 @@ export interface OperationInputMap {
     invoiceToken: string;
   };
   };
-  "getDashboardOverviewResponse": Record<string, never>;
+  "getProductByCategorySlug_1": {
+    path: {
+    categorySlug: string;
+  };
+  };
   "getCategories": Record<string, never>;
+  "getDashboardOverviewResponse": Record<string, never>;
+  "getCategories_1": Record<string, never>;
   "getAllUsers": {
     query: {
     filter: Models.UsersFilterRequest;
@@ -425,7 +435,17 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
+  "getAllResources": {
+    query: {
+    filter: Models.ResourceFilterRequest;
+  };
+  };
   "getResource": {
+    path: {
+    resourceId: number;
+  };
+  };
+  "deleteResource": {
     path: {
     resourceId: number;
   };
@@ -508,7 +528,6 @@ export interface OperationOutputMap {
   "lockUser": Models.SimpleResponse;
   "editUser": Models.SimpleResponse;
   "submitTicket_1": Models.SimpleResponse;
-  "getAllResources": Models.DataResponsePagedModelResourceListAdminResponse;
   "getAllQueryInstance": Models.DataResponseListQueryInstanceListResponse;
   "initQueryInstance": Models.SimpleResponse;
   "editProduct": Models.SimpleResponse;
@@ -528,6 +547,7 @@ export interface OperationOutputMap {
   "editCategory": Models.SimpleResponse;
   "editAudioBotNode": Models.SimpleResponse;
   "initAudioBotNode": Models.SimpleResponse;
+  "forceProlongResource": Models.SimpleResponse;
   "removeQueryInstance": Models.SimpleResponse;
   "editQueryInstance": Models.SimpleResponse;
   "enableQueryInstance": Models.SimpleResponse;
@@ -537,7 +557,9 @@ export interface OperationOutputMap {
   "changeEnabled": Models.SimpleResponse;
   "getProvisioningStrategy_1": Models.DataResponseProvisionStrategy;
   "changeProvisioningStrategy_1": Models.SimpleResponse;
-  "checkAuthentication": void;
+  "checkAuthentication": {
+
+};
   "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
   "getBalance": Models.DataResponseWalletOverviewResponse;
   "getProfile": Models.DataResponseUserDetailResponse;
@@ -556,15 +578,19 @@ export interface OperationOutputMap {
   "getInvoice": {
 
 };
-  "getDashboardOverviewResponse": Models.DataResponseDashboardOverviewResponse;
+  "getProductByCategorySlug_1": unknown;
   "getCategories": Models.DataResponseListCategoryListResponse;
+  "getDashboardOverviewResponse": Models.DataResponseDashboardOverviewResponse;
+  "getCategories_1": Models.DataResponseListCategoryListResponse;
   "getAllUsers": Models.DataResponsePagedModelUserListResponse;
   "getUserById": Models.DataResponseUserDetailAdminResponse;
   "getRoles": Models.DataResponseListRoleListResponse;
   "getAllTickets": Models.DataResponsePagedModelTicketListAdminResponse;
   "getAllUserTickets": Models.DataResponsePagedModelTicketListAdminResponse;
   "getTicketDetails_1": Models.DataResponseTicketDetailAdminResponse;
+  "getAllResources": Models.DataResponsePagedModelResourceListAdminResponse;
   "getResource": Models.DataResponseAbstractResourceDetailResponse;
+  "deleteResource": Models.SimpleResponse;
   "getAllProducts": unknown;
   "getProduct": unknown;
   "deleteProduct": Models.SimpleResponse;

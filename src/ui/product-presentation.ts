@@ -34,6 +34,8 @@ export interface ProductCardOptions {
   productId?: number;
   actionLabel?: string;
   actionDisabled?: boolean;
+  actionHref?: string;
+  actionDataDashboardAccess?: boolean;
 }
 
 export interface ProductPresentationPreviewFields {
@@ -162,6 +164,10 @@ export function renderProductCard(options: ProductCardOptions): string {
   const buttonAttributes = disabled
     ? 'disabled aria-disabled="true"'
     : `data-buy-product="${Number(options.productId ?? 0)}" data-product-type="${productType}" data-product-name="${escapeHtml(options.productName)}"`;
+  const actionClass = `button ${highlighted ? 'button--primary' : 'button--secondary'} button--block`;
+  const action = options.actionHref
+    ? `<a data-link ${options.actionDataDashboardAccess ? 'data-dashboard-access' : ''} class="${actionClass}" href="${escapeHtml(options.actionHref)}">${escapeHtml(options.actionLabel || 'انتخاب و راه‌اندازی')} ${icon('arrow_back')}</a>`
+    : `<button type="button" class="${actionClass}" ${buttonAttributes}>${escapeHtml(options.actionLabel || 'انتخاب و راه‌اندازی')} ${icon('arrow_back')}</button>`;
 
   return `<article class="pricing-card pricing-card--presentation ${highlighted ? 'pricing-card--featured' : ''}">
     <div class="pricing-card__presentation-top">${renderProductBadges(options.presentation.badges, { max: 4 })}<div class="pricing-card__icon">${icon(productType === 'AUDIO_BOT' ? 'headphones' : 'dns')}</div></div>
@@ -169,7 +175,7 @@ export function renderProductCard(options: ProductCardOptions): string {
     <p>${escapeHtml(description)}</p>
     <div class="pricing-card__price"><b>${priceText}</b><span>تومان / ${escapeHtml(periodText)}</span></div>
     ${renderProductFeatures(options.presentation.features)}
-    <button type="button" class="button ${highlighted ? 'button--primary' : 'button--secondary'} button--block" ${buttonAttributes}>${escapeHtml(options.actionLabel || 'انتخاب و راه‌اندازی')} ${icon('arrow_back')}</button>
+    ${action}
   </article>`;
 }
 

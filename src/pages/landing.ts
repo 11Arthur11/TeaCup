@@ -1,64 +1,119 @@
 import { renderPublic, syncBackendAvailabilityUi } from '../ui/layout.js';
 import { apiBaseUrl } from '../api/client.js';
+import { getPublicCategories, getPublicProducts, type PublicCatalogCategory, type PublicCatalogProduct } from '../api/public-catalog.js';
 import { probeBackendAvailability } from '../core/backend-availability.js';
-import { brandLogo, escapeHtml, icon } from '../core/dom.js';
+import { brandLogo, escapeHtml, icon, qsa } from '../core/dom.js';
+import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 
-interface PublicProductMock {
-  name: string;
-  type: 'TeaSpeak' | 'AudioBot';
-  duration: string;
-  capacity: string;
-  description: string;
-  icon: string;
-  featured?: boolean;
+let landingCategoryTimer = 0;
+let landingRenderVersion = 0;
+
+function stopLandingCategoryRotation(): void {
+  window.clearInterval(landingCategoryTimer);
+  landingCategoryTimer = 0;
+  landingRenderVersion += 1;
 }
 
-const publicProductsMock: PublicProductMock[] = [
-  {
-    name: 'TeaSpeak ساعتی',
-    type: 'TeaSpeak',
-    duration: 'شروع از ۱ ساعت',
-    capacity: '۳۲ کاربر',
-    description: 'برای یک بازی کوتاه، دورهمی یا تست سریع؛ فقط به‌اندازه زمانی که نیاز دارید.',
-    icon: 'mic',
-    featured: true,
-  },
-  {
-    name: 'TeaSpeak روزانه',
-    type: 'TeaSpeak',
-    duration: 'شروع از ۱ روز',
-    capacity: '۶۴ کاربر',
-    description: 'انتخاب مناسب برای رویدادها، مسابقه‌ها و جمع‌های چندساعته یا یک‌روزه.',
-    icon: 'groups',
-  },
-  {
-    name: 'TeaSpeak ماهانه',
-    type: 'TeaSpeak',
-    duration: 'تمدید ماهانه',
-    capacity: '۱۲۸ کاربر',
-    description: 'برای تیم‌ها و کامیونیتی‌هایی که یک فضای صوتی همیشگی و قابل مدیریت می‌خواهند.',
-    icon: 'dns',
-  },
-  {
-    name: 'AudioBot روزانه',
-    type: 'AudioBot',
-    duration: 'پخش ۲۴ ساعته',
-    capacity: 'Playlist نامحدود',
-    description: 'موزیک و محتوای صوتی را در کانال خود پخش و فهرست‌های پخش را مدیریت کنید.',
-    icon: 'headphones',
-  },
-];
+function publicProductCard(product: PublicCatalogProduct): string {
+  return renderProductCard({
+    productId: product.id,
+    productName: product.productName,
+    productType: product.productType,
+    price: product.price,
+    period: product.period,
+    maxClients: product.maxClients,
+    presentation: parseProductPresentation(product.presentation),
+    actionLabel: 'انتخاب در داشبورد',
+    actionHref: '/auth',
+    actionDataDashboardAccess: true,
+  });
+}
 
-function productCards(limit?: number): string {
-  return publicProductsMock.slice(0, limit).map((product) => `<article class="public-product-card ${product.featured ? 'public-product-card--featured' : ''}">
-    <div class="public-product-card__top"><span class="public-product-card__icon">${icon(product.icon)}</span><span class="public-product-card__mock">نمونه نمایشی</span></div>
-    <div><small>${escapeHtml(product.type)}</small><h3>${escapeHtml(product.name)}</h3><p>${escapeHtml(product.description)}</p></div>
-    <div class="public-product-card__facts"><span>${icon('schedule')} ${escapeHtml(product.duration)}</span><span>${icon('group')} ${escapeHtml(product.capacity)}</span></div>
-    <a data-link data-dashboard-access href="/auth" class="public-product-card__action">انتخاب در داشبورد ${icon('arrow_back')}</a>
-  </article>`).join('');
+function categoryTabs(categories: PublicCatalogCategory[], activeSlug: string, all = false): string {
+  const allTab = all
+    ? `<button type="button" class="public-category-tab ${activeSlug === '*' ? 'is-active' : ''}" data-public-category="*">همه محصولات</button>`
+    : '';
+  return `${allTab}${categories.map((category) => `<button type="button" class="public-category-tab ${category.slug === activeSlug ? 'is-active' : ''}" data-public-category="${escapeHtml(category.slug)}" title="${escapeHtml(category.description)}">${escapeHtml(category.name)}</button>`).join('')}`;
+}
+
+function catalogError(message: string): string {
+  return `<div class="public-catalog-state public-catalog-state--error">${icon('cloud_off')}<div><b>دریافت محصولات انجام نشد</b><p>${escapeHtml(message)}</p></div><button type="button" class="button button--secondary button--small" data-retry-public-catalog>${icon('refresh')} تلاش دوباره</button></div>`;
+}
+
+async function hydrateLandingProducts(version: number): Promise<void> {
+  const tabs = document.querySelector<HTMLElement>('[data-landing-category-tabs]');
+  const grid = document.querySelector<HTMLElement>('[data-landing-product-grid]');
+  const caption = document.querySelector<HTMLElement>('[data-landing-category-caption]');
+  if (!tabs || !grid || !caption) return;
+
+  try {
+    const categories = await getPublicCategories();
+    if (version !== landingRenderVersion) return;
+    if (!categories.length) {
+      tabs.innerHTML = '';
+      grid.innerHTML = `<div class="public-catalog-state">${icon('inventory_2')}<div><b>هنوز محصول عمومی منتشر نشده است</b><p>پس از فعال‌شدن دسته‌ها، محصولات در این بخش دیده می‌شوند.</p></div></div>`;
+      caption.textContent = 'فهرست عمومی فعالی وجود ندارد.';
+      return;
+    }
+
+    let activeIndex = 0;
+    let requestVersion = 0;
+    const renderCategory = async (index: number): Promise<void> => {
+      if (!tabs.isConnected || !grid.isConnected) { window.clearInterval(landingCategoryTimer); return; }
+      activeIndex = (index + categories.length) % categories.length;
+      const category = categories[activeIndex]!;
+      const localRequest = ++requestVersion;
+      tabs.innerHTML = categoryTabs(categories, category.slug);
+      caption.textContent = category.description || `محصولات دسته ${category.name}`;
+      grid.classList.add('is-loading');
+      grid.innerHTML = `<div class="public-catalog-loading"><span class="spinner"></span>در حال دریافت محصولات ${escapeHtml(category.name)}...</div>`;
+      try {
+        const products = await getPublicProducts(category.slug);
+        if (version !== landingRenderVersion || localRequest !== requestVersion) return;
+        grid.innerHTML = products.length
+          ? products.slice(0, 3).map(publicProductCard).join('')
+          : `<div class="public-catalog-state">${icon('inventory_2')}<div><b>محصولی در این دسته وجود ندارد</b><p>دسته بعدی به‌صورت خودکار نمایش داده می‌شود.</p></div></div>`;
+      } catch (error) {
+        if (version !== landingRenderVersion || localRequest !== requestVersion) return;
+        grid.innerHTML = catalogError(error instanceof Error ? error.message : 'ارتباط با فهرست عمومی برقرار نشد.');
+        grid.querySelector('[data-retry-public-catalog]')?.addEventListener('click', () => void renderCategory(activeIndex));
+      } finally {
+        if (version === landingRenderVersion && localRequest === requestVersion) grid.classList.remove('is-loading');
+      }
+      qsa<HTMLButtonElement>('[data-public-category]', tabs).forEach((button) => button.addEventListener('click', () => {
+        const selected = categories.findIndex((item) => item.slug === button.dataset.publicCategory);
+        if (selected < 0) return;
+        window.clearInterval(landingCategoryTimer);
+        void renderCategory(selected);
+        landingCategoryTimer = window.setInterval(() => void renderCategory(activeIndex + 1), 7_000);
+      }));
+    };
+
+    await renderCategory(0);
+    landingCategoryTimer = window.setInterval(() => void renderCategory(activeIndex + 1), 7_000);
+  } catch (error) {
+    if (version !== landingRenderVersion) return;
+    tabs.innerHTML = '';
+    grid.innerHTML = catalogError(error instanceof Error ? error.message : 'فهرست دسته‌بندی‌ها دریافت نشد.');
+    grid.querySelector('[data-retry-public-catalog]')?.addEventListener('click', () => void hydrateLandingProducts(version));
+  }
+}
+
+function bindLandingBackToTop(): void {
+  const button = document.querySelector<HTMLButtonElement>('[data-landing-back-to-top]');
+  if (!button) return;
+  const sync = (): void => {
+    if (!button.isConnected) { window.removeEventListener('scroll', sync); return; }
+    button.classList.toggle('is-visible', window.scrollY > 520);
+  };
+  window.addEventListener('scroll', sync, { passive: true });
+  button.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  sync();
 }
 
 export function renderLanding(): void {
+  stopLandingCategoryRotation();
+  const version = landingRenderVersion;
   renderPublic(`
     <section class="tea-hero">
       <div class="tea-hero__pattern"></div>
@@ -101,10 +156,11 @@ export function renderLanding(): void {
 
     <section id="products" class="public-products-section">
       <div class="public-section-heading public-section-heading--split">
-        <div><span>محصولات پیشنهادی</span><h2>همان‌قدر بخر که استفاده می‌کنی</h2><p>این محصولات فعلاً نمونه نمایشی‌اند و پس از آماده‌شدن فهرست عمومی، اطلاعات واقعی جایگزین می‌شود.</p></div>
+        <div><span>محصولات عمومی</span><h2>همان‌قدر بخر که استفاده می‌کنی</h2><p data-landing-category-caption>دسته‌بندی‌ها و قیمت‌ها از فهرست عمومی ابر چایی دریافت می‌شوند.</p></div>
         <a data-link href="/products" class="button button--secondary">همه محصولات ${icon('arrow_back')}</a>
       </div>
-      <div class="public-product-grid">${productCards(3)}</div>
+      <div class="public-category-tabs public-category-tabs--landing" data-landing-category-tabs><span class="skeleton-line"></span></div>
+      <div class="public-product-grid pricing-grid public-product-grid--live" data-landing-product-grid><div class="public-catalog-loading"><span class="spinner"></span>در حال دریافت محصولات...</div></div>
     </section>
 
     <section id="features" class="tea-benefits-section">
@@ -126,23 +182,47 @@ export function renderLanding(): void {
       <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
       <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
     </section>
+    <button type="button" class="landing-back-to-top" data-landing-back-to-top aria-label="بازگشت به بالای صفحه" title="بازگشت به بالا">${icon('arrow_upward')}</button>
   `, { transparent: true });
+  bindLandingBackToTop();
+  void hydrateLandingProducts(version);
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
 }
 
-export function renderPublicProducts(): void {
+export async function renderPublicProducts(): Promise<void> {
+  stopLandingCategoryRotation();
   renderPublic(`
     <section class="public-page-hero public-page-hero--products">
       <span class="tea-kicker">${icon('shopping_bag')} فهرست عمومی محصولات</span>
       <h1>سرویس مناسب زمان و جمع خودت را پیدا کن.</h1>
-      <p>فهرست زیر فعلاً برای طراحی و تجربه کاربری به‌صورت نمایشی ساخته شده است. قیمت و موجودی واقعی بعداً از فهرست عمومی محصولات دریافت می‌شود.</p>
+      <p>همه دسته‌ها و محصولات فعال را یک‌جا ببین؛ سپس برای خرید و راه‌اندازی وارد داشبورد شو.</p>
     </section>
     <section class="public-products-page">
-      <div class="public-product-page-note">${icon('info')} اطلاعات این صفحه نمونه است و برای خرید نهایی باید وارد داشبورد شوید.</div>
-      <div class="public-product-grid public-product-grid--page">${productCards()}</div>
+      <div class="public-category-tabs public-category-tabs--page" data-public-products-tabs><span class="skeleton-line"></span></div>
+      <div class="public-products-overview" data-public-products-overview><div class="public-catalog-loading"><span class="spinner"></span>در حال دریافت همه محصولات...</div></div>
     </section>
-    <section class="public-page-cta"><div><h2>مدت کوتاه می‌خواهی یا سرویس دائمی؟</h2><p>در داشبورد می‌توانی دوره و ظرفیت مناسب را دقیق‌تر انتخاب کنی.</p></div><a data-link data-dashboard-access href="/auth" class="button button--primary">ورود به داشبورد ${icon('arrow_back')}</a></section>
+    <section class="public-page-cta"><div><h2>مدت کوتاه می‌خواهی یا سرویس دائمی؟</h2><p>بعد از انتخاب محصول، تنظیم نهایی و راه‌اندازی از داشبورد انجام می‌شود.</p></div><a data-link data-dashboard-access href="/auth" class="button button--primary">ورود به داشبورد ${icon('arrow_back')}</a></section>
   `);
+
+  const tabs = document.querySelector<HTMLElement>('[data-public-products-tabs]');
+  const overview = document.querySelector<HTMLElement>('[data-public-products-overview]');
+  if (!tabs || !overview) return;
+  try {
+    const categories = await getPublicCategories();
+    const groups = await Promise.all(categories.map(async (category) => ({ category, products: await getPublicProducts(category.slug) })));
+    tabs.innerHTML = categoryTabs(categories, '*', true);
+    overview.innerHTML = groups.map(({ category, products }) => `<section class="public-product-category-group" data-public-product-group="${escapeHtml(category.slug)}"><header><div><span>${icon('category')} ${escapeHtml(category.name)}</span><h2>${escapeHtml(category.name)}</h2><p>${escapeHtml(category.description || 'محصولات فعال این دسته')}</p></div><b>${products.length.toLocaleString('fa-IR')} محصول</b></header><div class="pricing-grid public-product-grid--page">${products.map(publicProductCard).join('') || `<div class="public-catalog-state">${icon('inventory_2')}<div><b>محصولی در این دسته وجود ندارد</b><p>این دسته فعلاً محصول فعالی ندارد.</p></div></div>`}</div></section>`).join('') || `<div class="public-catalog-state">${icon('inventory_2')}<div><b>فهرست عمومی خالی است</b><p>هنوز دسته یا محصول فعالی منتشر نشده است.</p></div></div>`;
+
+    qsa<HTMLButtonElement>('[data-public-category]', tabs).forEach((button) => button.addEventListener('click', () => {
+      const selected = button.dataset.publicCategory || '*';
+      qsa<HTMLButtonElement>('[data-public-category]', tabs).forEach((item) => item.classList.toggle('is-active', item === button));
+      qsa<HTMLElement>('[data-public-product-group]', overview).forEach((group) => { group.hidden = selected !== '*' && group.dataset.publicProductGroup !== selected; });
+    }));
+  } catch (error) {
+    tabs.innerHTML = '';
+    overview.innerHTML = catalogError(error instanceof Error ? error.message : 'فهرست عمومی دریافت نشد.');
+    overview.querySelector('[data-retry-public-catalog]')?.addEventListener('click', () => void renderPublicProducts());
+  }
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
 }
 
@@ -163,6 +243,7 @@ function isRulesContent(value: unknown): value is RulesContent {
 }
 
 export async function renderRules(): Promise<void> {
+  stopLandingCategoryRotation();
   renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>در حال دریافت قوانین...</h1><p>متن قوانین از فایل قابل‌ویرایش سایت بارگذاری می‌شود.</p></section><section class="rules-page"><div class="skeleton-page"></div></section>`);
   try {
     const response = await fetch('/content/rules.json', { cache: 'no-store' });
@@ -182,4 +263,3 @@ export async function renderRules(): Promise<void> {
   }
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
 }
-

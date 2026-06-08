@@ -21,6 +21,10 @@ import { createProductPresentationEditor } from '../ui/product-presentation.js';
 
 interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
 interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
+interface AdminResourceDetailDto extends Models.AbstractResourceDetailResponse {
+  address?: string; port?: number; maxClients?: number; teaSpeakStatus?: Models.AbstractResourceDetailResponse['teaSpeakStatus'];
+  botNickname?: string; serverAddress?: string; serverPassword?: string;
+}
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
 const adminError = (error: unknown): string => `<div class="notice notice--warning">${icon('warning')}<span>${escapeHtml(error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'دریافت اطلاعات با خطا مواجه شد.')}</span><button onclick="location.reload()">تلاش دوباره</button></div>`;
@@ -430,7 +434,7 @@ export async function renderAdminResources(page = 0): Promise<void> {
   }
 }
 
-function adminTeaSpeakConnection(resource: Models.AbstractResourceDetailResponse): string {
+function adminTeaSpeakConnection(resource: AdminResourceDetailDto): string {
   const address = resource.address?.trim();
   const port = resource.port == null ? '' : String(resource.port);
   if (!address && !port) return '';
@@ -449,31 +453,134 @@ function bindAdminConnectionCopy(): void {
   }));
 }
 
-export async function renderAdminResourceDetail(resourceId:number):Promise<void>{
-  renderAppShell(loadingPage(),'جزئیات منبع');
-  try{
-    const response=await api.call('getResource',{path:{resourceId}});
-    const resource=dataOf(response);
-    if(!resource)throw new Error('منبع دریافت نشد.');
-    const isAudio=resource.resourceType==='AUDIO_BOT';
-    const isTeaSpeak=resource.resourceType==='TEASPEAK';
-    renderAppShell(`${pageHeader(resource.label||resource.productName||`منبع #${resourceId}`,`${translateEnum(resource.resourceType)} — ${badge(resource.resourceStatus)}`,[{label:'بازگشت',icon:'arrow_forward',href:'/admin/resources',variant:'ghost'}])}
+function adminAudioPlaylistCard(playlists: Models.ABPlayListsResponse[]): string {
+  return card('Playlistهای AudioBot', `<div class="playlist-grid">${playlists.map((playlist) => `<article class="playlist-card"><span>${icon('queue_music')}</span><div><b>${escapeHtml(playlist.title || playlist.playlistFilename)}</b><small>${faNumber(playlist.songCount)} قطعه</small></div><button type="button" class="icon-button" data-admin-playlist="${escapeHtml(playlist.playlistFilename)}" title="مدیریت Playlist">${icon('chevron_left')}</button></article>`).join('') || emptyState('Playlist ندارید', 'برای این AudioBot هنوز Playlist ساخته نشده است.')}</div>`, {
+    icon: 'library_music',
+    actions: '<button type="button" id="admin-new-playlist" class="button button--secondary button--small">ساخت Playlist</button>',
+  });
+}
+
+function openAdminResourceEdit(resource: AdminResourceDetailDto, resourceId: number): void {
+  const form = document.createElement('form');
+  form.className = 'form-grid';
+  form.innerHTML = `${field('label', 'نام نمایشی سرویس', { value: resource.label || '', required: true })}<div class="field field--full">${toggleField('autoProlong', 'تمدید خودکار', Boolean(resource.autoProlong))}</div>`;
+  openDialog({ title: 'ویرایش تنظیمات سرویس', description: 'نام نمایشی و وضعیت تمدید خودکار را تغییر دهید.', content: form, confirmLabel: 'ذخیره تغییرات', onConfirm: async () => {
+    if (!form.reportValidity()) return false;
+    const data = new FormData(form);
+    const ok = await runAction(() => api.call('prolongResource_1', { path: { resourceId }, body: { label: String(data.get('label') ?? '').trim(), autoProlong: data.get('autoProlong') === 'on' } }));
+    if (ok) await renderAdminResourceDetail(resourceId);
+    return Boolean(ok);
+  } });
+}
+
+function openAdminAudioSettings(resource: AdminResourceDetailDto, resourceId: number): void {
+  const form = document.createElement('form');
+  form.className = 'form-grid';
+  form.innerHTML = `${field('botNickname', 'نام ربات', { value: resource.botNickname || '' })}${field('serverAddress', 'آدرس سرور', { value: resource.serverAddress || '', dir: 'ltr' })}${field('serverPassword', 'رمز سرور', { type: 'password', value: resource.serverPassword || '', dir: 'ltr' })}`;
+  openDialog({ title: 'تنظیمات اتصال AudioBot', content: form, confirmLabel: 'ذخیره', onConfirm: async () => {
+    const data = new FormData(form);
+    const ok = await runAction(() => api.call('editAudioBot', { path: { resourceId }, body: { botNickname: String(data.get('botNickname') ?? ''), serverAddress: String(data.get('serverAddress') ?? ''), serverPassword: String(data.get('serverPassword') ?? '') } }));
+    if (ok) await renderAdminResourceDetail(resourceId);
+    return Boolean(ok);
+  } });
+}
+
+function bindAdminPlaylistActions(resourceId: number, playlists: Models.ABPlayListsResponse[]): void {
+  document.querySelector('#admin-new-playlist')?.addEventListener('click', () => {
+    const form = document.createElement('form');
+    form.innerHTML = field('playlistName', 'نام Playlist', { required: true });
+    openDialog({ title: 'ساخت Playlist', content: form, confirmLabel: 'ساخت', onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const data = new FormData(form);
+      const ok = await runAction(() => api.call('addAudioBotPlaylist', { path: { resourceId }, body: { playlistName: String(data.get('playlistName') ?? '') } }));
+      if (ok) await renderAdminResourceDetail(resourceId);
+      return Boolean(ok);
+    } });
+  });
+
+  qsa<HTMLButtonElement>('[data-admin-playlist]').forEach((button) => button.addEventListener('click', async () => {
+    const filename = button.dataset.adminPlaylist ?? '';
+    const playlist = playlists.find((item) => item.playlistFilename === filename);
+    const dialog = openDialog({ title: playlist?.title || filename, description: 'قطعه‌ها و عملیات مدیریتی Playlist', content: '<div class="dialog-loading"><span class="spinner"></span>در حال دریافت...</div>', wide: true });
+    try {
+      const response = await api.call('getAudioBotPlaylistDetail', { path: { resourceId, playlistFilename: filename }, body: { page: 0, size: 100 } });
+      const detail = dataOf(response);
+      const content = qs<HTMLElement>('.dialog__content', dialog);
+      content.innerHTML = `<div class="dialog-toolbar"><button type="button" id="admin-add-track" class="button button--primary button--small">${icon('add')} افزودن Track</button><button type="button" id="admin-delete-playlist" class="button button--danger button--small">${icon('delete')} حذف Playlist</button></div>${dataTable<Models.ABPlayListItemResponse>([{ label: '#', render: (row) => faNumber(row.order) }, { label: 'عنوان', render: (row) => `<b>${escapeHtml(row.title)}</b><small class="block ltr">${escapeHtml(row.link)}</small>` }, { label: 'نوع', render: (row) => escapeHtml(row.audioType) }], detail?.playListItems ?? [])}`;
+      content.querySelector('#admin-add-track')?.addEventListener('click', () => {
+        const form = document.createElement('form');
+        form.innerHTML = field('trackLink', 'لینک Track', { required: true, dir: 'ltr', placeholder: 'https://...' });
+        openDialog({ title: 'افزودن Track', content: form, confirmLabel: 'افزودن', onConfirm: async () => {
+          if (!form.reportValidity()) return false;
+          const data = new FormData(form);
+          return Boolean(await runAction(() => api.call('addTrackToAudioBotPlaylist', { path: { resourceId, playlistFilename: filename }, body: { trackLink: String(data.get('trackLink') ?? '') } })));
+        } });
+      });
+      content.querySelector('#admin-delete-playlist')?.addEventListener('click', () => confirmDialog('حذف Playlist', 'این عملیات برگشت‌پذیر نیست.', 'حذف', async () => {
+        if (await runAction(() => api.call('deleteAudioBotPlaylist', { path: { resourceId, playlistFilename: filename } }))) {
+          dialog.close();
+          await renderAdminResourceDetail(resourceId);
+        }
+      }, true));
+    } catch (error) {
+      qs<HTMLElement>('.dialog__content', dialog).innerHTML = adminError(error);
+    }
+  }));
+}
+
+export async function renderAdminResourceDetail(resourceId: number): Promise<void> {
+  renderAppShell(loadingPage(), 'جزئیات منبع');
+  try {
+    const response = await api.call('getResource', { path: { resourceId } });
+    const resource = dataOf(response) as AdminResourceDetailDto | undefined;
+    if (!resource) throw new Error('منبع دریافت نشد.');
+    const isAudio = resource.resourceType === 'AUDIO_BOT';
+    const isTeaSpeak = resource.resourceType === 'TEASPEAK';
+    let playlists: Models.ABPlayListsResponse[] = [];
+    if (isAudio) {
+      try { playlists = dataOf(await api.call('getAudioBotPlaylists', { path: { resourceId } })) ?? []; }
+      catch { playlists = []; }
+    }
+
+    const actionCard = card('عملیات مدیریتی', `<div class="admin-resource-actions">
+      <button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button>
+      <button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button>
+      <button id="admin-edit-resource" class="button button--ghost button--block">${icon('edit')} ویرایش سرویس</button>
+      <button id="admin-force-prolong" class="button button--primary button--block">${icon('event_repeat')} تمدید اجباری</button>
+      ${isAudio ? `<button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
+      ${isTeaSpeak ? `<button id="admin-privilege" class="button button--ghost button--block">${icon('key')} ساخت Privilege</button>` : ''}
+      <button id="admin-delete-resource" class="button button--danger button--block">${icon('delete_forever')} حذف سرویس کاربر</button>
+    </div><p class="muted">عملیات نوع سرویس از همان endpointهای مدیریتی TeaSpeak و AudioBot اجرا می‌شود.</p>`, { icon: 'settings' });
+
+    renderAppShell(`${pageHeader(resource.label || resource.productName || `منبع #${resourceId}`, `${translateEnum(resource.resourceType)} — ${badge(resource.resourceStatus)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/resources', variant: 'ghost' }])}
       <div class="detail-grid"><div class="detail-main">
-        ${card('مشخصات منبع',`<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div>${isTeaSpeak?`<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients==null?'—':faNumber(resource.maxClients)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address||'—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port==null?'—':faNumber(resource.port)}</dd></div>`:''}</dl>`,{icon:'info'})}
-        ${isTeaSpeak?adminTeaSpeakConnection(resource):''}
-      </div>
-      <aside>${card('عملیات مدیریتی',`<div class="admin-resource-actions"><button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button><button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button><button id="admin-prolong" class="button button--primary button--block">${icon('event_repeat')} تمدید منبع</button>${!isAudio?`<button id="admin-privilege" class="button button--ghost button--block">${icon('key')} ساخت Privilege</button>`:''}</div><p class="muted">نتیجه هر عملیات مستقیماً از پیام backend نمایش داده می‌شود.</p>`,{icon:'settings'})}</aside></div>`,'جزئیات منبع');
+        ${card('مشخصات منبع', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? 'فعال' : 'غیرفعال'}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>وضعیت TeaSpeak</dt><dd>${badge(resource.teaSpeakStatus)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}</dl>`, { icon: 'info' })}
+        ${isTeaSpeak ? adminTeaSpeakConnection(resource) : ''}
+        ${isAudio ? adminAudioPlaylistCard(playlists) : ''}
+      </div><aside>${actionCard}</aside></div>`, 'جزئیات منبع');
+
     bindAdminConnectionCopy();
-    const runServiceAction=async(start:boolean)=>{
-      const operation=isAudio?(start?'startAudioBot':'stopAudioBot'):(start?'startTeaSpeak':'stopTeaSpeak');
-      const ok=await runAction(()=>api.call(operation,{path:{resourceId}} as never));
-      if(ok)await renderAdminResourceDetail(resourceId);
+    if (isAudio) bindAdminPlaylistActions(resourceId, playlists);
+    const runServiceAction = async (start: boolean): Promise<void> => {
+      const operation = isAudio ? (start ? 'startAudioBot' : 'stopAudioBot') : (start ? 'startTeaSpeak' : 'stopTeaSpeak');
+      if (await runAction(() => api.call(operation, { path: { resourceId } } as never))) await renderAdminResourceDetail(resourceId);
     };
-    document.querySelector('#admin-start')?.addEventListener('click',()=>confirmDialog('شروع سرویس','سرویس راه‌اندازی شود؟','شروع',()=>runServiceAction(true)));
-    document.querySelector('#admin-stop')?.addEventListener('click',()=>confirmDialog('توقف سرویس','این عملیات ممکن است ارتباط کاربران را قطع کند.','توقف',()=>runServiceAction(false),true));
-    document.querySelector('#admin-prolong')?.addEventListener('click',()=>confirmDialog('تمدید منبع','هزینه و نتیجه عملیات بر اساس backend محاسبه می‌شود.','تمدید',async()=>{if(await runAction(()=>api.call('prolongResource',{path:{resourceId}})))await renderAdminResourceDetail(resourceId);}));
-    document.querySelector('#admin-privilege')?.addEventListener('click',()=>confirmDialog('ساخت Privilege','یک کلید دسترسی جدید برای TeaSpeak ساخته شود؟','ساخت کلید',async()=>{await runAction(()=>api.call('newPrivilege',{path:{resourceId}}));}));
-  }catch(error){renderAppShell(`${pageHeader('جزئیات منبع','مدیریت سرویس')}${adminError(error)}`,'جزئیات منبع');}
+    document.querySelector('#admin-start')?.addEventListener('click', () => confirmDialog('شروع سرویس', 'سرویس راه‌اندازی شود؟', 'شروع', () => runServiceAction(true)));
+    document.querySelector('#admin-stop')?.addEventListener('click', () => confirmDialog('توقف سرویس', 'این عملیات ممکن است ارتباط کاربران را قطع کند.', 'توقف', () => runServiceAction(false), true));
+    document.querySelector('#admin-edit-resource')?.addEventListener('click', () => openAdminResourceEdit(resource, resourceId));
+    document.querySelector('#admin-audio-settings')?.addEventListener('click', () => openAdminAudioSettings(resource, resourceId));
+    document.querySelector('#admin-force-prolong')?.addEventListener('click', () => confirmDialog('تمدید اجباری سرویس', 'سرویس بدون کسر هزینه از کیف پول کاربر توسط مدیر تمدید شود؟', 'تمدید اجباری', async () => {
+      if (await runAction(() => api.call('forceProlongResource', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);
+    }));
+    document.querySelector('#admin-privilege')?.addEventListener('click', () => confirmDialog('ساخت Privilege', 'یک کلید دسترسی جدید برای TeaSpeak ساخته شود؟', 'ساخت کلید', async () => {
+      if (await runAction(() => api.call('newPrivilege', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);
+    }));
+    document.querySelector('#admin-delete-resource')?.addEventListener('click', () => confirmDialog('حذف سرویس کاربر', 'این سرویس و اطلاعات وابسته آن حذف می‌شود و عملیات برگشت‌پذیر نیست.', 'حذف دائمی', async () => {
+      if (await runAction(() => api.call('deleteResource', { path: { resourceId } }))) router.navigate('/admin/resources');
+    }, true));
+  } catch (error) {
+    renderAppShell(`${pageHeader('جزئیات منبع', 'مدیریت سرویس')}${adminError(error)}`, 'جزئیات منبع');
+  }
 }
 
 export async function renderAdminProducts(): Promise<void> {

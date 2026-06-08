@@ -12,6 +12,8 @@ import { openChargeWalletDialog } from '../core/wallet-action.js';
 
 interface NavItem { label: string; href: string; icon: string; area?: AdminArea; }
 
+let publicShellController: AbortController | undefined;
+
 const userNav: NavItem[] = [
   { label: 'داشبورد نمای کلی', href: '/panel', icon: 'dashboard' },
   { label: 'سرویس‌های من', href: '/panel/services', icon: 'dns' },
@@ -101,19 +103,28 @@ export function syncBackendAvailabilityUi(): void {
 }
 
 function bindPublicShell(): void {
+  publicShellController?.abort();
+  const controller = new AbortController();
+  publicShellController = controller;
+  const signal = controller.signal;
+  const publicHeader = document.querySelector<HTMLElement>('[data-public-header]');
+  const syncHeader = (): void => { publicHeader?.classList.toggle('public-header--scrolled', window.scrollY > 18); };
+  window.addEventListener('scroll', syncHeader, { passive: true, signal });
+  syncHeader();
+
   qsa<HTMLElement>('[data-dashboard-access]').forEach((node) => node.addEventListener('click', (event) => {
     if (getBackendAvailability() !== 'unavailable') return;
     event.preventDefault();
     event.stopPropagation();
     showPublicMaintenanceDialog();
-  }));
+  }, { signal }));
   document.querySelector<HTMLButtonElement>('[data-maintenance-retry]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement;
     button.disabled = true;
     await probeBackendAvailability(apiBaseUrl);
     button.disabled = false;
     syncBackendAvailabilityUi();
-  });
+  }, { signal });
   syncBackendAvailabilityUi();
 }
 
@@ -121,7 +132,7 @@ export function renderPublic(content: string, options: { transparent?: boolean }
   userChrome.stop();
   const root = appRoot();
   root.innerHTML = `<div class="public-shell ${options.transparent ? 'public-shell--transparent' : ''}">
-    <header class="public-header"><a data-link href="/" class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a>
+    <header class="public-header" data-public-header><a data-link href="/" class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a>
     <nav><a data-link href="/products">محصولات</a><a data-link href="/#features">امکانات</a><a data-link href="/rules">قوانین</a></nav>
     <div class="public-header__actions"><a data-link data-dashboard-access class="button button--primary" href="/auth">ورود به پنل</a></div></header>
     <section class="maintenance-banner" data-maintenance-banner hidden>${icon('engineering')}<div><b>سامانه موقتاً در حالت نگهداری است</b><span>ارتباط با سامانه برقرار نیست و ورود به داشبورد تا بازگشت سرویس غیرفعال شده است.</span></div><button type="button" class="button button--ghost button--small" data-maintenance-retry>${icon('refresh')} بررسی دوباره</button></section>

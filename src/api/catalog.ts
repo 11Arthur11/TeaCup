@@ -10,7 +10,7 @@ export async function primeProductCategoryNavigation(force = false): Promise<voi
   if (loaded && !force) return;
   if (inFlight) return inFlight;
   inFlight = (async () => {
-    const response = await api.call('getCategories', {});
+    const response = await api.call('getCategories_1', {});
     const categories = dataOf(response) ?? [];
     store.setProductCategories(categories.flatMap((category) =>
       category.name && category.slug ? [{ name: category.name, slug: category.slug }] : []));

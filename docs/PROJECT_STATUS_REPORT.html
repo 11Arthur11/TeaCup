@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>گزارش وضعیت پروژه TeaCloud</title>
+  <style>
+    :root{font-family:Tahoma,Arial,sans-serif;color:#20252d;background:#f4f5f7;line-height:1.85}
+    *{box-sizing:border-box}body{margin:0}.page{width:min(980px,calc(100% - 32px));margin:32px auto 60px;background:#fff;border:1px solid #dfe3e8;border-radius:12px;box-shadow:0 8px 28px rgba(24,34,48,.08);overflow:hidden}
+    header{padding:30px 34px;border-bottom:1px solid #e4e7eb;background:#fafbfc}header h1{margin:0 0 8px;font-size:1.65rem}header p{margin:0;color:#606a78}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.meta span,.tag{display:inline-block;padding:4px 9px;border:1px solid #d9dee5;border-radius:6px;background:#fff;font-size:.78rem;color:#4e5968}
+    main{padding:30px 34px}.section{margin-bottom:34px}.section:last-child{margin-bottom:0}h2{margin:0 0 13px;padding-bottom:8px;border-bottom:1px solid #e5e8ec;font-size:1.18rem}h3{margin:20px 0 8px;font-size:1rem}p{margin:7px 0;color:#414a57}ul{margin:8px 0;padding-right:22px}li{margin:5px 0;color:#414a57}code{direction:ltr;display:inline-block;padding:1px 6px;border-radius:4px;background:#f0f2f5;font-family:Consolas,monospace;font-size:.82rem}
+    table{width:100%;border-collapse:collapse;font-size:.88rem}th,td{padding:10px 11px;border:1px solid #e0e4e9;text-align:right;vertical-align:top}th{background:#f5f6f8;color:#323a45}.ok{color:#167347;font-weight:700}.warn{color:#9a6500;font-weight:700}.risk{color:#b42318;font-weight:700}.note{padding:13px 15px;border-right:4px solid #667085;background:#f7f8fa;border-radius:5px;color:#475467}.priority{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.priority article{padding:14px;border:1px solid #e1e5ea;border-radius:8px;background:#fafbfc}.priority b{display:block;margin-bottom:5px}.priority p{font-size:.84rem;margin:0}.p1{border-top:3px solid #b42318!important}.p2{border-top:3px solid #b7791f!important}.p3{border-top:3px solid #3973b9!important}
+    footer{padding:18px 34px;border-top:1px solid #e4e7eb;background:#fafbfc;color:#667085;font-size:.8rem}@media(max-width:700px){.page{width:100%;margin:0;border:0;border-radius:0}.page header,main,footer{padding-right:18px;padding-left:18px}.priority{grid-template-columns:1fr}table{display:block;overflow:auto;white-space:nowrap}}
+    @media print{body{background:#fff}.page{width:100%;margin:0;border:0;box-shadow:none}.section{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <article class="page">
+    <header>
+      <h1>گزارش وضعیت، مشکلات و فاصله‌های پروژه TeaCloud</h1>
+      <p>گزارش مستقل برای مطالعه و تصمیم‌گیری؛ این فایل بخشی از رابط کاربری اصلی پروژه نیست.</p>
+      <div class="meta"><span>نسخه قرارداد بررسی‌شده: OpenAPI 0.3.0</span><span>فرانت‌اند: TypeScript + ES Modules</span><span>رابط: فارسی RTL و Dark-only</span></div>
+    </header>
+    <main>
+      <section class="section">
+        <h2>وضعیت فعلی پروژه</h2>
+        <table>
+          <thead><tr><th>حوزه</th><th>وضعیت</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td>ورود و نشست</td><td class="ok">فعال</td><td>بررسی نشست با <code>HEAD /v1/auth/session</code> و دریافت نقش از پروفایل انجام می‌شود.</td></tr>
+            <tr><td>پنل کاربر</td><td class="ok">فعال</td><td>سرویس‌ها، کیف پول، فاکتورها، تیکت‌ها، محصولات و پروفایل پیاده‌سازی شده‌اند.</td></tr>
+            <tr><td>پنل مدیریت</td><td class="ok">فعال</td><td>کاربران، منابع، محصولات، نودها، تیکت‌ها، فاکتورها، درگاه‌ها، اعلان‌ها، DNS و مانیتورینگ در دسترس‌اند.</td></tr>
+            <tr><td>محصولات عمومی</td><td class="ok">متصل</td><td>دسته‌ها و محصولات از مسیرهای عمومی دریافت می‌شوند؛ Landing سه محصول از دسته فعال نشان می‌دهد.</td></tr>
+            <tr><td>معرفی محصول</td><td class="ok">فعال</td><td>توضیح، قابلیت‌ها و Badgeها توسط قرارداد Presentation فرانت‌اند رندر می‌شوند.</td></tr>
+            <tr><td>قوانین</td><td class="ok">قابل ویرایش</td><td>محتوا از فایل JSON مستقل خوانده می‌شود و نمونه آزمایشی نیز وجود دارد.</td></tr>
+            <tr><td>آزمون مرورگر</td><td class="warn">ناقص</td><td>TypeScript و build کنترل می‌شوند، اما تست E2E خودکار هنوز در پروژه وجود ندارد.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>مشکلات و Gapهای فعلی</h2>
+        <h3>۱. قرارداد ناقص DTO محصولات عمومی</h3>
+        <p>مسیرهای محصولات عمومی و ادمین در OpenAPI بیشتر با Example مستند شده‌اند و schema خروجی صریح ندارند. در نتیجه generator نوع پاسخ را <code>unknown</code> تولید می‌کند و فرانت‌اند مجبور به parse محافظه‌کارانه است.</p>
+        <h3>۲. ناسازگاری schema ثبت محصول</h3>
+        <p>بدنه <code>POST /v1/admin/products/add</code> هنوز به <code>AbstractNewResourceRequest</code> اشاره می‌کند، در حالی که Example فیلدهای محصول، قیمت، دوره و Presentation را می‌فرستد.</p>
+        <h3>۳. فیلدهای نوع‌محور Resource Detail</h3>
+        <p>فیلدهایی مانند آدرس، پورت، وضعیت TeaSpeak و Privilege در برخی نسخه‌های OpenAPI حذف می‌شوند، ولی UI به آن‌ها نیاز دارد. مدل بهتر است با discriminator و DTO مستقل برای TeaSpeak و AudioBot تعریف شود.</p>
+        <h3>۴. مجوز عملیات ادمین روی endpointهای کاربر</h3>
+        <p>شروع، توقف، ویرایش AudioBot، Privilege و Playlist از همان endpointهای سرویس کاربر اجرا می‌شوند. backend باید دسترسی <code>ROLE_ADMIN</code> را برای مدیریت سرویس هر مالک به‌صورت صریح تضمین کند.</p>
+        <h3>۵. Presentation به‌صورت JSON داخل String</h3>
+        <p>این مدل انعطاف‌پذیر است، اما اعتبارسنجی backend روی ساختار داخلی ندارد. JSON خراب در فرانت‌اند نادیده گرفته می‌شود و ممکن است محتوای محصول ناقص نمایش داده شود.</p>
+        <h3>۶. Polling گسترده</h3>
+        <p>بخش‌های زنده هر پنج ثانیه به‌روزرسانی می‌شوند. حفظ scroll و state تا حد زیادی انجام شده، اما افزایش تعداد کاربران می‌تواند تعداد درخواست‌ها را بالا ببرد.</p>
+      </section>
+
+      <section class="section">
+        <h2>مشکلات UI و فاصله‌ها</h2>
+        <ul>
+          <li>بعضی صفحه‌های مدیریتی اطلاعات زیادی را در یک فایل و یک renderer بزرگ نگه می‌دارند؛ نگهداری و تست آن دشوارتر شده است.</li>
+          <li>کارت‌های جدول‌محور در موبایل به اسکرول افقی وابسته‌اند و باید با داده واقعی طولانی دوباره بررسی شوند.</li>
+          <li>دیالوگ‌های پیچیده محصول و Playlist به تست Keyboard Navigation و Focus Trap نیاز دارند.</li>
+          <li>Landing به API عمومی وابسته است؛ برای خطای موقت، Empty/Error State وجود دارد اما Skeleton پیشرفته و retry خودکار محدود است.</li>
+          <li>فاصله بین بعضی کارت‌های Detail از کلاس‌های عمومی تبعیت می‌کند و بهتر است یک سیستم spacing ثابت برای صفحه‌های Detail تعریف شود.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>تغییرات پیشنهادی</h2>
+        <div class="priority">
+          <article class="p1"><b>اولویت بالا</b><p>تعریف schema واقعی برای Product List/Detail/Create و Resource Detailهای نوع‌محور.</p></article>
+          <article class="p2"><b>اولویت متوسط</b><p>تقسیم فایل‌های بزرگ صفحه ادمین به feature module و افزودن تست integration برای عملیات اصلی.</p></article>
+          <article class="p3"><b>اولویت تکمیلی</b><p>استفاده از SSE/WebSocket برای رویدادهای زنده و کاهش polling در صفحه‌های پرترافیک.</p></article>
+        </div>
+        <ul>
+          <li>افزودن DTOهای <code>PublicProductResponse</code>، <code>AdminProductListResponse</code> و <code>AdminProductDetailResponse</code>.</li>
+          <li>تبدیل <code>features</code> و <code>badges</code> به آرایه JSON واقعی در نسخه بعدی قرارداد، در صورت امکان.</li>
+          <li>افزودن <code>capabilities</code> به Resource Detail تا فرانت‌اند فقط عملیات مجاز همان سرویس را نمایش دهد.</li>
+          <li>افزودن تست Playwright برای Login، خرید محصول، پرداخت، تیکت، Resource Detail و عملیات ادمین.</li>
+          <li>افزودن ETag یا Cache-Control برای دسته‌ها، محصولات عمومی و فایل قوانین.</li>
+          <li>ثبت نسخه قرارداد فرانت Presentation و migration برای تغییرات آینده.</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2>معیار آماده‌بودن نسخه انتشار</h2>
+        <ul>
+          <li>تمام endpointهای اصلی روی محیط staging با نقش‌های User، Support و Admin آزمایش شوند.</li>
+          <li>مسیر پرداخت موفق و ناموفق با درگاه واقعی کنترل شود.</li>
+          <li>عملیات حذف و تمدید اجباری سرویس دارای Audit Log سمت سرور باشد.</li>
+          <li>محصولات عمومی، دسته‌های خالی و Presentation خراب با داده واقعی تست شوند.</li>
+          <li>بررسی موبایل در عرض‌های 360، 390، 768 و دسکتاپ 1440 پیکسل انجام شود.</li>
+        </ul>
+        <p class="note">نتیجه فعلی: پروژه از نظر ساخت و TypeScript پایدار است، اما پیش از انتشار عمومی به تثبیت schemaهای OpenAPI و تست مرورگری مسیرهای بحرانی نیاز دارد.</p>
+      </section>
+    </main>
+    <footer>این گزارش با هدف خوانایی و چاپ ساخته شده و هیچ وابستگی به CSS یا JavaScript پروژه TeaCloud ندارد.</footer>
+  </article>
+</body>
+</html>

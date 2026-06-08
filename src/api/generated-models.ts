@@ -140,48 +140,6 @@ export interface UserEditAdminRequest {
   email?: string;
 }
 
-export interface ResourceFilterRequest {
-  page?: number;
-  size?: number;
-  byResourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
-  byType?: "TEASPEAK" | "AUDIO_BOT";
-  byOwnerId?: number;
-}
-
-/** DataResponse, the type of responses with data only */
-export interface DataResponsePagedModelResourceListAdminResponse {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: PagedModelResourceListAdminResponse;
-}
-
-export interface PageMetadata {
-  size?: number;
-  number?: number;
-  totalElements?: number;
-  totalPages?: number;
-}
-
-export interface PagedModelResourceListAdminResponse {
-  content?: Array<ResourceListAdminResponse>;
-  page?: PageMetadata;
-}
-
-/** 'ownerId' field requires UserDetail Page redirect */
-export interface ResourceListAdminResponse {
-  id?: number;
-  label?: string;
-  productName?: string;
-  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
-  resourceType?: "TEASPEAK" | "AUDIO_BOT";
-  expiration?: string;
-  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
-  ownerId?: number;
-  nodeId?: number;
-}
-
 export interface QueryInstanceInitRequest {
   name: string;
   queryIpAddress?: string;
@@ -315,6 +273,13 @@ export interface DataResponsePagedModelWalletTransactionResponse {
   /** Operation Type */
   type?: string;
   data?: PagedModelWalletTransactionResponse;
+}
+
+export interface PageMetadata {
+  size?: number;
+  number?: number;
+  totalElements?: number;
+  totalPages?: number;
 }
 
 export interface PagedModelWalletTransactionResponse {
@@ -556,6 +521,21 @@ export interface PagedModelInvoiceUserResponse {
   page?: PageMetadata;
 }
 
+export interface CategoryListResponse {
+  name?: string;
+  description?: string;
+  slug?: string;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseListCategoryListResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: Array<CategoryListResponse>;
+}
+
 export interface DashboardOverviewResponse {
   resourceMetric?: ResourceOverviewResponse;
   openTickets?: number;
@@ -574,21 +554,6 @@ export interface ResourceOverviewResponse {
   total?: number;
   active?: number;
   suspended?: number;
-}
-
-export interface CategoryListResponse {
-  name?: string;
-  description?: string;
-  slug?: string;
-}
-
-/** DataResponse, the type of responses with data only */
-export interface DataResponseListCategoryListResponse {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: Array<CategoryListResponse>;
 }
 
 export interface UsersFilterRequest {
@@ -619,7 +584,7 @@ export interface UserListResponse {
   phone?: string;
   fullName?: string;
   email?: string;
-  role?: string;
+  role?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
   lastLogin?: string;
   online?: boolean;
 }
@@ -661,7 +626,7 @@ export interface DataResponseListRoleListResponse {
 
 export interface RoleListResponse {
   id?: number;
-  name?: string;
+  name?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
   hierarchy?: number;
 }
 
@@ -712,6 +677,41 @@ export interface TicketDetailAdminResponse {
   messages?: Array<TicketMessageResponse>;
   ownerId?: number;
   ownerFullName?: string;
+}
+
+export interface ResourceFilterRequest {
+  page?: number;
+  size?: number;
+  byResourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  byType?: "TEASPEAK" | "AUDIO_BOT";
+  byOwnerId?: number;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponsePagedModelResourceListAdminResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: PagedModelResourceListAdminResponse;
+}
+
+export interface PagedModelResourceListAdminResponse {
+  content?: Array<ResourceListAdminResponse>;
+  page?: PageMetadata;
+}
+
+/** 'ownerId' field requires UserDetail Page redirect */
+export interface ResourceListAdminResponse {
+  id?: number;
+  label?: string;
+  productName?: string;
+  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  resourceType?: "TEASPEAK" | "AUDIO_BOT";
+  expiration?: string;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
+  ownerId?: number;
+  nodeId?: number;
 }
 
 /** DataResponse, the type of responses with data only */
@@ -936,9 +936,9 @@ export interface CategoryListAdminResponse {
   id?: number;
   name?: string;
   active?: boolean;
-  productType?: "TEASPEAK" | "AUDIO_BOT";
   description?: string;
   slug?: string;
+  productType?: "TEASPEAK" | "AUDIO_BOT";
 }
 
 /** DataResponse, the type of responses with data only */

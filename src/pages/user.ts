@@ -197,7 +197,7 @@ export async function renderServices(): Promise<void> {
 }
 
 async function loadAllProducts(): Promise<Array<{ category: Models.CategoryListResponse; product: ProductDto }>> {
-  const categories = dataOf(await api.call('getCategories', {})) ?? [];
+  const categories = dataOf(await api.call('getCategories_1', {})) ?? [];
   const result: Array<{ category: Models.CategoryListResponse; product: ProductDto }> = [];
   await Promise.all(categories.map(async (category) => {
     if (!category.slug) return;
@@ -436,7 +436,7 @@ function bindPlaylistActions(resourceId: number, playlists: Models.ABPlayListsRe
 export async function renderProducts(categorySlug = ''): Promise<void> {
   renderAppShell(loadingPage(), 'محصولات');
   try {
-    const categories = dataOf(await api.call('getCategories', {})) ?? [];
+    const categories = dataOf(await api.call('getCategories_1', {})) ?? [];
     store.setProductCategories(categories.flatMap((category) => category.name && category.slug ? [{ name: category.name, slug: category.slug }] : []));
     const selectedSlug = categorySlug || categories[0]?.slug || '';
     const selectedCategory = categories.find((category) => category.slug === selectedSlug);
