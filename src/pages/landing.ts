@@ -4,11 +4,13 @@ import { getPublicCategories, getPublicProducts, type PublicCatalogCategory, typ
 import { probeBackendAvailability } from '../core/backend-availability.js';
 import { brandLogo, escapeHtml, icon, qsa } from '../core/dom.js';
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
+import { startLandingCreature, stopLandingCreature } from '../ui/landing-creature.js';
 
 let landingCategoryTimer = 0;
 let landingRenderVersion = 0;
 
 function stopLandingCategoryRotation(): void {
+  stopLandingCreature();
   window.clearInterval(landingCategoryTimer);
   landingCategoryTimer = 0;
   landingRenderVersion += 1;
@@ -115,7 +117,11 @@ export function renderLanding(): void {
   stopLandingCategoryRotation();
   const version = landingRenderVersion;
   renderPublic(`
-    <section class="tea-hero">
+    <div class="landing-creature" data-landing-creature aria-hidden="true">
+      <div class="landing-creature__ambient"></div>
+      <div class="landing-creature__grid" data-landing-creature-grid></div>
+    </div>
+    <section class="tea-hero landing-glass-section">
       <div class="tea-hero__pattern"></div>
       <div class="tea-hero__inner">
         <div class="tea-hero__copy">
@@ -146,7 +152,7 @@ export function renderLanding(): void {
       </div>
     </section>
 
-    <section class="tea-story-strip">
+    <section class="tea-story-strip landing-glass-panel">
       <div><span>۱</span><b>کیف پول را شارژ کن</b><small>یک‌بار پرداخت، خریدهای بعدی سریع‌تر</small></div>
       <i>${icon('arrow_back')}</i>
       <div><span>۲</span><b>مدت را انتخاب کن</b><small>از چند ساعت تا دوره‌های بلندتر</small></div>
@@ -154,7 +160,7 @@ export function renderLanding(): void {
       <div><span>۳</span><b>سرویس را تحویل بگیر</b><small>مشخصات اتصال در داشبورد شما</small></div>
     </section>
 
-    <section id="products" class="public-products-section">
+    <section id="products" class="public-products-section landing-glass-panel landing-glass-panel--wide">
       <div class="public-section-heading public-section-heading--split">
         <div><span>محصولات عمومی</span><h2>همان‌قدر بخر که استفاده می‌کنی</h2><p data-landing-category-caption>دسته‌بندی‌ها و قیمت‌ها از فهرست عمومی ابر چایی دریافت می‌شوند.</p></div>
         <a data-link href="/products" class="button button--secondary">همه محصولات ${icon('arrow_back')}</a>
@@ -163,7 +169,7 @@ export function renderLanding(): void {
       <div class="public-product-grid pricing-grid public-product-grid--live" data-landing-product-grid><div class="public-catalog-loading"><span class="spinner"></span>در حال دریافت محصولات...</div></div>
     </section>
 
-    <section id="features" class="tea-benefits-section">
+    <section id="features" class="tea-benefits-section landing-glass-panel landing-glass-panel--wide">
       <div class="tea-benefits-section__intro"><span class="tea-kicker tea-kicker--dark">${icon('auto_awesome')} تجربه‌ای ساده و قابل‌فهم</span><h2>همه‌چیز برای اینکه کمتر درگیر تنظیمات شوی و بیشتر بازی کنی.</h2><p>از خرید تا تمدید و پشتیبانی، هر چیزی که لازم داری در یک داشبورد مرتب در دسترس است.</p></div>
       <div class="tea-benefits-grid">
         <article>${icon('hourglass_top')}<h3>مدت‌های کوتاه و منعطف</h3><p>برای یک شب بازی، یک روز مسابقه یا استفاده دائمی، دوره مناسب خودت را انتخاب کن.</p></article>
@@ -173,17 +179,18 @@ export function renderLanding(): void {
       </div>
     </section>
 
-    <section class="tea-quote-section">
+    <section class="tea-quote-section landing-glass-panel">
       <div class="tea-quote-section__mark">${icon('format_quote')}</div>
       <div><span>فلسفه ابر چایی</span><h2>قرار نیست برای چند ساعت استفاده، هزینه یک ماه را بپردازی.</h2><p>سرویس ابری یعنی انتخاب آزادانه مدت، ظرفیت و زمان شروع؛ درست همان لحظه‌ای که نیازش داری.</p></div>
     </section>
 
-    <section class="tea-cta-section">
+    <section class="tea-cta-section landing-glass-panel landing-glass-panel--accent">
       <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
       <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
     </section>
     <button type="button" class="landing-back-to-top" data-landing-back-to-top aria-label="بازگشت به بالای صفحه" title="بازگشت به بالا">${icon('arrow_upward')}</button>
   `, { transparent: true });
+  startLandingCreature();
   bindLandingBackToTop();
   void hydrateLandingProducts(version);
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
