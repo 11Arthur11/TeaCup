@@ -138,8 +138,8 @@ export function renderLanding(): void {
             <div class="tea-steam tea-steam--one"></div><div class="tea-steam tea-steam--two"></div><div class="tea-steam tea-steam--three"></div>
             <div class="tea-cup"><span>${brandLogo('tea-cup__logo')}</span></div>
             <div class="tea-saucer"></div>
-            <article class="tea-float-card tea-float-card--service">${icon('graphic_eq')}<div><b>TeaSpeak آماده است</b><small>فعال تا ۵ ساعت دیگر</small></div></article>
-            <article class="tea-float-card tea-float-card--wallet">${icon('account_balance_wallet')}<div><b>کیف پول شما</b><small>آماده خرید بعدی</small></div></article>
+            <article class="tea-float-card tea-float-card--service">${icon('graphic_eq')}<div><b>سرویس شما آماده است!</b><small>تحویل خودکار</small></div></article>
+            <article class="tea-float-card tea-float-card--wallet">${icon('account_balance_wallet')}<div><b>کنترل کامل</b><small>همه چیز در داشبورد تو</small></div></article>
             <article class="tea-float-card tea-float-card--period">${icon('schedule')}<div><b>مدت دلخواه</b><small>ساعتی، روزانه یا ماهانه</small></div></article>
           </div>
         </div>

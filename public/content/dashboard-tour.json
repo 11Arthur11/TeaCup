@@ -20,7 +20,7 @@
   },
   "settings": {
     "spotlightPadding": 9,
-    "cardGap": 16,
+    "cardGap": 100,
     "mobileBreakpoint": 820,
     "scrollBehavior": "auto"
   },
@@ -30,9 +30,9 @@
       "target": {
         "type": "selector",
         "selector": "[data-tour-target=\"HEADER_THEME\"]",
-        "mobileSelector": "[data-tour-target=\"SIDEBAR_THEME\"]",
+        "mobileSelector": "[data-tour-target=\"HEADER_THEME\"]",
         "context": "workspace",
-        "mobileContext": "sidebar"
+        "mobileContext": "workspace"
       },
       "placement": "bottom",
       "icon": "contrast",
@@ -65,7 +65,10 @@
     },
     {
       "id": "sidebar-overview",
-      "target": { "type": "sidebar-index", "index": 1 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 1
+      },
       "placement": "left",
       "icon": "dashboard",
       "title": "داشبورد نمای کلی",
@@ -73,7 +76,10 @@
     },
     {
       "id": "sidebar-services",
-      "target": { "type": "sidebar-index", "index": 2 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 2
+      },
       "placement": "left",
       "icon": "dns",
       "title": "سرویس‌های من",
@@ -81,7 +87,10 @@
     },
     {
       "id": "sidebar-products",
-      "target": { "type": "sidebar-index", "index": 3 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 3
+      },
       "placement": "left",
       "icon": "shopping_bag",
       "title": "محصولات",
@@ -89,7 +98,10 @@
     },
     {
       "id": "sidebar-finance",
-      "target": { "type": "sidebar-index", "index": 4 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 4
+      },
       "placement": "left",
       "icon": "account_balance_wallet",
       "title": "امور مالی",
@@ -97,7 +109,10 @@
     },
     {
       "id": "sidebar-support",
-      "target": { "type": "sidebar-index", "index": 5 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 5
+      },
       "placement": "left",
       "icon": "support_agent",
       "title": "پشتیبانی",
@@ -105,7 +120,10 @@
     },
     {
       "id": "sidebar-profile",
-      "target": { "type": "sidebar-index", "index": 6 },
+      "target": {
+        "type": "sidebar-index",
+        "index": 6
+      },
       "placement": "left",
       "icon": "manage_accounts",
       "title": "پروفایل",
@@ -113,7 +131,9 @@
     },
     {
       "id": "welcome",
-      "target": { "type": "center" },
+      "target": {
+        "type": "center"
+      },
       "placement": "center",
       "icon": "celebration",
       "title": "به ابر چایی خوش آمدی!",

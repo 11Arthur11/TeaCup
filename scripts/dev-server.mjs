@@ -6,12 +6,14 @@ import { execFileSync } from 'node:child_process';
 mkdirSync('dist/assets', { recursive: true });
 execFileSync(process.platform === 'win32' ? 'tsc.cmd' : 'tsc', ['-p', 'tsconfig.json'], { stdio: 'inherit' });
 const root = process.cwd();
-const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.map':'application/json', '.webmanifest':'application/manifest+json' };
+const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.map':'application/json', '.json':'application/json; charset=utf-8', '.webmanifest':'application/manifest+json' };
 const resolveFile = (urlPath) => {
   const clean = urlPath.replace(/^\/+/, '');
   if (clean === '') return join(root, 'public/index.html');
   if (clean === 'assets/styles.css') return join(root, 'src/styles.css');
   if (clean.startsWith('assets/')) return join(root, 'dist', clean);
+  if (clean.startsWith('content/')) return join(root, 'public', clean);
+  if (clean.startsWith('public/content/')) return join(root, clean);
   if (clean === 'config.js' || clean === 'manifest.webmanifest') return join(root, 'public', clean);
   return join(root, 'public/index.html');
 };

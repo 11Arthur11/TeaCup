@@ -10,6 +10,7 @@ import { store } from '../core/store.js';
 import { userChrome } from '../core/user-chrome.js';
 import { openChargeWalletDialog } from '../core/wallet-action.js';
 import { initializeTheme, themeToggleButton } from '../core/theme.js';
+import { getUserProfileSnapshot, invalidateUserProfile } from '../api/user-profile.js';
 import { bindDashboardTourGuide } from './dashboard-tour.js';
 
 interface NavItem { label: string; href: string; icon: string; area?: AdminArea; }
@@ -162,6 +163,10 @@ export function renderAppShell(content: string, title = ''): void {
   const switchLabel = isAdminSection ? 'پنل کاربری' : (isSupport ? 'پنل پشتیبانی' : 'پنل مدیریت');
   const switchIcon = isAdminSection ? 'person' : (isSupport ? 'support_agent' : 'admin_panel_settings');
   const nav = isAdminSection ? adminNavHtml(current) : userNavHtml(current);
+  const profile = !isAdminSection ? getUserProfileSnapshot() : undefined;
+  const profileName = `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || 'کاربر ابر چایی';
+  const sidebarUserTitle = isAdminSection ? panelTitle : profileName;
+  const sidebarUserSubtitle = isAdminSection ? roleLabel(state.identity.role) : (profile?.phone || roleLabel(state.identity.role));
   const root = appRoot();
 
   root.innerHTML = `<div class="app-shell ${state.sidebarOpen ? 'app-shell--sidebar-open' : ''}">
@@ -169,8 +174,8 @@ export function renderAppShell(content: string, title = ''): void {
     <aside class="sidebar">
       <div class="sidebar__top"><a data-link href="${isAdminSection ? '/admin' : '/panel'}" class="brand brand--sidebar"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a><button type="button" class="icon-button sidebar__mobile-close" data-sidebar-close>${icon('close')}</button></div>
       <div class="sidebar__scroll"><span class="nav-label">${panelTitle}</span><nav>${nav}</nav></div>
-      ${!isAdminSection ? `<div class="sidebar-guide-wrap"><button type="button" class="sidebar-guide" data-dashboard-tour-start hidden>${icon('help')}<span data-dashboard-tour-guide-label></span>${icon('arrow_back')}</button></div>` : ''}
-      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b>${panelTitle}</b><small>${escapeHtml(roleLabel(state.identity.role))}</small></div></div>${themeToggleButton('icon-button sidebar-theme-toggle', !isAdminSection ? 'data-tour-target="SIDEBAR_THEME"' : '')}<button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
+      ${!isAdminSection ? `<div class="sidebar-guide-wrap"><button type="button" class="sidebar-guide" data-dashboard-tour-start hidden>${icon('help')}<span data-dashboard-tour-guide-label></span></button></div>` : ''}
+      <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b title="${escapeHtml(sidebarUserTitle)}">${escapeHtml(sidebarUserTitle)}</b><small ${!isAdminSection && profile?.phone ? 'dir="ltr"' : ''} title="${escapeHtml(sidebarUserSubtitle)}">${escapeHtml(sidebarUserSubtitle)}</small></div></div><button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
     </aside>
     <section class="workspace"><header class="topbar"><div><button type="button" class="icon-button topbar__menu" data-sidebar-open>${icon('menu')}</button><div class="topbar__title"><small>${panelTitle}</small><b>${escapeHtml(title || 'ابر چایی')}</b></div></div><div class="topbar__actions">
       ${!isAdminSection ? `<div class="topbar-wallet" data-tour-target="HEADER_WALLET"><span><small>موجودی</small><b data-user-wallet-balance>۰ تومان</b></span><button type="button" class="topbar-wallet__add" data-charge-wallet-header aria-label="شارژ کیف پول" title="شارژ کیف پول">${icon('add')}</button></div><button type="button" class="icon-button topbar-notification" data-user-notifications-open aria-label="اعلان‌های عمومی" title="اعلان‌های عمومی">${bellIcon('topbar-notification__icon')}<span class="topbar-notification__count" data-user-notification-count>۰</span></button>` : ''}
@@ -211,6 +216,7 @@ function bindShell(): void {
     try {
       return await api.call('logout', {});
     } finally {
+      invalidateUserProfile();
       store.setIdentity({ status: 'guest', userId: null, role: null });
       router.navigate('/');
     }

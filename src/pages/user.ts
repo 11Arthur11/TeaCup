@@ -1,6 +1,7 @@
 import { api, ApiError } from '../api/client.js';
 import { getUserDashboardOverview } from '../api/dashboard.js';
 import { getWalletOverview } from '../api/wallet.js';
+import { getUserProfile } from '../api/user-profile.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -97,14 +98,17 @@ function transactionRows(transactions: Models.WalletTransactionResponse[], showR
 export async function renderUserDashboard(): Promise<void> {
   renderAppShell(loadingPage(), 'نمای کلی');
   try {
-    const [overview, walletOverview, ticketsResponse, resourcesResponse] = await Promise.all([
+    const [overview, walletOverview, ticketsResponse, resourcesResponse, profile] = await Promise.all([
       getUserDashboardOverview(),
       getWalletOverview(),
       api.call('getTickets', { query: { filterRequest: { page: 0, size: 5 } } }),
       api.call('getResources', {}),
+      getUserProfile(),
     ]);
 
     const resourceMetric = overview.resourceMetric ?? {};
+    const fullName = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
+    const greetingName = profile.firstName?.trim() || fullName || 'کاربر ابر چایی';
     const recentTickets = contentOf(ticketsResponse) as Models.TicketListUserResponse[];
     const resources = (dataOf(resourcesResponse) ?? []) as UserResourceListItem[];
     const activeResources = resources
@@ -136,7 +140,7 @@ export async function renderUserDashboard(): Promise<void> {
       : emptyState('تیکتی ثبت نشده است', 'پنج تیکت اخیر شما در این بخش نمایش داده می‌شوند.', '<a data-link href="/panel/tickets" class="button button--secondary button--small">رفتن به پشتیبانی</a>');
 
     renderAppShell(`
-      ${pageHeader('داشبورد نمای کلی', 'وضعیت سرویس‌ها، کیف پول و درخواست‌های پشتیبانی حساب شما.', [{ label: 'مشاهده محصولات', icon: 'shopping_bag', href: '/panel/products' }])}
+      ${pageHeader(`خوش اومدی ${greetingName}`, 'وضعیت سرویس‌ها، کیف پول و درخواست‌های پشتیبانی حساب شما.', [{ label: 'مشاهده محصولات', icon: 'shopping_bag', href: '/panel/products' }])}
       <div class="stats-grid">
         ${statCard('موجودی کیف پول', money(walletOverview.balance), 'account_balance_wallet', coverageDescription, 'blue').replace('<strong>', '<strong data-wallet-overview-balance>').replace('<small>', '<small data-wallet-overview-coverage>')}
         ${statCard('سرویس‌های فعال', faNumber(resourceMetric.active), 'teacloud', `${faNumber(resourceMetric.total)} سرویس در مجموع`, 'cyan')}
@@ -148,7 +152,7 @@ export async function renderUserDashboard(): Promise<void> {
         ${card('اعلان‌های عمومی', `<div data-overview-notifications><div class="notification-empty">${icon('hourglass_top')}<b>در حال دریافت اعلان‌ها</b><span>آخرین پیام‌های عمومی سامانه در این بخش نمایش داده می‌شوند.</span></div></div>`, { icon: 'notifications', actions: '<button type="button" class="button button--ghost button--small" data-user-notifications-open>مشاهده همه</button>' })}
       </div>
       ${card('تیکت‌های اخیر', recentTicketsHtml, { icon: 'forum', actions: '<a data-link class="button button--ghost button--small" href="/panel/tickets">همه تیکت‌ها</a>', className: 'dashboard-recent-tickets-card' })}
-    `, 'نمای کلی');
+    `, `خوش اومدی ${greetingName}`);
     scheduleDashboardTourAutoStart();
   } catch (error) {
     renderAppShell(`${pageHeader('داشبورد نمای کلی', 'اطلاعات حساب')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'نمای کلی');
@@ -772,7 +776,7 @@ export async function renderNotifications(): Promise<void> {
 
 export async function renderAccount(): Promise<void> {
   renderAppShell(loadingPage(), 'حساب کاربری');
-  try { const response=await api.call('getProfile',{}); const profile=dataOf(response); if(!profile)throw new Error('پروفایل دریافت نشد.'); renderAppShell(`${pageHeader('حساب کاربری','اطلاعات هویتی و وضعیت حساب شما.')}
+  try { const profile=await getUserProfile({ force: true }); renderAppShell(`${pageHeader('حساب کاربری','اطلاعات هویتی و وضعیت حساب شما.')}
     <div class="profile-grid"><section class="profile-card"><div class="profile-cover"></div><div class="profile-avatar">${icon('person')}</div><h2>${escapeHtml(`${profile.firstName??''} ${profile.lastName??''}`.trim()||'کاربر ابر چایی')}</h2><p dir="ltr">${escapeHtml(profile.phone)}</p>${badge(profile.role)}<div class="profile-stats"><div><span>عضویت</span><b>${faDateShort(profile.createdAt)}</b></div><div><span>آخرین ورود</span><b>${faDateShort(profile.lastLogin)}</b></div></div></section>
     ${card('اطلاعات حساب',`<div class="form-grid readonly-form">${field('firstName','نام',{value:profile.firstName})}${field('lastName','نام خانوادگی',{value:profile.lastName})}${field('phone','شماره موبایل',{value:profile.phone,dir:'ltr'})}${field('email','ایمیل',{value:profile.email,dir:'ltr'})}</div><div class="account-status"><div>${icon(profile.online?'online_prediction':'wifi_off')}<span><b>وضعیت اتصال</b><small>${profile.online?'اکنون آنلاین هستید':'در حال حاضر آفلاین هستید'}</small></span>${badge(profile.online?'ONLINE':'OFFLINE')}</div><div>${icon(profile.emailVerified?'verified':'mark_email_unread')}<span><b>وضعیت ایمیل</b><small>${profile.emailVerified?'ایمیل تأیید شده است':'ایمیل هنوز تأیید نشده است'}</small></span>${badge(profile.emailVerified?'ACTIVE':'PENDING')}</div><div>${icon('security')}<span><b>سطح دسترسی</b><small>بر اساس هویت دریافت‌شده از backend</small></span><strong>${escapeHtml(translateEnum(profile.role))}</strong></div></div>`,{icon:'manage_accounts'})}</div>`,'حساب کاربری'); qsa<HTMLInputElement>('.readonly-form input').forEach(input=>input.readOnly=true); }
   catch(error){renderAppShell(`${pageHeader('حساب کاربری','اطلاعات پروفایل')}${errorNotice(error instanceof ApiError?error.message:undefined)}`,'حساب کاربری');}
