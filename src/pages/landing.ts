@@ -142,7 +142,7 @@ export function renderLanding(): void {
         <div class="tea-hero__visual" aria-label="نمای مفهومی ابر چایی">
           <div class="tea-cup-scene">
             <div class="tea-steam tea-steam--one"></div><div class="tea-steam tea-steam--two"></div><div class="tea-steam tea-steam--three"></div>
-            <div class="tea-cup"><span>${brandLogo('tea-cup__logo')}</span></div>
+            <div class="tea-cup"></div>
             <div class="tea-saucer"></div>
             <article class="tea-float-card tea-float-card--service">${icon('graphic_eq')}<div><b>سرویس شما آماده است!</b><small>تحویل خودکار</small></div></article>
             <article class="tea-float-card tea-float-card--wallet">${icon('account_balance_wallet')}<div><b>کنترل کامل</b><small>همه چیز در داشبورد تو</small></div></article>
@@ -184,10 +184,6 @@ export function renderLanding(): void {
       <div><span>فلسفه ابر چایی</span><h2>قرار نیست برای چند ساعت استفاده، هزینه یک ماه را بپردازی.</h2><p>سرویس ابری یعنی انتخاب آزادانه مدت، ظرفیت و زمان شروع؛ درست همان لحظه‌ای که نیازش داری.</p></div>
     </section>
 
-    <section class="tea-cta-section landing-glass-panel landing-glass-panel--accent">
-      <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
-      <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
-    </section>
     <button type="button" class="landing-back-to-top" data-landing-back-to-top aria-label="بازگشت به بالای صفحه" title="بازگشت به بالا">${icon('arrow_upward')}</button>
   `, { transparent: true });
   startLandingCreature();

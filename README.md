@@ -13,6 +13,14 @@ Frontend production-oriented، کاملاً فارسی و RTL برای فروش�
 - toast پیام backend، confirmation dialog، skeleton، empty/error state، pagination و permission-based rendering
 - runtime API configuration بدون rebuild
 
+## انیمیشن Creature لندینگ
+
+- پیاده‌سازی بر مبنای نمونه اصلی Anime.js و فایل‌های Creature پروژه است.
+- شبکه در دسکتاپ `13×13` و در نمایشگرهای فشرده `9×9` است.
+- Creature با نشانگر حرکت می‌کند و بعد از ۱.۵ ثانیه بی‌حرکتی، حرکت خودکار را ادامه می‌دهد.
+- برای جلوگیری از افت فریم، retarget حرکت در دسکتاپ روی ۱۲fps و موبایل روی ۱۰fps انجام می‌شود؛ tweenهای Anime.js بین این نقاط روان باقی می‌مانند.
+- ماژول Anime.js فقط در مسیر Landing و به‌صورت lazy بارگذاری می‌شود.
+
 ## اجرا
 
 ```bash
