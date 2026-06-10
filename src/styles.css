@@ -2402,8 +2402,7 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
 
 .public-shell--transparent .public-header-wrap {
   color: #fff;
-  background: #06162f82;
-  border-bottom: 1px solid rgba(117, 173, 255, .22);
+  background: #06162f;
 }
 
 .public-header {
@@ -2430,7 +2429,7 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
 }
 
 .public-shell--transparent .public-header-wrap--scrolled {
-  background: #081d3b82;
+  background: #081d3b;
   border-bottom-color: rgba(117,173,255,.22);
 }
 
@@ -2550,13 +2549,13 @@ select:not([multiple]):focus { background-image: url("data:image/svg+xml,%3Csvg 
 :root[data-theme='light'] .public-header-wrap,
 :root[data-theme='light'] .public-shell--transparent .public-header-wrap {
   color: var(--text);
-  background: #ffffff69;
-  border-bottom: 1px solid #fff;
+  background: #fff;
+  border-bottom-color: transparent;
 }
 :root[data-theme='light'] .public-header-wrap--scrolled,
 :root[data-theme='light'] .public-shell--transparent .public-header-wrap--scrolled {
   color: var(--text);
-  background: #f8fbff82;
+  background: #f8fbff;
   border-bottom-color: #cfddeb;
   box-shadow: 0 12px 30px rgba(33,66,108,.10);
 }

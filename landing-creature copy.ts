@@ -40,8 +40,8 @@ interface CreatureRuntime {
 }
 
 const ANIME_MODULE_URL = 'https://esm.sh/animejs@4.5.0';
-const IDLE_DELAY_MS = 1_800;
-const DESKTOP_ROWS = 9;
+const IDLE_DELAY_MS = 1_500;
+const DESKTOP_ROWS = 13;
 const COMPACT_ROWS = 9;
 
 let creatureRuntime: CreatureRuntime | null = null;
@@ -202,8 +202,8 @@ async function initialiseLandingCreature(generation: number): Promise<void> {
       animate(particles, {
         x: cursor.x,
         y: cursor.y,
-        delay: stagger(40, { grid, from }),
-        duration: stagger(120, { start: 750, ease: 'inQuad', grid, from }),
+        delay: stagger(30, { grid, from }),
+        duration: stagger(120, { start: 650, ease: 'inQuad', grid, from }),
         ease: 'inOut',
         composition: 'blend',
       });

@@ -184,6 +184,10 @@ export function renderLanding(): void {
       <div><span>فلسفه ابر چایی</span><h2>قرار نیست برای چند ساعت استفاده، هزینه یک ماه را بپردازی.</h2><p>سرویس ابری یعنی انتخاب آزادانه مدت، ظرفیت و زمان شروع؛ درست همان لحظه‌ای که نیازش داری.</p></div>
     </section>
 
+    <section class="tea-cta-section landing-glass-panel landing-glass-panel--accent">
+      <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
+      <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
+    </section>
     <button type="button" class="landing-back-to-top" data-landing-back-to-top aria-label="بازگشت به بالای صفحه" title="بازگشت به بالا">${icon('arrow_upward')}</button>
   `, { transparent: true });
   startLandingCreature();
