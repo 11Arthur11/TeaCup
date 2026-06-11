@@ -140,6 +140,7 @@ function bindPublicShell(): void {
 }
 
 export function renderPublic(content: string, options: { transparent?: boolean } = {}): void {
+  document.documentElement.classList.remove('landing-loader-lock');
   userChrome.stop();
   const root = appRoot();
   root.innerHTML = `<div class="public-shell ${options.transparent ? 'public-shell--transparent' : ''}">
@@ -153,6 +154,7 @@ export function renderPublic(content: string, options: { transparent?: boolean }
 }
 
 export function renderAppShell(content: string, title = ''): void {
+  document.documentElement.classList.remove('landing-loader-lock');
   if (isBackgroundPageRefresh() && (content.includes('class="skeleton-page"') || hasPendingPageInteraction())) return;
   const state = store.get();
   const current = location.pathname;

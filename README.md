@@ -13,6 +13,14 @@ Frontend production-oriented، کاملاً فارسی و RTL برای فروش�
 - toast پیام backend، confirmation dialog، skeleton، empty/error state، pagination و permission-based rendering
 - runtime API configuration بدون rebuild
 
+## لودینگ اختصاصی لندینگ
+
+- یک Overlay سبک و مستقل فقط برای مسیر `/` نمایش داده می‌شود.
+- فرم فنجان و بخار کاملاً CSS-based است و هیچ تصویر یا کتابخانه اضافی ندارد.
+- رنگ فنجان، پس‌زمینه و بخار برای تم روشن و تیره جداگانه تنظیم شده‌اند.
+- Loader پس از Paint اولیه، آماده‌شدن فونت‌ها و آماده یا fail شدن Creature با Fade کوتاه حذف می‌شود.
+- برای جلوگیری از پرش محتوای اولیه، اسکرول فقط هنگام نمایش Loader موقتاً قفل می‌شود.
+
 ## انیمیشن Creature لندینگ
 
 - پیاده‌سازی بر مبنای نمونه اصلی Anime.js و فایل‌های Creature پروژه است.

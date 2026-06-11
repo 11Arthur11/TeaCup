@@ -8,12 +8,71 @@ import { startLandingCreature, stopLandingCreature } from '../ui/landing-creatur
 
 let landingCategoryTimer = 0;
 let landingRenderVersion = 0;
+let landingLoaderController: AbortController | null = null;
+
+function stopLandingLoader(): void {
+  landingLoaderController?.abort();
+  landingLoaderController = null;
+  document.documentElement.classList.remove('landing-loader-lock');
+}
 
 function stopLandingCategoryRotation(): void {
+  stopLandingLoader();
   stopLandingCreature();
   window.clearInterval(landingCategoryTimer);
   landingCategoryTimer = 0;
   landingRenderVersion += 1;
+}
+
+function waitForLandingCreature(signal: AbortSignal): Promise<void> {
+  const creature = document.querySelector<HTMLElement>('[data-landing-creature]');
+  if (!creature || creature.classList.contains('landing-creature--ready') || creature.classList.contains('landing-creature--load-failed')) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const finish = (): void => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const observer = new MutationObserver(() => {
+      if (creature.classList.contains('landing-creature--ready') || creature.classList.contains('landing-creature--load-failed')) finish();
+    });
+    const timeout = window.setTimeout(finish, 1_250);
+    observer.observe(creature, { attributes: true, attributeFilter: ['class'] });
+    signal.addEventListener('abort', finish, { once: true });
+  });
+}
+
+function bindLandingLoader(): void {
+  const overlay = document.querySelector<HTMLElement>('[data-landing-loader]');
+  if (!overlay) return;
+
+  stopLandingLoader();
+  const controller = new AbortController();
+  landingLoaderController = controller;
+  const { signal } = controller;
+  const startedAt = performance.now();
+  document.documentElement.classList.add('landing-loader-lock');
+
+  const fontsReady = document.fonts?.ready.catch(() => undefined) ?? Promise.resolve();
+  const initialPaint = new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+  void Promise.all([fontsReady, initialPaint, waitForLandingCreature(signal)]).then(async () => {
+    if (signal.aborted || !overlay.isConnected) return;
+    const minimumVisibleTime = 720;
+    const remaining = Math.max(0, minimumVisibleTime - (performance.now() - startedAt));
+    if (remaining > 0) await new Promise<void>((resolve) => window.setTimeout(resolve, remaining));
+    if (signal.aborted || !overlay.isConnected) return;
+
+    overlay.classList.add('landing-loader-screen--leaving');
+    document.documentElement.classList.remove('landing-loader-lock');
+    window.setTimeout(() => {
+      if (overlay.isConnected) overlay.remove();
+      if (landingLoaderController === controller) landingLoaderController = null;
+    }, 420);
+  });
 }
 
 function publicProductCard(product: PublicCatalogProduct): string {
@@ -117,6 +176,13 @@ export function renderLanding(): void {
   stopLandingCategoryRotation();
   const version = landingRenderVersion;
   renderPublic(`
+    <div class="landing-loader-screen" data-landing-loader role="status" aria-live="polite" aria-label="در حال آماده‌سازی صفحه اصلی">
+      <div class="landing-loader-screen__glow" aria-hidden="true"></div>
+      <div class="landing-loader-screen__content">
+        <span class="loader" aria-hidden="true"></span>
+        <div><b>ابر چایی</b><small>در حال دم کردن چای...</small></div>
+      </div>
+    </div>
     <div class="landing-creature" data-landing-creature aria-hidden="true">
       <div class="landing-creature__ambient"></div>
       <div class="landing-creature__grid" data-landing-creature-grid></div>
@@ -184,13 +250,10 @@ export function renderLanding(): void {
       <div><span>فلسفه ابر چایی</span><h2>قرار نیست برای چند ساعت استفاده، هزینه یک ماه را بپردازی.</h2><p>سرویس ابری یعنی انتخاب آزادانه مدت، ظرفیت و زمان شروع؛ درست همان لحظه‌ای که نیازش داری.</p></div>
     </section>
 
-    <section class="tea-cta-section landing-glass-panel landing-glass-panel--accent">
-      <div><span>${icon('local_cafe')} آماده‌ای؟</span><h2>چایت را بریز و سرورت را روشن کن.</h2><p>حساب بساز، کیف پولت را شارژ کن و اولین سرویس را با مدت دلخواه بگیر.</p></div>
-      <a data-link data-dashboard-access href="/auth" class="button button--light button--large">ورود به ابر چایی ${icon('arrow_back')}</a>
-    </section>
     <button type="button" class="landing-back-to-top" data-landing-back-to-top aria-label="بازگشت به بالای صفحه" title="بازگشت به بالا">${icon('arrow_upward')}</button>
   `, { transparent: true });
   startLandingCreature();
+  bindLandingLoader();
   bindLandingBackToTop();
   void hydrateLandingProducts(version);
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());

@@ -40,8 +40,8 @@ interface CreatureRuntime {
 }
 
 const ANIME_MODULE_URL = 'https://esm.sh/animejs@4.5.0';
-const IDLE_DELAY_MS = 1_800;
-const DESKTOP_ROWS = 9;
+const IDLE_DELAY_MS = 1_700;
+const DESKTOP_ROWS = 11;
 const COMPACT_ROWS = 9;
 
 let creatureRuntime: CreatureRuntime | null = null;
@@ -292,6 +292,16 @@ async function initialiseLandingCreature(generation: number): Promise<void> {
 }
 
 export function startLandingCreature(): void {
+  const shell = document
+      .querySelector('[data-landing-creature]')
+      ?.closest('.public-shell');
+
+  shell?.classList.add('public-shell--creature');
+
+  if (window.matchMedia('(max-width:760px)').matches) {
+      return;
+  }
+
   stopLandingCreature();
   const generation = creatureGeneration;
   void initialiseLandingCreature(generation);
