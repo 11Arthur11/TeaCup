@@ -1,7 +1,7 @@
 import { api, ApiError } from '../api/client.js';
 import { getMockLiveServiceStatus } from '../api/live-status.js';
 import { getAdminDashboardOverview, invalidateAdminDashboardOverview, type PeriodComparison, type ProvisionStrategy, type WalletFlowComparisons } from '../api/admin-dashboard.js';
-import { getAdminZoneRecords, reassignAdminDnsRecord, toggleAdminDnsZone, type AdminDnsRecord } from '../api/dns.js';
+import { getAdminZoneRecords, reassignAdminDnsRecord, toggleAdminDnsZone, unassignAdminDnsRecord, type AdminDnsRecord } from '../api/dns.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -1438,25 +1438,79 @@ function adminDnsRecordTitle(record: AdminDnsRecord, zoneName: string): string {
   const name = record.name?.trim() || '';
   if (name && (name === zoneName || name.endsWith(`.${zoneName}`))) return name;
   if (name) return `${name}.${zoneName}`;
-  return record.value?.trim() || zoneName;
+  return record.value?.trim() || record.ip?.trim() || record.host?.trim() || zoneName;
 }
 
-function adminDnsRecordTable(records: AdminDnsRecord[], zoneName: string): string {
-  if (!records.length) return emptyState('رکوردی دریافت نشد', 'رکوردهای این Zone پس از همگام‌سازی با Provider در این بخش نمایش داده می‌شوند.');
-  return `<div class="table-wrap dns-record-table"><table><thead><tr><th>رکورد</th><th>نوع</th><th>مقدار</th><th>TTL</th><th>وضعیت اتصال</th><th>مالک</th><th>سرویس مقصد</th><th>عملیات</th></tr></thead><tbody>${records.map((record) => {
+function isTeaCloudDnsRecord(record: AdminDnsRecord): boolean {
+  return Object.prototype.hasOwnProperty.call(record, 'assigned')
+    || record.ownerId != null
+    || record.targetResourceId != null;
+}
+
+function adminDnsRecordValue(record: AdminDnsRecord): string {
+  const type = record.type?.trim().toUpperCase();
+  if (type === 'A') return record.ip?.trim() || record.value?.trim() || '—';
+  if (type === 'SRV') {
+    const host = record.host?.trim() || record.value?.trim() || '';
+    const port = Number(record.port ?? 0);
+    return host ? `${host}${port > 0 ? `:${port}` : ''}` : '—';
+  }
+  return record.value?.trim() || record.ip?.trim() || record.host?.trim() || '—';
+}
+
+function adminDnsRecordValueCell(record: AdminDnsRecord): string {
+  const type = record.type?.trim().toUpperCase();
+  const meta = type === 'SRV'
+    ? [record.priority != null ? `priority ${record.priority}` : '', record.weight != null ? `weight ${record.weight}` : ''].filter(Boolean).join(' · ')
+    : '';
+  return `<span class="dns-record-value-cell"><code class="dns-record-value" dir="ltr">${escapeHtml(adminDnsRecordValue(record))}</code>${meta ? `<small dir="ltr">${escapeHtml(meta)}</small>` : ''}</span>`;
+}
+
+function adminDnsRecordGroup(title: string, description: string, symbol: string, count: number, table: string, open = false): string {
+  return `<details class="dns-record-group" ${open ? 'open' : ''}>
+    <summary>
+      <span class="dns-record-group__icon">${icon(symbol)}</span>
+      <span class="dns-record-group__copy"><b>${escapeHtml(title)}</b><small>${escapeHtml(description)}</small></span>
+      <span class="dns-record-group__count">${faNumber(count)} رکورد</span>
+      <span class="dns-record-group__chevron">${icon('expand_more')}</span>
+    </summary>
+    <div class="dns-record-group__body">${table}</div>
+  </details>`;
+}
+
+function adminProviderDnsRecordTable(records: AdminDnsRecord[], zoneName: string): string {
+  if (!records.length) return emptyState('رکورد Provider وجود ندارد', 'رکوردهای مستقیمی که خارج از TeaCloud روی Provider ساخته شده‌اند در این بخش نمایش داده می‌شوند.');
+  return `<div class="table-wrap dns-record-table dns-record-table--provider"><table><thead><tr><th>رکورد</th><th>نوع</th><th>مقدار مقصد</th><th>TTL</th></tr></thead><tbody>${records.map((record) => `<tr>
+    <td><span class="dns-address-cell">${icon('language')}<b dir="ltr">${escapeHtml(adminDnsRecordTitle(record, zoneName))}</b></span></td>
+    <td>${badge(record.type || 'DNS')}</td>
+    <td>${adminDnsRecordValueCell(record)}</td>
+    <td>${record.ttl == null ? '—' : faNumber(record.ttl)}</td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+
+function adminTeaCloudDnsRecordTable(records: AdminDnsRecord[], zoneName: string): string {
+  if (!records.length) return emptyState('رکورد TeaCloud وجود ندارد', 'رکوردهای SRV ساخته‌شده یا قابل بازیابی توسط TeaCloud در این بخش نمایش داده می‌شوند.');
+  return `<div class="table-wrap dns-record-table dns-record-table--teacloud"><table><thead><tr><th>رکورد</th><th>نوع</th><th>مقدار مقصد</th><th>TTL</th><th>وضعیت اتصال</th><th>مالک</th><th>سرویس مقصد</th><th>عملیات</th></tr></thead><tbody>${records.map((record) => {
     const assigned = Boolean(record.assigned);
     const recordId = Number(record.id ?? 0);
     const ownerId = Number(record.ownerId ?? 0);
     const resourceId = Number(record.targetResourceId ?? 0);
-    return `<tr class="${assigned ? 'dns-record-row--assigned' : ''}">
-      <td><span class="dns-address-cell">${icon(assigned ? 'hub' : 'language')}<b dir="ltr">${escapeHtml(adminDnsRecordTitle(record, zoneName))}</b></span></td>
-      <td>${badge(record.type || 'DNS')}</td>
-      <td><code class="dns-record-value" dir="ltr">${escapeHtml(record.value || '—')}</code></td>
+    const operation = assigned
+      ? recordId > 0
+        ? `<button type="button" class="icon-button icon-button--danger" data-dns-admin-unassign="${recordId}" title="قطع اتصال رکورد از TeaCloud">${icon('link_off')}</button>`
+        : `<button type="button" class="icon-button" disabled title="شناسه رکورد از API دریافت نشده است">${icon('link_off')}</button>`
+      : recordId > 0
+        ? `<button type="button" class="icon-button" data-dns-reassign="${recordId}" title="اتصال دوباره رکورد">${icon('sync')}</button>`
+        : `<button type="button" class="icon-button" disabled title="برای ReAssign باید شناسه رکورد از API ارسال شود">${icon('sync_disabled')}</button>`;
+    return `<tr class="${assigned ? 'dns-record-row--assigned' : 'dns-record-row--detached'}">
+      <td><span class="dns-address-cell">${icon(assigned ? 'hub' : 'link_off')}<b dir="ltr">${escapeHtml(adminDnsRecordTitle(record, zoneName))}</b></span></td>
+      <td>${badge(record.type || 'SRV')}</td>
+      <td>${adminDnsRecordValueCell(record)}</td>
       <td>${record.ttl == null ? '—' : faNumber(record.ttl)}</td>
-      <td>${assigned ? '<span class="badge badge--success"><i></i>مدیریت‌شده توسط TeaCloud</span>' : '<span class="badge badge--neutral"><i></i>رکورد Provider</span>'}</td>
-      <td>${ownerId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/users/${ownerId}">${icon('person')}<span>کاربر</span><b>#${faNumber(ownerId)}</b>${icon('open_in_new')}</a>` : '<span class="muted">—</span>'}</td>
-      <td>${resourceId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/resources/${resourceId}">${icon('dns')}<span>TeaSpeak</span><b>#${faNumber(resourceId)}</b>${icon('open_in_new')}</a>` : '<span class="muted">—</span>'}</td>
-      <td><div class="table-actions">${!assigned && recordId > 0 ? `<button type="button" class="icon-button" data-dns-reassign="${recordId}" title="اتصال دوباره رکورد">${icon('sync')}</button>` : ''}</div></td>
+      <td>${assigned ? '<span class="badge badge--success"><i></i>متصل به TeaCloud</span>' : '<span class="badge badge--warning"><i></i>نیازمند ReAssign</span>'}</td>
+      <td>${ownerId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/users/${ownerId}">${icon('person')}<span>کاربر</span><b>#${faNumber(ownerId)}</b>${icon('open_in_new')}</a>` : '<span class="dns-record-placeholder">بدون مالک</span>'}</td>
+      <td>${resourceId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/resources/${resourceId}">${icon('dns')}<span>TeaSpeak</span><b>#${faNumber(resourceId)}</b>${icon('open_in_new')}</a>` : '<span class="dns-record-placeholder">بدون سرویس</span>'}</td>
+      <td><div class="table-actions">${operation}</div></td>
     </tr>`;
   }).join('')}</tbody></table></div>`;
 }
@@ -1506,20 +1560,36 @@ export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void>
   renderAppShell(loadingPage(), 'رکوردهای DNS');
   try {
     const records = await getAdminZoneRecords(safeZoneName);
-    const assignedCount = records.filter((record) => record.assigned).length;
-    renderAppShell(`${pageHeader(`رکوردهای ${safeZoneName}`, 'رکوردهای مدیریت‌شده توسط TeaCloud با رنگ متفاوت مشخص شده‌اند.', [{ label: 'بازگشت به Zoneها', icon: 'arrow_forward', href: '/admin/dns/liara', variant: 'ghost' }])}
+    const teaCloudRecords = records.filter(isTeaCloudDnsRecord);
+    const providerRecords = records.filter((record) => !isTeaCloudDnsRecord(record));
+    const assignedCount = teaCloudRecords.filter((record) => record.assigned).length;
+    const detachedCount = teaCloudRecords.length - assignedCount;
+    const recordGroups = `<div class="dns-record-groups">
+      ${adminDnsRecordGroup('رکوردهای TeaCloud', 'رکوردهای SRV ساخته‌شده توسط سیستم؛ رکوردهای جداشده از اینجا ReAssign می‌شوند.', 'hub', teaCloudRecords.length, adminTeaCloudDnsRecordTable(teaCloudRecords, safeZoneName), true)}
+      ${adminDnsRecordGroup('رکوردهای Provider', 'رکوردهای مستقلی که روی Liara وجود دارند و مالک یا سرویس مقصد TeaCloud ندارند.', 'cloud_queue', providerRecords.length, adminProviderDnsRecordTable(providerRecords, safeZoneName), providerRecords.length <= 6)}
+    </div>`;
+
+    renderAppShell(`${pageHeader(`رکوردهای ${safeZoneName}`, 'رکوردهای TeaCloud و Provider در دو جدول مستقل و قابل جمع‌شدن نمایش داده می‌شوند.', [{ label: 'بازگشت به Zoneها', icon: 'arrow_forward', href: '/admin/dns/liara', variant: 'ghost' }])}
       ${adminSectionMetrics([
         { label: 'کل رکوردها', value: faNumber(records.length), hint: 'دریافت‌شده از Provider', symbol: 'list_alt' },
-        { label: 'رکوردهای متصل', value: faNumber(assignedCount), hint: 'ساخته‌شده یا مدیریت‌شده توسط سیستم', symbol: 'hub', tone: 'cyan' },
-        { label: 'رکوردهای آزاد', value: faNumber(Math.max(0, records.length - assignedCount)), hint: 'قابل ReAssign', symbol: 'link_off', tone: 'orange' },
+        { label: 'رکوردهای TeaCloud', value: faNumber(teaCloudRecords.length), hint: 'رکوردهای دارای وضعیت assigned', symbol: 'hub', tone: 'cyan' },
+        { label: 'متصل به سرویس', value: faNumber(assignedCount), hint: 'دارای مالک و سرویس مقصد', symbol: 'link', tone: 'purple' },
+        { label: 'نیازمند ReAssign', value: faNumber(detachedCount), hint: 'رکورد TeaCloud بدون اتصال فعال', symbol: 'link_off', tone: 'orange' },
       ])}
-      ${card('رکوردهای Zone', adminDnsRecordTable(records, safeZoneName), { icon: 'dns', className: 'dns-records-card' })}`, 'رکوردهای DNS');
+      ${card('رکوردهای Zone', recordGroups, { icon: 'dns', className: 'dns-records-card' })}`, 'رکوردهای DNS');
 
     qsa<HTMLButtonElement>('[data-dns-reassign]').forEach((button) => button.addEventListener('click', () => {
       const recordId = Number(button.dataset.dnsReassign);
       confirmDialog('ReAssign رکورد', 'این رکورد دوباره به سرویس TeaSpeak مرتبط با آن متصل شود؟', 'ReAssign', async () => {
         if (await runAction(() => reassignAdminDnsRecord(recordId))) await renderAdminDnsZoneRecords(safeZoneName);
       });
+    }));
+
+    qsa<HTMLButtonElement>('[data-dns-admin-unassign]').forEach((button) => button.addEventListener('click', () => {
+      const recordId = Number(button.dataset.dnsAdminUnassign);
+      confirmDialog('قطع اتصال DNS', 'اتصال این رکورد از مالک و سرویس TeaSpeak حذف شود؟', 'قطع اتصال', async () => {
+        if (await runAction(() => unassignAdminDnsRecord(recordId))) await renderAdminDnsZoneRecords(safeZoneName);
+      }, true);
     }));
   } catch (error) {
     renderAppShell(`${pageHeader('رکوردهای DNS', 'مشاهده رکوردهای Zone')}${adminError(error)}`, 'رکوردهای DNS');

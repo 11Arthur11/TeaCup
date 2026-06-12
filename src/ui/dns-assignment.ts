@@ -12,10 +12,11 @@ export interface DnsAssignmentDialogOptions {
 
 type AvailabilityUiState = 'idle' | 'waiting' | 'checking' | 'available' | 'taken' | 'invalid' | 'error';
 
-const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const SUBDOMAIN_PATTERN = /^(?=.{1,63}$)(?!-)[a-z0-9]+(?:-[a-z0-9]+)*(?<!-)$/;
+const AVAILABILITY_DEBOUNCE_MS = 700;
 
 function normalizedSubdomain(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim();
 }
 
 function availabilityMarkup(state: AvailabilityUiState, zoneName = ''): string {
@@ -24,7 +25,7 @@ function availabilityMarkup(state: AvailabilityUiState, zoneName = ''): string {
     case 'checking': return '<span class="spinner spinner--small"></span><span>در حال بررسی آزادبودن ساب‌دامین...</span>';
     case 'available': return `${icon('check_circle')}<span>این ساب‌دامین آزاد است و می‌توانید آن را ثبت کنید.${zoneName ? ` <b dir="ltr">.${escapeHtml(zoneName)}</b>` : ''}</span>`;
     case 'taken': return `${icon('cancel')}<span>این نام قبلاً ثبت شده است؛ نام دیگری انتخاب کنید.</span>`;
-    case 'invalid': return `${icon('info')}<span>فقط حروف انگلیسی کوچک، عدد و خط تیره مجاز است؛ ابتدا و انتها باید حرف یا عدد باشد.</span>`;
+    case 'invalid': return `${icon('info')}<span>فقط حروف انگلیسی کوچک، عدد و خط تیره مجاز است؛ خط تیره نباید ابتدا، انتها یا پشت‌سرهم باشد.</span>`;
     case 'error': return `${icon('warning')}<span>بررسی نام انجام نشد. دوباره تایپ کنید یا چند لحظه بعد تلاش کنید.</span>`;
     default: return `${icon('travel_explore')}<span>یک Zone، سرویس TeaSpeak و نام ساب‌دامین انتخاب کنید.</span>`;
   }
@@ -51,8 +52,8 @@ export function openDnsAssignmentDialog(options: DnsAssignmentDialogOptions = {}
         <input type="hidden" name="teaSpeakResourceId" data-dns-resource-id value="${selectedResource?.id ?? ''}" required />
       </div>
       <label class="field field--full"><span>نام ساب‌دامین<b>*</b></span>
-        <div class="dns-subdomain-input"><input name="subdomain" data-dns-subdomain type="text" dir="ltr" inputmode="url" autocomplete="off" maxlength="63" placeholder="voice" required /><span data-dns-zone-suffix>.example.com</span></div>
-        <small>بررسی آزادبودن نام، ۱ تا ۲ ثانیه بعد از توقف تایپ انجام می‌شود.</small>
+        <div class="dns-subdomain-input"><input name="subdomain" data-dns-subdomain type="text" dir="ltr" inputmode="url" autocomplete="off" minlength="1" maxlength="63" pattern="(?=.{1,63}$)(?!-)[a-z0-9]+(?:-[a-z0-9]+)*(?&lt;!-)" placeholder="voice" required /><span data-dns-zone-suffix>.example.com</span></div>
+        <span class="dns-field-hints"><small>مثال معتبر: <b dir="ltr">voice</b>، <b dir="ltr">team-1</b> یا <b dir="ltr">server2026</b></small><small>بررسی آزادبودن حدود ۷۰۰ میلی‌ثانیه بعد از توقف تایپ انجام می‌شود.</small></span>
       </label>
       <div class="dns-availability dns-availability--idle field--full" data-dns-availability>${availabilityMarkup('idle')}</div>
     </form>`,
@@ -101,7 +102,8 @@ export function openDnsAssignmentDialog(options: DnsAssignmentDialogOptions = {}
     const zoneId = Number(zoneSelect.value);
     const subdomain = normalizedSubdomain(subdomainInput.value);
     if (!zoneId || !subdomain) { updateStatus('idle'); return; }
-    if (!SUBDOMAIN_PATTERN.test(subdomain)) { updateStatus('invalid'); return; }
+    if (!SUBDOMAIN_PATTERN.test(subdomain)) { subdomainInput.setCustomValidity('نام ساب‌دامین با الگوی مجاز مطابقت ندارد.'); updateStatus('invalid'); return; }
+    subdomainInput.setCustomValidity('');
     updateStatus('checking');
     const result = await checkSubdomainAvailability(zoneId, subdomain);
     if (requestGeneration !== generation || !dialog.open) return;
@@ -112,10 +114,15 @@ export function openDnsAssignmentDialog(options: DnsAssignmentDialogOptions = {}
     window.clearTimeout(timer);
     generation += 1;
     const value = normalizedSubdomain(subdomainInput.value);
-    if (!value) { updateStatus('idle'); return; }
-    if (!SUBDOMAIN_PATTERN.test(value)) { updateStatus('invalid'); return; }
+    if (!value) { subdomainInput.setCustomValidity(''); updateStatus('idle'); return; }
+    if (!SUBDOMAIN_PATTERN.test(value)) {
+      subdomainInput.setCustomValidity('فقط حروف انگلیسی کوچک، عدد و خط تیره مجاز است؛ خط تیره نباید ابتدا، انتها یا پشت‌سرهم باشد.');
+      updateStatus('invalid');
+      return;
+    }
+    subdomainInput.setCustomValidity('');
     updateStatus('waiting');
-    timer = window.setTimeout(() => void check(), 1350);
+    timer = window.setTimeout(() => void check(), AVAILABILITY_DEBOUNCE_MS);
   };
 
   qs<HTMLButtonElement>('[data-dns-resource-select]', dialog).addEventListener('click', () => {

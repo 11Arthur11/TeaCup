@@ -9,6 +9,11 @@ export interface AdminDnsRecord {
   name?: string;
   type?: string;
   value?: string;
+  ip?: string;
+  host?: string;
+  port?: number;
+  priority?: number;
+  weight?: number;
   ttl?: number;
   assigned?: boolean;
   ownerId?: number;
