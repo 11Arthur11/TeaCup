@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "enabled": true,
   "autoStartAfterRegister": true,
   "storage": {
@@ -86,10 +86,21 @@
       "text": "همه سرورهای TeaSpeak و سرویس‌های AudioBot، وضعیت اجرا، تمدید و تنظیمات آن‌ها را در این بخش مدیریت کن."
     },
     {
-      "id": "sidebar-products",
+      "id": "sidebar-dns",
       "target": {
         "type": "sidebar-index",
         "index": 3
+      },
+      "placement": "left",
+      "icon": "language",
+      "title": "DNSهای اختصاصی",
+      "text": "برای سرویس‌های TeaSpeak ساب‌دامین بساز، آزادبودن نام را بررسی کن و اتصال DNS را مدیریت کن."
+    },
+    {
+      "id": "sidebar-products",
+      "target": {
+        "type": "sidebar-index",
+        "index": 4
       },
       "placement": "left",
       "icon": "shopping_bag",
@@ -100,7 +111,7 @@
       "id": "sidebar-finance",
       "target": {
         "type": "sidebar-index",
-        "index": 4
+        "index": 5
       },
       "placement": "left",
       "icon": "account_balance_wallet",
@@ -111,7 +122,7 @@
       "id": "sidebar-support",
       "target": {
         "type": "sidebar-index",
-        "index": 5
+        "index": 6
       },
       "placement": "left",
       "icon": "support_agent",
@@ -122,7 +133,7 @@
       "id": "sidebar-profile",
       "target": {
         "type": "sidebar-index",
-        "index": 6
+        "index": 7
       },
       "placement": "left",
       "icon": "manage_accounts",

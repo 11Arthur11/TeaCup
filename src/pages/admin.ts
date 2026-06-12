@@ -1,6 +1,7 @@
 import { api, ApiError } from '../api/client.js';
 import { getMockLiveServiceStatus } from '../api/live-status.js';
 import { getAdminDashboardOverview, invalidateAdminDashboardOverview, type PeriodComparison, type ProvisionStrategy, type WalletFlowComparisons } from '../api/admin-dashboard.js';
+import { getAdminZoneRecords, reassignAdminDnsRecord, toggleAdminDnsZone, type AdminDnsRecord } from '../api/dns.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -1433,8 +1434,96 @@ export async function renderAdminDns(): Promise<void> {
     </div>`, 'مدیریت DNS');
 }
 
-export async function renderAdminLiaraDns():Promise<void>{
-  renderAppShell(loadingPage(),'DNS لیارا');try{const response=await api.call('getLiaraDnsProviders',{});const provider=dataOf(response);renderAppShell(`${pageHeader('Liara DNS','پیکربندی provider و مشاهده zoneهای DNS.')}<div class="detail-grid"><div class="detail-main">${card('DNS Zoneها',provider?.dnsZones?.length?dataTable<Models.DnsZoneListResponse>([{label:'دامنه',render:r=>`<b class="ltr">${escapeHtml(r.name)}</b>`},{label:'وضعیت',render:r=>badge(r.status)},{label:'فعال',render:r=>badge(r.active?'ACTIVE':'DISABLED')}],provider.dnsZones):emptyState('Zoneای دریافت نشد','پس از اتصال موفق provider، zoneها نمایش داده می‌شوند.'),{icon:'language'})}</div><aside>${card('پیکربندی Provider',`<form id="dns-form" class="form-grid">${field('baseUrl','Base URL',{value:provider?.baseUrl,required:true,dir:'ltr'})}${field('apiKey','API Key',{value:provider?.apiKey,type:'password',required:true,dir:'ltr'})}<button class="button button--primary button--block">${icon('save')} ذخیره تنظیمات</button>${toggleField('active','فعال باشد؟',provider?.active??false)}</form><div class="provider-state"><span>وضعیت اتصال</span>${badge(provider?.status)}</div>`,{icon:'dns'})}</aside></div>`,'DNS لیارا');qs<HTMLFormElement>('#dns-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget as HTMLFormElement;if(!form.reportValidity())return;const data=new FormData(form);if(await runAction(()=>api.call('saveLiaraDnsProvider',{body:{baseUrl:String(data.get('baseUrl')??''),apiKey:String(data.get('apiKey')??''),active:data.get('active')==='on'}})))await renderAdminLiaraDns();});}catch(error){renderAppShell(`${pageHeader('Liara DNS','پیکربندی provider لیارا')}${adminError(error)}`,'DNS لیارا');}
+function adminDnsRecordTitle(record: AdminDnsRecord, zoneName: string): string {
+  const name = record.name?.trim() || '';
+  if (name && (name === zoneName || name.endsWith(`.${zoneName}`))) return name;
+  if (name) return `${name}.${zoneName}`;
+  return record.value?.trim() || zoneName;
+}
+
+function adminDnsRecordTable(records: AdminDnsRecord[], zoneName: string): string {
+  if (!records.length) return emptyState('رکوردی دریافت نشد', 'رکوردهای این Zone پس از همگام‌سازی با Provider در این بخش نمایش داده می‌شوند.');
+  return `<div class="table-wrap dns-record-table"><table><thead><tr><th>رکورد</th><th>نوع</th><th>مقدار</th><th>TTL</th><th>وضعیت اتصال</th><th>مالک</th><th>سرویس مقصد</th><th>عملیات</th></tr></thead><tbody>${records.map((record) => {
+    const assigned = Boolean(record.assigned);
+    const recordId = Number(record.id ?? 0);
+    const ownerId = Number(record.ownerId ?? 0);
+    const resourceId = Number(record.targetResourceId ?? 0);
+    return `<tr class="${assigned ? 'dns-record-row--assigned' : ''}">
+      <td><span class="dns-address-cell">${icon(assigned ? 'hub' : 'language')}<b dir="ltr">${escapeHtml(adminDnsRecordTitle(record, zoneName))}</b></span></td>
+      <td>${badge(record.type || 'DNS')}</td>
+      <td><code class="dns-record-value" dir="ltr">${escapeHtml(record.value || '—')}</code></td>
+      <td>${record.ttl == null ? '—' : faNumber(record.ttl)}</td>
+      <td>${assigned ? '<span class="badge badge--success"><i></i>مدیریت‌شده توسط TeaCloud</span>' : '<span class="badge badge--neutral"><i></i>رکورد Provider</span>'}</td>
+      <td>${ownerId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/users/${ownerId}">${icon('person')}<span>کاربر</span><b>#${faNumber(ownerId)}</b>${icon('open_in_new')}</a>` : '<span class="muted">—</span>'}</td>
+      <td>${resourceId > 0 ? `<a data-link class="node-reference-button node-reference-button--compact" href="/admin/resources/${resourceId}">${icon('dns')}<span>TeaSpeak</span><b>#${faNumber(resourceId)}</b>${icon('open_in_new')}</a>` : '<span class="muted">—</span>'}</td>
+      <td><div class="table-actions">${!assigned && recordId > 0 ? `<button type="button" class="icon-button" data-dns-reassign="${recordId}" title="اتصال دوباره رکورد">${icon('sync')}</button>` : ''}</div></td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+export async function renderAdminLiaraDns(): Promise<void> {
+  renderAppShell(loadingPage(), 'DNS لیارا');
+  try {
+    const response = await api.call('getLiaraDnsProviders', {});
+    const provider = dataOf(response);
+    const zones = provider?.dnsZones ?? [];
+    const zoneTable = dataTable<Models.DnsZoneListResponse>([
+      { label: 'دامنه', render: (zone) => `<span class="dns-address-cell">${icon('language')}<b dir="ltr">${escapeHtml(zone.name)}</b></span>` },
+      { label: 'وضعیت Provider', render: (zone) => badge(zone.status) },
+      { label: 'امکان ساخت ساب‌دامین', render: (zone) => badge(zone.active ? 'ACTIVE' : 'DISABLED') },
+      { label: 'عملیات', render: (zone) => `<div class="table-actions"><a data-link class="icon-button" href="/admin/dns/liara/zones/${encodeURIComponent(zone.name ?? '')}" title="مشاهده رکوردها">${icon('list_alt')}</a><button type="button" class="icon-button" data-dns-zone-toggle="${Number(zone.id)}" data-active="${Boolean(zone.active)}" title="${zone.active ? 'غیرفعال‌کردن برای کاربران' : 'فعال‌کردن برای کاربران'}">${icon(zone.active ? 'toggle_on' : 'toggle_off')}</button></div>` },
+    ], zones, { emptyTitle: 'Zoneای دریافت نشد', emptyText: 'پس از اتصال موفق Provider، Zoneها نمایش داده می‌شوند.' });
+
+    renderAppShell(`${pageHeader('Liara DNS', 'پیکربندی Provider، مدیریت Zoneها و مشاهده رکوردهای DNS.')}
+      <div class="detail-grid"><div class="detail-main">
+        ${card('DNS Zoneها', zoneTable, { icon: 'language', className: 'dns-zone-card' })}
+      </div><aside>
+        ${card('پیکربندی Provider', `<form id="dns-form" class="form-grid">${field('baseUrl', 'Base URL', { value: provider?.baseUrl, required: true, dir: 'ltr' })}${field('apiKey', 'API Key', { type: 'password', required: true, dir: 'ltr' })}<button class="button button--primary button--block">${icon('save')} ذخیره تنظیمات</button>${toggleField('active', 'Provider فعال باشد؟', provider?.active ?? false)}</form><div class="provider-state"><span>وضعیت اتصال</span>${badge(provider?.status)}</div>`, { icon: 'dns' })}
+      </aside></div>`, 'DNS لیارا');
+
+    qs<HTMLFormElement>('#dns-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget as HTMLFormElement;
+      if (!form.reportValidity()) return;
+      const data = new FormData(form);
+      if (await runAction(() => api.call('saveLiaraDnsProvider', { body: { baseUrl: String(data.get('baseUrl') ?? ''), apiKey: String(data.get('apiKey') ?? ''), active: data.get('active') === 'on' } }))) await renderAdminLiaraDns();
+    });
+
+    qsa<HTMLButtonElement>('[data-dns-zone-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const zoneId = Number(button.dataset.dnsZoneToggle);
+      const enable = button.dataset.active !== 'true';
+      confirmDialog('تغییر وضعیت Zone', `امکان ساخت ساب‌دامین روی این Zone برای کاربران ${enable ? 'فعال' : 'غیرفعال'} شود؟`, 'اعمال', async () => {
+        if (await runAction(() => toggleAdminDnsZone(zoneId))) await renderAdminLiaraDns();
+      });
+    }));
+  } catch (error) {
+    renderAppShell(`${pageHeader('Liara DNS', 'پیکربندی Provider لیارا')}${adminError(error)}`, 'DNS لیارا');
+  }
+}
+
+export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void> {
+  const safeZoneName = zoneName.trim();
+  renderAppShell(loadingPage(), 'رکوردهای DNS');
+  try {
+    const records = await getAdminZoneRecords(safeZoneName);
+    const assignedCount = records.filter((record) => record.assigned).length;
+    renderAppShell(`${pageHeader(`رکوردهای ${safeZoneName}`, 'رکوردهای مدیریت‌شده توسط TeaCloud با رنگ متفاوت مشخص شده‌اند.', [{ label: 'بازگشت به Zoneها', icon: 'arrow_forward', href: '/admin/dns/liara', variant: 'ghost' }])}
+      ${adminSectionMetrics([
+        { label: 'کل رکوردها', value: faNumber(records.length), hint: 'دریافت‌شده از Provider', symbol: 'list_alt' },
+        { label: 'رکوردهای متصل', value: faNumber(assignedCount), hint: 'ساخته‌شده یا مدیریت‌شده توسط سیستم', symbol: 'hub', tone: 'cyan' },
+        { label: 'رکوردهای آزاد', value: faNumber(Math.max(0, records.length - assignedCount)), hint: 'قابل ReAssign', symbol: 'link_off', tone: 'orange' },
+      ])}
+      ${card('رکوردهای Zone', adminDnsRecordTable(records, safeZoneName), { icon: 'dns', className: 'dns-records-card' })}`, 'رکوردهای DNS');
+
+    qsa<HTMLButtonElement>('[data-dns-reassign]').forEach((button) => button.addEventListener('click', () => {
+      const recordId = Number(button.dataset.dnsReassign);
+      confirmDialog('ReAssign رکورد', 'این رکورد دوباره به سرویس TeaSpeak مرتبط با آن متصل شود؟', 'ReAssign', async () => {
+        if (await runAction(() => reassignAdminDnsRecord(recordId))) await renderAdminDnsZoneRecords(safeZoneName);
+      });
+    }));
+  } catch (error) {
+    renderAppShell(`${pageHeader('رکوردهای DNS', 'مشاهده رکوردهای Zone')}${adminError(error)}`, 'رکوردهای DNS');
+  }
 }
 
 export async function renderAdminLiveStatus(): Promise<void> {

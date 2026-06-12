@@ -2,6 +2,7 @@ import { api, ApiError } from '../api/client.js';
 import { getUserDashboardOverview } from '../api/dashboard.js';
 import { getWalletOverview } from '../api/wallet.js';
 import { getUserProfile } from '../api/user-profile.js';
+import { getUserDnsRecordForResource, getUserDnsRecords, unassignUserDnsRecord } from '../api/dns.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -21,6 +22,7 @@ import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
+import { openDnsAssignmentDialog } from '../ui/dns-assignment.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -232,14 +234,27 @@ async function openNewServiceDialog(): Promise<void> {
   } catch (error) { qs<HTMLElement>('.dialog__content', dialog).innerHTML = errorNotice(error instanceof ApiError ? error.message : undefined); }
 }
 
-function teaSpeakConnectionEndpoint(resource: TeaSpeakResourceDetail): string {
+function dnsRecordAddress(record?: Models.DnsRecordUserResponse): string {
+  if (!record) return '';
+  const value = record.value?.trim() ?? '';
+  const zone = record.zone?.name?.trim() ?? '';
+  if (!value) return zone;
+  if (!zone || value === zone || value.endsWith(`.${zone}`)) return value;
+  return `${value}.${zone}`;
+}
+
+function teaSpeakConnectionEndpoint(resource: TeaSpeakResourceDetail, dnsRecord?: Models.DnsRecordUserResponse): string {
   const address = resource.address?.trim();
   const port = resource.port == null ? '' : String(resource.port);
-  if (!address && !port) {
-    return `<div class="teaspeak-connection teaspeak-connection--inline"><div class="teaspeak-connection__empty">${icon('lan')}<span><b>اطلاعات اتصال هنوز آماده نیست</b><small>پس از تکمیل استقرار، آدرس و پورت در همین بخش نمایش داده می‌شود.</small></span></div></div>`;
-  }
   const endpoint = [address, port].filter(Boolean).join(':');
-  return `<div class="teaspeak-connection teaspeak-connection--inline"><div class="teaspeak-connection__endpoint"><span>${icon('lan')}<small>آدرس اتصال TeaSpeak</small></span><code dir="ltr">${escapeHtml(endpoint)}</code><button type="button" class="icon-button" data-copy-connection="${escapeHtml(endpoint)}" aria-label="کپی آدرس اتصال" title="کپی آدرس و پورت">${icon('content_copy')}</button></div></div>`;
+  const connectionBlock = endpoint
+    ? `<div class="teaspeak-connection__endpoint"><span>${icon('lan')}<small>آدرس اتصال TeaSpeak</small></span><code dir="ltr">${escapeHtml(endpoint)}</code><button type="button" class="icon-button" data-copy-connection="${escapeHtml(endpoint)}" aria-label="کپی آدرس اتصال" title="کپی آدرس و پورت">${icon('content_copy')}</button></div>`
+    : `<div class="teaspeak-connection__empty">${icon('lan')}<span><b>اطلاعات اتصال هنوز آماده نیست</b><small>پس از تکمیل استقرار، آدرس و پورت در همین بخش نمایش داده می‌شود.</small></span></div>`;
+  const dnsAddress = dnsRecordAddress(dnsRecord);
+  const dnsBlock = dnsRecord
+    ? `<div class="teaspeak-dns-connection"><span class="teaspeak-dns-connection__icon">${icon('language')}</span><span><small>DNS اختصاصی سرویس</small><b dir="ltr">${escapeHtml(dnsAddress || '—')}</b></span><div class="teaspeak-dns-connection__actions"><button type="button" class="icon-button" data-copy-connection="${escapeHtml(dnsAddress)}" title="کپی DNS">${icon('content_copy')}</button><button type="button" class="icon-button icon-button--danger" data-dns-unassign="${Number(dnsRecord.id)}" title="قطع اتصال DNS">${icon('link_off')}</button></div></div>`
+    : `<button type="button" class="teaspeak-dns-add" data-dns-add>${icon('add_link')}<span><b>افزودن DNS اختصاصی</b><small>یک ساب‌دامین فعال را به این TeaSpeak متصل کنید.</small></span>${icon('chevron_left')}</button>`;
+  return `<div class="teaspeak-connection teaspeak-connection--inline">${connectionBlock}${dnsBlock}</div>`;
 }
 
 function privilegeTokenPanel(resource: TeaSpeakResourceDetail): string {
@@ -267,6 +282,47 @@ function serviceLabelEditor(resource: TeaSpeakResourceDetail): string {
   </form>`;
 }
 
+export async function renderUserDns(): Promise<void> {
+  renderAppShell(loadingPage(), 'DNSهای من');
+  try {
+    const [records, resourcesResponse] = await Promise.all([
+      getUserDnsRecords(),
+      api.call('getResources', {}),
+    ]);
+    const resources = (dataOf(resourcesResponse) ?? []).filter((resource) => resource.resourceType === 'TEASPEAK');
+    const resourceMap = new Map(resources.map((resource) => [Number(resource.id), resource]));
+    const table = dataTable<Models.DnsRecordUserResponse>([
+      { label: 'DNS', render: (record) => `<span class="dns-address-cell">${icon('language')}<b dir="ltr">${escapeHtml(dnsRecordAddress(record) || '—')}</b></span>` },
+      { label: 'Zone', render: (record) => `<span dir="ltr">${escapeHtml(record.zone?.name || '—')}</span>` },
+      { label: 'سرویس TeaSpeak', render: (record) => {
+        const resourceId = Number(record.assignedToResourceId ?? 0);
+        const resource = resourceMap.get(resourceId);
+        return resourceId > 0
+          ? `<a data-link class="node-reference-button" href="/panel/services/${resourceId}">${icon('dns')}<span>${escapeHtml(resource?.label || resource?.productName || 'سرویس TeaSpeak')}</span><b>#${faNumber(resourceId)}</b>${icon('open_in_new')}</a>`
+          : '<span class="muted">—</span>';
+      }},
+      { label: 'عملیات', render: (record) => `<div class="table-actions"><button type="button" class="icon-button icon-button--danger" data-user-dns-unassign="${Number(record.id)}" title="قطع اتصال DNS">${icon('link_off')}</button></div>` },
+    ], records, { emptyTitle: 'DNS اختصاصی ندارید', emptyText: 'برای یکی از سرویس‌های TeaSpeak خود یک ساب‌دامین بسازید.' });
+
+    renderAppShell(`${pageHeader('DNSهای من', 'مدیریت ساب‌دامین‌های متصل به سرویس‌های TeaSpeak.', [{ label: 'افزودن DNS', icon: 'add_link', id: 'add-user-dns' }])}
+      <div class="admin-section-metrics">
+        <article class="admin-section-metric"><span>${icon('language')}</span><div><small>DNSهای فعال</small><b>${faNumber(records.length)}</b><em>ساب‌دامین متصل</em></div></article>
+        <article class="admin-section-metric admin-section-metric--cyan"><span>${icon('dns')}</span><div><small>TeaSpeakهای قابل انتخاب</small><b>${faNumber(resources.length)}</b><em>فقط سرویس‌های TeaSpeak</em></div></article>
+      </div>
+      ${card('ساب‌دامین‌های متصل', table, { icon: 'language', className: 'user-dns-card' })}`, 'DNSهای من');
+
+    document.querySelector('#add-user-dns')?.addEventListener('click', () => openDnsAssignmentDialog({ onAssigned: renderUserDns }));
+    qsa<HTMLButtonElement>('[data-user-dns-unassign]').forEach((button) => button.addEventListener('click', () => {
+      const recordId = Number(button.dataset.userDnsUnassign);
+      confirmDialog('قطع اتصال DNS', 'ساب‌دامین از سرویس TeaSpeak جدا شود؟', 'قطع اتصال', async () => {
+        if (await runAction(() => unassignUserDnsRecord(recordId))) await renderUserDns();
+      }, true);
+    }));
+  } catch (error) {
+    renderAppShell(`${pageHeader('DNSهای من', 'مدیریت ساب‌دامین‌ها')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'DNSهای من');
+  }
+}
+
 export async function renderServiceDetail(resourceId: number): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات سرویس');
   try {
@@ -280,6 +336,11 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
     const isAudio = resource.resourceType === 'AUDIO_BOT';
     const isTeaSpeak = resource.resourceType === 'TEASPEAK';
     const teaSpeakStatus = resource.teaSpeakStatus?.toUpperCase();
+    let dnsRecord: Models.DnsRecordUserResponse | undefined;
+    if (isTeaSpeak) {
+      try { dnsRecord = await getUserDnsRecordForResource(resourceId); }
+      catch { dnsRecord = undefined; }
+    }
     let playlists: Models.ABPlayListsResponse[] = [];
     if (isAudio) {
       try { playlists = dataOf(await api.call('getAudioBotPlaylists', { path: { resourceId } })) ?? []; }
@@ -301,7 +362,7 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
 
     renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${serviceLabelEditor(resource)}
       <div class="detail-grid"><div class="detail-main">
-        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource) : ''}`, { icon: 'monitor_heart' })}
+        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
         ${isTeaSpeak ? privilegeTokenPanel(resource) : ''}
         ${isAudio ? card('Playlistهای AudioBot', `<div class="playlist-grid">${playlists.map((playlist) => `<article class="playlist-card"><span>${icon('queue_music')}</span><div><b>${escapeHtml(playlist.title || playlist.playlistFilename)}</b><small>${faNumber(playlist.songCount)} قطعه</small></div><button class="icon-button" data-playlist="${escapeHtml(playlist.playlistFilename)}">${icon('chevron_left')}</button></article>`).join('') || emptyState('Playlist ندارید', 'یک Playlist بسازید و لینک قطعه‌های صوتی را به آن اضافه کنید.')} </div>`, { icon: 'library_music', actions: '<button id="new-playlist" class="button button--secondary button--small">ساخت Playlist</button>' }) : ''}
         ${card('تراکنش‌های این سرویس', transactionRows(resourceTransactions, false), { icon: 'receipt_long', className: 'service-transactions-card', actions: '<a data-link class="button button--ghost button--small" href="/panel/finance?tab=transactions">همه تراکنش‌ها</a>' })}
@@ -310,14 +371,25 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
         ${card('راهنمای سریع', `<div class="help-box">${icon('support_agent')}<p>برای مشکل فنی این سرویس، یک تیکت مرتبط ثبت کنید تا تیم پشتیبانی اطلاعات سرویس را مشاهده کند.</p><a data-link href="/panel/tickets?resource=${resource.id}" class="text-link">ارسال تیکت مرتبط</a></div>`, { icon: 'help' })}
       </aside></div>`, resource.label || 'جزئیات سرویس');
     bindServiceActions(resource);
-    if (isTeaSpeak) { bindTeaSpeakConnection(); bindPrivilegeToken(resource); }
+    if (isTeaSpeak) { bindTeaSpeakConnection(resource, dnsRecord); bindPrivilegeToken(resource); }
     if (isAudio) bindPlaylistActions(resourceId, playlists);
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات سرویس', 'اطلاعات سرویس')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'جزئیات سرویس');
   }
 }
 
-function bindTeaSpeakConnection(): void {
+function bindTeaSpeakConnection(resource: TeaSpeakResourceDetail, dnsRecord?: Models.DnsRecordUserResponse): void {
+  document.querySelector<HTMLButtonElement>('[data-dns-add]')?.addEventListener('click', () => openDnsAssignmentDialog({
+    resource: { id: Number(resource.id), label: resource.label || resource.productName || `سرویس #${resource.id}`, productName: resource.productName, status: resource.resourceStatus },
+    onAssigned: () => renderServiceDetail(Number(resource.id)),
+  }));
+  document.querySelector<HTMLButtonElement>('[data-dns-unassign]')?.addEventListener('click', () => {
+    const recordId = Number(dnsRecord?.id ?? 0);
+    if (!recordId) return;
+    confirmDialog('قطع اتصال DNS', 'ساب‌دامین از این سرویس TeaSpeak جدا شود؟', 'قطع اتصال', async () => {
+      if (await runAction(() => unassignUserDnsRecord(recordId))) await renderServiceDetail(Number(resource.id));
+    }, true);
+  });
   qsa<HTMLButtonElement>('[data-copy-connection]').forEach((button) => button.addEventListener('click', async () => {
     const value = button.dataset.copyConnection?.trim();
     if (!value) return;

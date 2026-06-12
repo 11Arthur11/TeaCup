@@ -118,6 +118,12 @@ export interface RedirectResponse {
   redirectUrl?: string;
 }
 
+export interface AssignSubdomainRequest {
+  zoneId: number;
+  subdomain: string;
+  teaSpeakResourceId: number;
+}
+
 export interface RegisterRequest {
   twoFactorCode?: string;
   firstName: string;
@@ -536,6 +542,45 @@ export interface DataResponseListCategoryListResponse {
   data?: Array<CategoryListResponse>;
 }
 
+/** DataResponse, the type of responses with data only */
+export interface DataResponseListZoneUserResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: Array<ZoneUserResponse>;
+}
+
+export interface ZoneUserResponse {
+  id?: number;
+  name?: string;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseListDnsRecordUserResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: Array<DnsRecordUserResponse>;
+}
+
+export interface DnsRecordUserResponse {
+  id?: number;
+  assignedToResourceId?: number;
+  value?: string;
+  zone?: ZoneUserResponse;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseDnsRecordUserResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: DnsRecordUserResponse;
+}
+
 export interface DashboardOverviewResponse {
   resourceMetric?: ResourceOverviewResponse;
   openTickets?: number;
@@ -584,7 +629,7 @@ export interface UserListResponse {
   phone?: string;
   fullName?: string;
   email?: string;
-  role?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
+  role?: string;
   lastLogin?: string;
   online?: boolean;
 }
@@ -626,7 +671,7 @@ export interface DataResponseListRoleListResponse {
 
 export interface RoleListResponse {
   id?: number;
-  name?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
+  name?: string;
   hierarchy?: number;
 }
 
@@ -743,6 +788,46 @@ export interface DataResponseProvisionStrategy {
   data?: "BALANCED" | "BIN_PACKING" | "RANDOMIZED" | "ROUND_ROBIN";
 }
 
+/** Product detail response */
+export type AbstractProductDetailResponse = (TeaSpeakProductDetailAdminResponse) | (AudioBotProductDetailAdminResponse);
+
+export interface AudioBotProductDetailAdminResponse {
+  id?: number;
+  categoryName?: string;
+  categorySlug?: string;
+  productName?: string;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
+  productType?: "TEASPEAK" | "AUDIO_BOT";
+  orderedResources?: number;
+  price?: Money;
+  enabled?: boolean;
+  presentation?: ProductPresentation;
+  providerNodeId?: number;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseAbstractProductDetailResponse {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: AbstractProductDetailResponse;
+}
+
+export interface TeaSpeakProductDetailAdminResponse {
+  id?: number;
+  categoryName?: string;
+  categorySlug?: string;
+  productName?: string;
+  period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
+  productType?: "TEASPEAK" | "AUDIO_BOT";
+  orderedResources?: number;
+  price?: Money;
+  enabled?: boolean;
+  presentation?: ProductPresentation;
+  maxClients?: number;
+}
+
 /** DataResponse, the type of responses with data only */
 export interface DataResponseListGateway {
   /** Operation success state, boolean */
@@ -848,6 +933,7 @@ export interface DataResponseLiaraDnsProviderDetailResponse {
 }
 
 export interface DnsZoneListResponse {
+  id?: number;
   name?: string;
   active?: boolean;
   status?: "CREATING" | "PENDING" | "ACTIVE" | "DELETING";
@@ -857,7 +943,6 @@ export interface LiaraDnsProviderDetailResponse {
   active?: boolean;
   status?: "CONNECTED" | "API_KEY_REJECTED" | "SERVER_ERROR" | "UNKNOWN";
   baseUrl?: string;
-  apiKey?: string;
   dnsZones?: Array<DnsZoneListResponse>;
 }
 
@@ -991,4 +1076,24 @@ export interface DataResponseAudioBotNodeDetailResponse {
   /** Operation Type */
   type?: string;
   data?: AudioBotNodeDetailResponse;
+}
+
+/** Admin DNS record row. assigned=true means the record is managed by TeaCloud and linked to a TeaSpeak resource. */
+export interface DnsRecordAdminResponse {
+  id?: number;
+  name?: string;
+  type?: string;
+  value?: string;
+  ttl?: number;
+  assigned?: boolean;
+  ownerId?: number;
+  targetResourceId?: number;
+  zoneName?: string;
+  status?: string;
+}
+
+export interface DataResponseListDnsRecordAdminResponse {
+  success?: boolean;
+  type?: string;
+  data?: Array<DnsRecordAdminResponse>;
 }

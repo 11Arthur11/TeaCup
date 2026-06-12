@@ -22,6 +22,8 @@ export const operations = {
   "editAudioBot": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/edit", bodyKind: "json", responseKind: "json" },
   "payInvoice": { method: "POST", path: "/v1/payments/pay", bodyKind: null, responseKind: "json" },
   "aqayePardakhtCallback": { method: "POST", path: "/v1/payments/gateway/callback/ap", bodyKind: "form", responseKind: "void" },
+  "getAssignedRecords": { method: "GET", path: "/v1/dns/records", bodyKind: null, responseKind: "json" },
+  "assignSubdomain": { method: "POST", path: "/v1/dns/records", bodyKind: "json", responseKind: "json" },
   "register": { method: "POST", path: "/v1/auth/register", bodyKind: "json", responseKind: "json" },
   "logout": { method: "POST", path: "/v1/auth/logout", bodyKind: null, responseKind: "json" },
   "login": { method: "POST", path: "/v1/auth/login", bodyKind: "json", responseKind: "json" },
@@ -58,9 +60,12 @@ export const operations = {
   "getProvisioningStrategy": { method: "GET", path: "/v1/admin/query-instances/provisioning", bodyKind: null, responseKind: "json" },
   "changeProvisioningStrategy": { method: "PATCH", path: "/v1/admin/query-instances/provisioning", bodyKind: "json", responseKind: "json" },
   "changeEnabled": { method: "PATCH", path: "/v1/admin/products/{productId}/{enabled}", bodyKind: null, responseKind: "json" },
+  "toggleZoneActive": { method: "PATCH", path: "/v1/admin/dns/zones/{zoneId}/toggle-active", bodyKind: null, responseKind: "json" },
+  "reassignRecord": { method: "PATCH", path: "/v1/admin/dns/records/{recordId}/re-assign", bodyKind: null, responseKind: "json" },
   "getProvisioningStrategy_1": { method: "GET", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: null, responseKind: "json" },
   "changeProvisioningStrategy_1": { method: "PATCH", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: "json", responseKind: "json" },
-  "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "json" },
+  "isAvailable": { method: "HEAD", path: "/v1/dns/zones/{zoneId}/subdomains/{subdomain}/availability", bodyKind: null, responseKind: "void" },
+  "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
   "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
   "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
@@ -77,6 +82,8 @@ export const operations = {
   "getInvoice": { method: "GET", path: "/v1/invoices/{invoiceToken}", bodyKind: null, responseKind: "json" },
   "getProductByCategorySlug_1": { method: "GET", path: "/v1/global/products/{categorySlug}", bodyKind: null, responseKind: "json" },
   "getCategories": { method: "GET", path: "/v1/global/categories", bodyKind: null, responseKind: "json" },
+  "getAvailableZones": { method: "GET", path: "/v1/dns/zones", bodyKind: null, responseKind: "json" },
+  "getAssignedRecord": { method: "GET", path: "/v1/dns/records/{resourceId}", bodyKind: null, responseKind: "json" },
   "getDashboardOverviewResponse": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
   "getCategories_1": { method: "GET", path: "/v1/categories", bodyKind: null, responseKind: "json" },
   "getAllUsers": { method: "GET", path: "/v1/admin/users", bodyKind: null, responseKind: "json" },
@@ -93,11 +100,15 @@ export const operations = {
   "deleteProduct": { method: "DELETE", path: "/v1/admin/products/{productId}", bodyKind: null, responseKind: "json" },
   "getGatewayDetails": { method: "GET", path: "/v1/admin/payments/gateways/{gatewayId}", bodyKind: null, responseKind: "json" },
   "getModules": { method: "GET", path: "/v1/admin/payments/gateways/modules", bodyKind: null, responseKind: "json" },
+  "zoneRecords": { method: "GET", path: "/v1/admin/dns/records/{zoneName}", bodyKind: null, responseKind: "json" },
+  "liaraZoneRecords": { method: "GET", path: "/v1/admin/dns/records/resource/{resourceId}", bodyKind: null, responseKind: "json" },
   "overview": { method: "GET", path: "/v1/admin/dashboard/overview", bodyKind: null, responseKind: "json" },
   "getAllAudioBotNodes": { method: "GET", path: "/v1/admin/audio-bot-nodes", bodyKind: null, responseKind: "json" },
   "getAudioBotNodeDetail": { method: "GET", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
   "deleteAudioBotNode": { method: "DELETE", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
   "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
+  "unassignRecord": { method: "DELETE", path: "/v1/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
+  "unassignRecord_1": { method: "DELETE", path: "/v1/admin/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
 } as const;
@@ -209,6 +220,10 @@ export interface OperationInputMap {
     invoice_id?: string;
   };
     body: URLSearchParams;
+  };
+  "getAssignedRecords": Record<string, never>;
+  "assignSubdomain": {
+    body: Models.AssignSubdomainRequest;
   };
   "register": {
     body: Models.RegisterRequest;
@@ -347,9 +362,25 @@ export interface OperationInputMap {
     enabled: boolean;
   };
   };
+  "toggleZoneActive": {
+    path: {
+    zoneId: number;
+  };
+  };
+  "reassignRecord": {
+    path: {
+    recordId: number;
+  };
+  };
   "getProvisioningStrategy_1": Record<string, never>;
   "changeProvisioningStrategy_1": {
     body: Models.ChangeProvisioningStrategyRequest;
+  };
+  "isAvailable": {
+    path: {
+    zoneId: number;
+    subdomain: string;
+  };
   };
   "checkAuthentication": Record<string, never>;
   "getWalletTransactions": {
@@ -404,6 +435,12 @@ export interface OperationInputMap {
   };
   };
   "getCategories": Record<string, never>;
+  "getAvailableZones": Record<string, never>;
+  "getAssignedRecord": {
+    path: {
+    resourceId: number;
+  };
+  };
   "getDashboardOverviewResponse": Record<string, never>;
   "getCategories_1": Record<string, never>;
   "getAllUsers": {
@@ -467,6 +504,16 @@ export interface OperationInputMap {
   };
   };
   "getModules": Record<string, never>;
+  "zoneRecords": {
+    path: {
+    zoneName: string;
+  };
+  };
+  "liaraZoneRecords": {
+    path: {
+    resourceId: number;
+  };
+  };
   "overview": Record<string, never>;
   "getAllAudioBotNodes": Record<string, never>;
   "getAudioBotNodeDetail": {
@@ -483,6 +530,16 @@ export interface OperationInputMap {
     path: {
     resourceId: number;
     playlistFilename: string;
+  };
+  };
+  "unassignRecord": {
+    path: {
+    recordId: number;
+  };
+  };
+  "unassignRecord_1": {
+    path: {
+    recordId: number;
   };
   };
   "deleteCategory": {
@@ -517,6 +574,8 @@ export interface OperationOutputMap {
   "editAudioBot": Models.SimpleResponse;
   "payInvoice": Models.DataResponseRedirectResponse;
   "aqayePardakhtCallback": void;
+  "getAssignedRecords": Models.DataResponseListDnsRecordUserResponse;
+  "assignSubdomain": Models.SimpleResponse;
   "register": Models.SimpleResponse;
   "logout": Models.SimpleResponse;
   "login": Models.SimpleResponse;
@@ -555,11 +614,12 @@ export interface OperationOutputMap {
   "getProvisioningStrategy": Models.DataResponseProvisionStrategy;
   "changeProvisioningStrategy": Models.SimpleResponse;
   "changeEnabled": Models.SimpleResponse;
+  "toggleZoneActive": Models.SimpleResponse;
+  "reassignRecord": Models.SimpleResponse;
   "getProvisioningStrategy_1": Models.DataResponseProvisionStrategy;
   "changeProvisioningStrategy_1": Models.SimpleResponse;
-  "checkAuthentication": {
-
-};
+  "isAvailable": void;
+  "checkAuthentication": void;
   "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
   "getBalance": Models.DataResponseWalletOverviewResponse;
   "getProfile": Models.DataResponseUserDetailResponse;
@@ -580,6 +640,8 @@ export interface OperationOutputMap {
 };
   "getProductByCategorySlug_1": unknown;
   "getCategories": Models.DataResponseListCategoryListResponse;
+  "getAvailableZones": Models.DataResponseListZoneUserResponse;
+  "getAssignedRecord": Models.DataResponseDnsRecordUserResponse;
   "getDashboardOverviewResponse": Models.DataResponseDashboardOverviewResponse;
   "getCategories_1": Models.DataResponseListCategoryListResponse;
   "getAllUsers": Models.DataResponsePagedModelUserListResponse;
@@ -592,15 +654,19 @@ export interface OperationOutputMap {
   "getResource": Models.DataResponseAbstractResourceDetailResponse;
   "deleteResource": Models.SimpleResponse;
   "getAllProducts": unknown;
-  "getProduct": unknown;
+  "getProduct": Models.DataResponseAbstractProductDetailResponse;
   "deleteProduct": Models.SimpleResponse;
   "getGatewayDetails": Models.DataResponseGateway;
   "getModules": Models.DataResponseListPaymentGatewayType;
+  "zoneRecords": Models.DataResponseListDnsRecordAdminResponse;
+  "liaraZoneRecords": Models.DataResponseListDnsRecordAdminResponse;
   "overview": Models.DataResponseAdminMetric;
   "getAllAudioBotNodes": Models.DataResponseListAudioBotNodeListResponse;
   "getAudioBotNodeDetail": Models.DataResponseAudioBotNodeDetailResponse;
   "deleteAudioBotNode": Models.SimpleResponse;
   "deleteAudioBotPlaylist": Models.SimpleResponse;
+  "unassignRecord": Models.SimpleResponse;
+  "unassignRecord_1": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
 }

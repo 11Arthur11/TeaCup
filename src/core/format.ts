@@ -104,6 +104,14 @@ const enumLabels: Record<string, string> = {
   AQAYE_PARDAKHT: 'آقای پرداخت',
   IRT: 'تومان',
 
+  // DNS provider and zone lifecycle
+  CONNECTED: 'متصل',
+  API_KEY_REJECTED: 'کلید API رد شده',
+  SERVER_ERROR: 'خطای Provider',
+  UNKNOWN: 'نامشخص',
+  CREATING: 'در حال ساخت',
+  DELETING: 'در حال حذف',
+
   // Provisioning strategies
   BALANCED: 'متعادل',
   BIN_PACKING: 'تجمیع ظرفیت',
@@ -136,6 +144,9 @@ const enumTones: Record<string, BadgeTone> = {
   DISPATCHED: 'success',
   ROUND_ROBIN: 'success',
   BALANCED: 'info',
+  CONNECTED: 'success',
+  CREATING: 'info',
+  DELETING: 'warning',
 
   // Transitional / attention
   PENDING: 'warning',
@@ -159,12 +170,15 @@ const enumTones: Record<string, BadgeTone> = {
   DEBIT: 'danger',
   UNREACHABLE: 'danger',
   LOGIN_FAILED: 'danger',
+  API_KEY_REJECTED: 'danger',
+  SERVER_ERROR: 'danger',
 
   // Intentionally disabled / informational
   DISABLED: 'neutral',
   ROLE_USER: 'info',
   DATA: 'info',
   NO_DATA: 'neutral',
+  UNKNOWN: 'neutral',
 };
 
 export const translateEnum = (value?: string | null): string => {

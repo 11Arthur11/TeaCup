@@ -7,9 +7,9 @@ Frontend production-oriented، کاملاً فارسی و RTL برای فروش�
 - Landing حرفه‌ای SaaS، responsive و رابط دوتمِ روشن/تیره با هویت آبی یکپارچه
 - OTP login/register مطابق lifecycle کوکی‌محور backend؛ پس از موفقیت login یا register، نشست توسط backend برقرار و سپس پروفایل `/v1/users` برای دریافت نقش enum حساب فراخوانی می‌شود؛ ورودی موبایل در قالب `09xxxxxxxxx` دریافت و هنگام initiate به `+989xxxxxxxxx` تبدیل می‌شود؛ هیچ JWT یا refresh token در storage نگهداری نمی‌شود
 - route protection برای public، authenticated و role-based admin routes؛ هر پاسخ HTTP 403 از API ـ به‌جز logout ـ نشست frontend را خاتمه می‌دهد
-- پنل مشتری: سرویس‌ها، TeaSpeak، AudioBot، Playlist، محصولات، کیف پول، فاکتور و پرداخت، تیکت و پیوست، اعلان‌ها و پروفایل
+- پنل مشتری: سرویس‌ها، TeaSpeak، AudioBot، Playlist، DNS اختصاصی TeaSpeak، محصولات، کیف پول، فاکتور و پرداخت، تیکت و پیوست، اعلان‌ها و پروفایل
 - پنل ادمین با RBAC: `ROLE_ADMIN` دارای دسترسی کامل؛ `ROLE_SUPPORT` فقط داشبورد پشتیبانی، تیکت‌ها و فاکتورها؛ `ROLE_USER` فقط پنل کاربری
-- ۱۲۶ مدل و ۹۲ operation تولیدشده از OpenAPI همگام‌شده با پروفایل نقش‌محور و موجودی کیف پول
+- ۱۳۷ مدل و ۱۰۸ operation تولیدشده از OpenAPI همگام‌شده، شامل قراردادهای DNS کاربر و ادمین
 - toast پیام backend، confirmation dialog، skeleton، empty/error state، pagination و permission-based rendering
 - runtime API configuration بدون rebuild
 
@@ -87,11 +87,13 @@ globalThis.TEACLOUD_API_BASE_URL = 'https://api.example.com';
 
 ## مسیرهای جدید
 
+- `/panel/dns`: فهرست و تخصیص ساب‌دامین‌های TeaSpeak
 - `/panel/finance`: کیف پول، تراکنش‌ها و فاکتورها
 - `/panel/products/:slug`: محصولات یک دسته‌بندی
 - `/admin/resources`: فهرست و فیلتر سرویس‌های همه کاربران
 - `/admin/dns`: فهرست DNS providerها
-- `/admin/dns/liara`: تنظیمات مستقل Liara DNS
+- `/admin/dns/liara`: تنظیمات Liara DNS و مدیریت Zoneها
+- `/admin/dns/liara/zones/:zoneName`: رکوردهای Zone، لینک مالک/سرویس و ReAssign
 - `/admin/monitoring`: صفحه mock وضعیت لحظه‌ای و لاگ ترمینالی زیرساخت
 
 قرارداد پیشنهادی داشبورد در `docs/DASHBOARD_API_CONTRACT.md` مستند شده است.

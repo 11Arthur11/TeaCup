@@ -16,11 +16,11 @@ import { renderAuth } from './pages/auth.js';
 import { renderLanding, renderPublicProducts, renderRules } from './pages/landing.js';
 import {
   renderAccount, renderFinance, renderInvoiceDetail, renderNotifications, renderProducts, renderServiceDetail,
-  renderServices, renderTicketDetail, renderTickets, renderUserDashboard
+  renderServices, renderTicketDetail, renderTickets, renderUserDashboard, renderUserDns
 } from './pages/user.js';
 import {
   renderAdminCategories, renderAdminDashboard, renderAdminDns, renderAdminGateways, renderAdminInvoiceDetail, renderAdminInvoices, renderAdminLiaraDns,
-  renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminLiveStatus, renderAdminTicketDetail,
+  renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminLiveStatus, renderAdminTicketDetail, renderAdminDnsZoneRecords,
   renderAdminTickets, renderAdminUserDetail, renderAdminUsers, renderAdminProducts, renderAudioNodeDetail, renderAudioNodes,
   renderQueryInstanceDetail, renderQueryInstances
 } from './pages/admin.js';
@@ -186,6 +186,7 @@ router
   .register('/panel', authenticated(() => renderUserDashboard()))
   .register('/panel/services', liveAuthenticated(() => renderServices()))
   .register('/panel/services/:id', liveAuthenticated((ctx) => renderServiceDetail(numberParam(ctx, 'id'))))
+  .register('/panel/dns', liveAuthenticated(() => renderUserDns()))
   .register('/panel/products', liveAuthenticated(() => renderProducts()))
   .register('/panel/products/:slug', liveAuthenticated((ctx) => renderProducts(ctx.params.slug ?? '')))
   .register('/panel/finance', liveAuthenticated((ctx) => renderFinance(Number(ctx.query.get('page') ?? 0), ctx.query.get('tab') === 'invoices' ? 'invoices' : 'transactions')))
@@ -215,6 +216,7 @@ router
   .register('/admin/notifications', liveAdminArea('notifications', () => renderAdminNotifications()))
   .register('/admin/dns', adminArea('dns', () => renderAdminDns()))
   .register('/admin/dns/liara', liveAdminArea('dns', () => renderAdminLiaraDns()))
+  .register('/admin/dns/liara/zones/:zoneName', liveAdminArea('dns', (ctx) => renderAdminDnsZoneRecords(ctx.params.zoneName ?? '')))
   .register('/admin/monitoring', liveAdminArea('liveStatus', () => renderAdminLiveStatus()))
   .register('/admin/profile', liveAdminArea('profile', () => renderAccount()))
   .register('/admin/live-status', adminArea('liveStatus', () => { router.navigate('/admin/monitoring', true); }))
