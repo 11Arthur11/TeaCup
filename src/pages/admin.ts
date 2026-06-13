@@ -1442,9 +1442,9 @@ function adminDnsRecordTitle(record: AdminDnsRecord, zoneName: string): string {
 }
 
 function isTeaCloudDnsRecord(record: AdminDnsRecord): boolean {
-  return Object.prototype.hasOwnProperty.call(record, 'assigned')
-    || record.ownerId != null
-    || record.targetResourceId != null;
+  return record.type?.trim().toUpperCase() === 'SRV'
+    && record.ownerId != null
+    && record.targetResourceId != null;
 }
 
 function adminDnsRecordValue(record: AdminDnsRecord): string {
@@ -1565,15 +1565,15 @@ export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void>
     const assignedCount = teaCloudRecords.filter((record) => record.assigned).length;
     const detachedCount = teaCloudRecords.length - assignedCount;
     const recordGroups = `<div class="dns-record-groups">
-      ${adminDnsRecordGroup('رکوردهای TeaCloud', 'رکوردهای SRV ساخته‌شده توسط سیستم؛ رکوردهای جداشده از اینجا ReAssign می‌شوند.', 'hub', teaCloudRecords.length, adminTeaCloudDnsRecordTable(teaCloudRecords, safeZoneName), true)}
-      ${adminDnsRecordGroup('رکوردهای Provider', 'رکوردهای مستقلی که روی Liara وجود دارند و مالک یا سرویس مقصد TeaCloud ندارند.', 'cloud_queue', providerRecords.length, adminProviderDnsRecordTable(providerRecords, safeZoneName), providerRecords.length <= 6)}
+      ${adminDnsRecordGroup('رکوردهای TeaCloud', 'رکوردهای SRV دارای مالک و سرویس مقصد؛ مقدار assigned فقط وضعیت اتصال فعال را مشخص می‌کند.', 'hub', teaCloudRecords.length, adminTeaCloudDnsRecordTable(teaCloudRecords, safeZoneName), true)}
+      ${adminDnsRecordGroup('رکوردهای Provider', 'رکوردهای غیر SRV یا SRVهایی که مالک و سرویس مقصد کامل TeaCloud ندارند.', 'cloud_queue', providerRecords.length, adminProviderDnsRecordTable(providerRecords, safeZoneName), providerRecords.length <= 6)}
     </div>`;
 
     renderAppShell(`${pageHeader(`رکوردهای ${safeZoneName}`, 'رکوردهای TeaCloud و Provider در دو جدول مستقل و قابل جمع‌شدن نمایش داده می‌شوند.', [{ label: 'بازگشت به Zoneها', icon: 'arrow_forward', href: '/admin/dns/liara', variant: 'ghost' }])}
       ${adminSectionMetrics([
         { label: 'کل رکوردها', value: faNumber(records.length), hint: 'دریافت‌شده از Provider', symbol: 'list_alt' },
-        { label: 'رکوردهای TeaCloud', value: faNumber(teaCloudRecords.length), hint: 'رکوردهای دارای وضعیت assigned', symbol: 'hub', tone: 'cyan' },
-        { label: 'متصل به سرویس', value: faNumber(assignedCount), hint: 'دارای مالک و سرویس مقصد', symbol: 'link', tone: 'purple' },
+        { label: 'رکوردهای TeaCloud', value: faNumber(teaCloudRecords.length), hint: 'SRV دارای مالک و سرویس مقصد', symbol: 'hub', tone: 'cyan' },
+        { label: 'اتصال فعال', value: faNumber(assignedCount), hint: 'رکوردهای assigned=true', symbol: 'link', tone: 'purple' },
         { label: 'نیازمند ReAssign', value: faNumber(detachedCount), hint: 'رکورد TeaCloud بدون اتصال فعال', symbol: 'link_off', tone: 'orange' },
       ])}
       ${card('رکوردهای Zone', recordGroups, { icon: 'dns', className: 'dns-records-card' })}`, 'رکوردهای DNS');
