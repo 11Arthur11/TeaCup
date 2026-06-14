@@ -1,5 +1,6 @@
 import { operations, type OperationId, type OperationInputMap, type OperationOutputMap } from './generated-operations.js';
 import { markBackendAvailable, markBackendUnavailable } from '../core/backend-availability.js';
+import { runtimeApiBaseUrl } from '../core/runtime-config.js';
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly payload?: unknown) {
@@ -28,9 +29,7 @@ function reportForbidden(path: string, operationId?: OperationId): void {
   forbiddenHandler?.({ operationId, path });
 }
 
-const API_BASE_URL = (globalThis as typeof globalThis & { TEACLOUD_API_BASE_URL?: string }).TEACLOUD_API_BASE_URL
-  ?? document.querySelector<HTMLMetaElement>('meta[name="api-base-url"]')?.content
-  ?? 'http://localhost:8080';
+const API_BASE_URL = runtimeApiBaseUrl();
 
 const MAX_CONCURRENT_REQUESTS = 6;
 const READ_ONLY_POST_OPERATIONS = new Set<OperationId>(['getAllResources', 'getAudioBotPlaylistDetail']);

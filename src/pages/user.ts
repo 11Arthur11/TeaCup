@@ -2,7 +2,7 @@ import { api, ApiError } from '../api/client.js';
 import { getUserDashboardOverview } from '../api/dashboard.js';
 import { getWalletOverview } from '../api/wallet.js';
 import { getUserProfile } from '../api/user-profile.js';
-import { getUserDnsRecordForResource, getUserDnsRecords, unassignUserDnsRecord } from '../api/dns.js';
+import { getUserDnsRecordForResource, getUserDnsRecords, unassignUserDnsRecord, userDnsRecordId } from '../api/dns.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
@@ -252,7 +252,7 @@ function teaSpeakConnectionEndpoint(resource: TeaSpeakResourceDetail, dnsRecord?
     : `<div class="teaspeak-connection__empty">${icon('lan')}<span><b>اطلاعات اتصال هنوز آماده نیست</b><small>پس از تکمیل استقرار، آدرس و پورت در همین بخش نمایش داده می‌شود.</small></span></div>`;
   const dnsAddress = dnsRecordAddress(dnsRecord);
   const dnsBlock = dnsRecord
-    ? `<div class="teaspeak-dns-connection"><span class="teaspeak-dns-connection__icon">${icon('language')}</span><span><small>DNS اختصاصی سرویس</small><b dir="ltr">${escapeHtml(dnsAddress || '—')}</b></span><div class="teaspeak-dns-connection__actions"><button type="button" class="icon-button" data-copy-connection="${escapeHtml(dnsAddress)}" title="کپی DNS">${icon('content_copy')}</button><button type="button" class="icon-button icon-button--danger" data-dns-unassign="${Number(dnsRecord.id)}" title="قطع اتصال DNS">${icon('link_off')}</button></div></div>`
+    ? `<div class="teaspeak-dns-connection"><span class="teaspeak-dns-connection__icon">${icon('language')}</span><span><small>DNS اختصاصی سرویس</small><b dir="ltr">${escapeHtml(dnsAddress || '—')}</b></span><div class="teaspeak-dns-connection__actions"><button type="button" class="icon-button" data-copy-connection="${escapeHtml(dnsAddress)}" title="کپی DNS">${icon('content_copy')}</button><button type="button" class="icon-button icon-button--danger" data-dns-unassign="${userDnsRecordId(dnsRecord) ?? ''}" title="قطع اتصال DNS">${icon('link_off')}</button></div></div>`
     : `<button type="button" class="teaspeak-dns-add" data-dns-add>${icon('add_link')}<span><b>افزودن DNS اختصاصی</b><small>یک ساب‌دامین فعال را به این TeaSpeak متصل کنید.</small></span>${icon('chevron_left')}</button>`;
   return `<div class="teaspeak-connection teaspeak-connection--inline">${connectionBlock}${dnsBlock}</div>`;
 }
@@ -301,7 +301,10 @@ export async function renderUserDns(): Promise<void> {
           ? `<a data-link class="node-reference-button" href="/panel/services/${resourceId}">${icon('dns')}<span>${escapeHtml(resource?.label || resource?.productName || 'سرویس TeaSpeak')}</span><b>#${faNumber(resourceId)}</b>${icon('open_in_new')}</a>`
           : '<span class="muted">—</span>';
       }},
-      { label: 'عملیات', render: (record) => `<div class="table-actions"><button type="button" class="icon-button icon-button--danger" data-user-dns-unassign="${Number(record.id)}" title="قطع اتصال DNS">${icon('link_off')}</button></div>` },
+      { label: 'عملیات', render: (record) => {
+        const recordId = userDnsRecordId(record);
+        return `<div class="table-actions"><button type="button" class="icon-button icon-button--danger" data-user-dns-unassign="${recordId ?? ''}" title="${recordId ? 'قطع اتصال DNS' : 'شناسه رکورد از سرور دریافت نشده است'}" ${recordId ? '' : 'disabled'}>${icon('link_off')}</button></div>`;
+      } },
     ], records, { emptyTitle: 'DNS اختصاصی ندارید', emptyText: 'برای یکی از سرویس‌های TeaSpeak خود یک ساب‌دامین بسازید.' });
 
     renderAppShell(`${pageHeader('DNS های من', 'مدیریت ساب‌دامین‌های متصل به سرویس‌های TeaSpeak.', [{ label: 'افزودن DNS', icon: 'add_link', id: 'add-user-dns' }])}
@@ -312,10 +315,20 @@ export async function renderUserDns(): Promise<void> {
       ${card('ساب‌دامین‌های متصل', table, { icon: 'language', className: 'user-dns-card' })}`, 'DNS های من');
 
     document.querySelector('#add-user-dns')?.addEventListener('click', () => openDnsAssignmentDialog({ onAssigned: renderUserDns }));
-    qsa<HTMLButtonElement>('[data-user-dns-unassign]').forEach((button) => button.addEventListener('click', () => {
-      const recordId = Number(button.dataset.userDnsUnassign);
+    qsa<HTMLButtonElement>('[data-user-dns-unassign]').forEach((button) => button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const recordId = Number(button.dataset.userDnsUnassign ?? 0);
+      if (!Number.isInteger(recordId) || recordId <= 0) {
+        notify('شناسه رکورد DNS از سرور دریافت نشده است.', 'error');
+        return;
+      }
       confirmDialog('قطع اتصال DNS', 'ساب‌دامین از سرویس TeaSpeak جدا شود؟', 'قطع اتصال', async () => {
-        if (await runAction(() => unassignUserDnsRecord(recordId))) await renderUserDns();
+        const succeeded = await runAction(async () => {
+          await unassignUserDnsRecord(recordId);
+          return true;
+        });
+        if (succeeded) await renderUserDns();
       }, true);
     }));
   } catch (error) {
@@ -383,11 +396,21 @@ function bindTeaSpeakConnection(resource: TeaSpeakResourceDetail, dnsRecord?: Mo
     resource: { id: Number(resource.id), label: resource.label || resource.productName || `سرویس #${resource.id}`, productName: resource.productName, status: resource.resourceStatus },
     onAssigned: () => renderServiceDetail(Number(resource.id)),
   }));
-  document.querySelector<HTMLButtonElement>('[data-dns-unassign]')?.addEventListener('click', () => {
-    const recordId = Number(dnsRecord?.id ?? 0);
-    if (!recordId) return;
+  const unassignButton = document.querySelector<HTMLButtonElement>('[data-dns-unassign]');
+  unassignButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const recordId = Number(unassignButton.dataset.dnsUnassign || userDnsRecordId(dnsRecord) || 0);
+    if (!Number.isInteger(recordId) || recordId <= 0) {
+      notify('شناسه رکورد DNS از سرور دریافت نشده است؛ صفحه را تازه‌سازی کنید.', 'error');
+      return;
+    }
     confirmDialog('قطع اتصال DNS', 'ساب‌دامین از این سرویس TeaSpeak جدا شود؟', 'قطع اتصال', async () => {
-      if (await runAction(() => unassignUserDnsRecord(recordId))) await renderServiceDetail(Number(resource.id));
+      const succeeded = await runAction(async () => {
+        await unassignUserDnsRecord(recordId);
+        return true;
+      });
+      if (succeeded) await renderServiceDetail(Number(resource.id));
     }, true);
   });
   qsa<HTMLButtonElement>('[data-copy-connection]').forEach((button) => button.addEventListener('click', async () => {

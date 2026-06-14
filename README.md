@@ -43,13 +43,22 @@ npm run dev
 
 ## تنظیم API
 
-فایل `public/config.js` در runtime بارگذاری می‌شود:
+فایل `public/config.js` در runtime بارگذاری می‌شود و بعد از Build نیز می‌توان `dist/config.js` را بدون rebuild تغییر داد:
 
 ```js
-globalThis.TEACLOUD_API_BASE_URL = 'https://api.example.com';
+globalThis.TEACLOUD_CONFIG = {
+  apiBaseUrl: 'https://api.example.com',
+  publicFilesBaseUrl: 'https://example.com/public/',
+  publicFiles: {
+    dashboardTour: 'dashboard-tour.json',
+    rules: 'rules.json',
+  },
+};
 ```
 
-برای deployment امن‌تر، frontend و `/v1` را پشت یک reverse proxy هم‌دامنه قرار دهید و مقدار بالا را روی origin همان سایت تنظیم کنید. Backend باید cookie attributes و CORS/credentials را مطابق محیط production پیکربندی کند.
+با تنظیم `publicFilesBaseUrl`، فایل‌های عمومی از مسیر تعیین‌شده خوانده می‌شوند؛ در نمونه بالا درخواست‌ها به `https://example.com/public/dashboard-tour.json` و `https://example.com/public/rules.json` ارسال می‌شوند. مقدار هر فایل می‌تواند URL کامل هم باشد. سرور فایل‌های خارجی باید CORS را برای دامنه Frontend مجاز کند.
+
+متغیر قدیمی `TEACLOUD_API_BASE_URL` همچنان برای سازگاری نسخه‌های قبلی پشتیبانی می‌شود. برای deployment امن‌تر، frontend و `/v1` را پشت یک reverse proxy هم‌دامنه قرار دهید و Backend را از نظر cookie attributes و CORS/credentials مطابق محیط production پیکربندی کنید.
 
 ## معماری
 

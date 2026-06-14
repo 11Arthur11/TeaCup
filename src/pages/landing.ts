@@ -1,5 +1,6 @@
 import { renderPublic, syncBackendAvailabilityUi } from '../ui/layout.js';
 import { apiBaseUrl } from '../api/client.js';
+import { publicFileCandidates } from '../core/runtime-config.js';
 import { getPublicCategories, getPublicProducts, type PublicCatalogCategory, type PublicCatalogProduct } from '../api/public-catalog.js';
 import { probeBackendAvailability } from '../core/backend-availability.js';
 import { brandLogo, escapeHtml, icon, qsa } from '../core/dom.js';
@@ -312,15 +313,37 @@ function isRulesContent(value: unknown): value is RulesContent {
     && Array.isArray(root.items);
 }
 
+
+async function fetchRulesContent(): Promise<RulesContent> {
+  const errors: string[] = [];
+  for (const url of publicFileCandidates('rules', 'rules.json')) {
+    try {
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) {
+        errors.push(`${url}: ${response.status}`);
+        continue;
+      }
+      const raw: unknown = await response.json();
+      if (!isRulesContent(raw)) {
+        errors.push(`${url}: invalid content`);
+        continue;
+      }
+      return raw;
+    } catch (error) {
+      errors.push(`${url}: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+  throw new Error(`Rules content could not be loaded. ${errors.join(' | ')}`);
+}
+
 export async function renderRules(): Promise<void> {
   stopLandingCategoryRotation();
   renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>در حال دریافت قوانین...</h1><p>متن قوانین از فایل قابل‌ویرایش سایت بارگذاری می‌شود.</p></section><section class="rules-page"><div class="skeleton-page"></div></section>`);
   try {
-    const response = await fetch('/content/rules.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Rules content returned ${response.status}`);
-    const raw: unknown = await response.json();
-    if (!isRulesContent(raw)) throw new Error('ساختار فایل قوانین معتبر نیست.');
-    const rules = raw;
+    const rules = await fetchRulesContent();
     renderPublic(`
       <section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} ${escapeHtml(rules.hero.kicker)}</span><h1>${escapeHtml(rules.hero.title)}</h1><p>${escapeHtml(rules.hero.description)}</p></section>
       <section class="rules-page">
@@ -329,7 +352,7 @@ export async function renderRules(): Promise<void> {
       </section>
     `);
   } catch {
-    renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>فایل قوانین در دسترس نیست.</h1><p>فایل <code dir="ltr">public/content/rules.json</code> را بررسی کنید و صفحه را دوباره بارگذاری کنید.</p></section><section class="public-page-cta"><div><h2>امکان نمایش قوانین وجود ندارد</h2><p>ساختار JSON باید شامل hero، summary و items باشد.</p></div><button class="button button--primary" onclick="location.reload()">تلاش دوباره</button></section>`);
+    renderPublic(`<section class="public-page-hero public-page-hero--rules"><span class="tea-kicker">${icon('gavel')} قوانین استفاده</span><h1>فایل قوانین در دسترس نیست.</h1><p>مسیر فایل قوانین را در <code dir="ltr">config.js</code> بررسی کنید و صفحه را دوباره بارگذاری کنید.</p></section><section class="public-page-cta"><div><h2>امکان نمایش قوانین وجود ندارد</h2><p>ساختار JSON باید شامل hero، summary و items باشد.</p></div><button class="button button--primary" onclick="location.reload()">تلاش دوباره</button></section>`);
   }
   void probeBackendAvailability(apiBaseUrl).then(() => syncBackendAvailabilityUi());
 }

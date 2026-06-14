@@ -2,8 +2,9 @@ import { escapeHtml, icon } from "../core/dom.js";
 import { router } from "../core/router.js";
 import { store } from "../core/store.js";
 import { notify } from "../core/toast.js";
+import { publicFileCandidates } from "../core/runtime-config.js";
 
-const CONFIG_PATH = "content/dashboard-tour.json";
+const CONFIG_FILENAME = "dashboard-tour.json";
 const DEFAULT_REGISTRATION_KEY = "teacloud-dashboard-tour-registration-pending";
 const DEFAULT_MANUAL_KEY = "teacloud-dashboard-tour-manual-pending";
 const DEFAULT_COMPLETED_KEY = "teacloud-dashboard-tour-completed-v1";
@@ -222,14 +223,14 @@ function normalizeConfig(value: unknown): TourConfig {
 }
 
 function configCandidates(): string[] {
-  const urls: string[] = [];
+  const urls = publicFileCandidates("dashboardTour", CONFIG_FILENAME);
   const moduleScript = [...document.scripts].find(
     (script) => script.type === "module" && script.src,
   );
-  if (moduleScript?.src)
-    urls.push(new URL(`../${CONFIG_PATH}`, moduleScript.src).href);
-  urls.push(new URL(`/${CONFIG_PATH}`, location.origin).href);
-  urls.push(new URL(`/public/${CONFIG_PATH}`, location.origin).href);
+  if (moduleScript?.src) {
+    urls.push(new URL(`../content/${CONFIG_FILENAME}`, moduleScript.src).href);
+  }
+  urls.push(new URL(`/public/content/${CONFIG_FILENAME}`, location.origin).href);
   return [...new Set(urls)];
 }
 

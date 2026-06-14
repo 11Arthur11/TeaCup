@@ -4,6 +4,16 @@ import type * as Models from './generated-models.js';
 
 export type DnsAvailabilityState = 'available' | 'taken' | 'error';
 
+export function userDnsRecordId(record: Models.DnsRecordUserResponse | undefined): number | undefined {
+  if (!record) return undefined;
+  const raw = record as Models.DnsRecordUserResponse & { recordId?: number; dnsRecordId?: number };
+  for (const value of [raw.id, raw.recordId, raw.dnsRecordId]) {
+    const id = Number(value);
+    if (Number.isInteger(id) && id > 0) return id;
+  }
+  return undefined;
+}
+
 export interface AdminDnsRecord {
   id?: number;
   name?: string;
