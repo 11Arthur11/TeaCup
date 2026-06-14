@@ -20,7 +20,7 @@ let publicShellController: AbortController | undefined;
 const userNav: NavItem[] = [
   { label: 'داشبورد نمای کلی', href: '/panel', icon: 'dashboard' },
   { label: 'سرویس‌های من', href: '/panel/services', icon: 'dns' },
-  { label: 'DNSهای من', href: '/panel/dns', icon: 'language' },
+  { label: 'DNS های من', href: '/panel/dns', icon: 'language' },
   { label: 'محصولات', href: '/panel/products', icon: 'shopping_bag' },
   { label: 'مالی', href: '/panel/finance', icon: 'account_balance_wallet' },
   { label: 'پشتیبانی', href: '/panel/tickets', icon: 'support_agent' },

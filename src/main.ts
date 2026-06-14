@@ -2,6 +2,7 @@ import { fetchSessionProfile } from './api/session-profile.js';
 import { hasActiveAuthSession } from './api/auth-session.js';
 import { primeProductCategoryNavigation } from './api/catalog.js';
 import { ApiError, setForbiddenHandler, setNetworkFailureHandler } from './api/client.js';
+import { stopLiveLogStream } from './api/live-logs.js';
 import { canAccessAdminArea, hasAdminPanelAccess, type AdminArea } from './core/authorization.js';
 import { openDialog } from './core/dialog.js';
 import { appRoot, escapeHtml, icon } from './core/dom.js';
@@ -177,7 +178,7 @@ function renderFatal(error: unknown): void {
 }
 
 router
-  .setBeforeResolve(() => { store.set({ sidebarOpen: false }); document.querySelector('.app-shell')?.classList.remove('app-shell--sidebar-open'); pageRefresh.stop(); beginRouteLoading(); })
+  .setBeforeResolve(() => { store.set({ sidebarOpen: false }); document.querySelector('.app-shell')?.classList.remove('app-shell--sidebar-open'); stopLiveLogStream(); pageRefresh.stop(); beginRouteLoading(); })
   .setAfterResolve(() => finishRouteLoading())
   .register('/', () => renderLanding())
   .register('/products', () => renderPublicProducts())
@@ -217,7 +218,7 @@ router
   .register('/admin/dns', adminArea('dns', () => renderAdminDns()))
   .register('/admin/dns/liara', liveAdminArea('dns', () => renderAdminLiaraDns()))
   .register('/admin/dns/liara/zones/:zoneName', liveAdminArea('dns', (ctx) => renderAdminDnsZoneRecords(ctx.params.zoneName ?? '')))
-  .register('/admin/monitoring', liveAdminArea('liveStatus', () => renderAdminLiveStatus()))
+  .register('/admin/monitoring', adminArea('liveStatus', () => renderAdminLiveStatus()))
   .register('/admin/profile', liveAdminArea('profile', () => renderAccount()))
   .register('/admin/live-status', adminArea('liveStatus', () => { router.navigate('/admin/monitoring', true); }))
   .setFallback(() => renderNotFound());

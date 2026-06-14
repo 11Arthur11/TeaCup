@@ -1,66 +1,50 @@
-# قرارداد پیشنهادی وضعیت لحظه‌ای سرویس
+# قرارداد لاگ زنده backend
 
-صفحه `/admin/live-status` فعلاً فقط از داده mock استفاده می‌کند و هیچ درخواست backend ندارد.
+صفحه ادمین `/admin/monitoring` از Polling یا داده Mock استفاده نمی‌کند. لاگ‌ها مستقیماً با WebSocket و پروتکل STOMP دریافت می‌شوند.
 
-## Snapshot اولیه
+## اتصال
 
-```http
-GET /v1/admin/system/live-status
+آدرس WebSocket از همان Base URL API ساخته می‌شود:
+
+```text
+http://localhost:8080  -> ws://localhost:8080/ws
+https://api.example.ir -> wss://api.example.ir/ws
 ```
+
+مقصد Subscription:
+
+```text
+/topic/logs
+```
+
+کلاینت با STOMP 1.2 متصل می‌شود، heartbeat را مدیریت می‌کند و در صورت قطع ارتباط هر ۵ ثانیه دوباره تلاش می‌کند. هنگام خروج از صفحه مانیتورینگ، Subscription و WebSocket بسته می‌شوند.
+
+## مدل پیام
 
 ```json
 {
-  "success": true,
-  "type": "DATA",
-  "data": {
-    "generatedAt": "2026-07-25T18:30:00Z",
-    "overallStatus": "OPERATIONAL",
-    "metrics": {
-      "activeResources": 128,
-      "deployingResources": 3,
-      "queryNodesOnline": 4,
-      "audioNodesOnline": 6
-    },
-    "components": [
-      {
-        "identifier": "API_GATEWAY",
-        "status": "ONLINE",
-        "latencyMs": 42,
-        "detail": "پاسخ‌گویی پایدار"
-      }
-    ],
-    "latestEventCursor": "evt_01923"
-  }
-}
-```
-
-## جریان لاگ لحظه‌ای
-
-SSE برای این مورد ساده‌تر و مناسب‌تر از polling پنج‌ثانیه‌ای است:
-
-```http
-GET /v1/admin/system/events?cursor=evt_01923
-Accept: text/event-stream
-```
-
-هر event:
-
-```json
-{
-  "id": "evt_01924",
-  "timestamp": "2026-07-25T18:30:02Z",
+  "logger": "dev.parhamziaei.teahub.service.ResourceService",
   "level": "INFO",
-  "source": "query-dispatcher",
-  "message": "heartbeat accepted from query-node-04",
-  "resourceId": null,
-  "nodeId": 4
+  "message": "resource #1842 transitioned to ACTIVE",
+  "thread": "kafka-listener-1",
+  "timestamp": "2026-08-02T17:42:30.615Z"
 }
 ```
 
-مقادیر پیشنهادی enum:
+فیلدها:
 
-- `overallStatus`: `OPERATIONAL`, `DEGRADED`, `MAINTENANCE`, `OUTAGE`
-- `component.status`: `ONLINE`, `DEGRADED`, `OFFLINE`, `UNKNOWN`
-- `event.level`: `DEBUG`, `INFO`, `SUCCESS`, `WARN`, `ERROR`, `CRITICAL`
+- `logger`: نام Logger تولیدکننده پیام
+- `level`: سطح لاگ، مانند `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`
+- `message`: متن لاگ
+- `thread`: Thread اجراکننده
+- `timestamp`: زمان ISO-8601
 
-پیام log نباید credential، token، password، API key یا اطلاعات حساس کاربر را دربر بگیرد.
+## رفتار رابط کاربری
+
+- حداکثر ۵۰۰ پیام آخر در DOM نگهداری می‌شود تا حافظه کنترل شود.
+- اگر کاربر نزدیک انتهای خروجی باشد، با پیام جدید Auto-scroll انجام می‌شود.
+- اگر کاربر برای خواندن لاگ‌های قدیمی بالا رفته باشد، موقعیت اسکرول او تغییر نمی‌کند.
+- وضعیت اتصال، اتصال مجدد و خطای STOMP در Toolbar نشان داده می‌شود.
+- صفحه مانیتورینگ Refresh پنج‌ثانیه‌ای ندارد؛ WebSocket تنها منبع داده آن است.
+
+پیام‌های backend نباید credential، JWT، password، API key، کد OTP یا داده حساس کاربر را دربر بگیرند.

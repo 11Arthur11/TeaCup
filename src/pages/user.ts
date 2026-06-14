@@ -283,7 +283,7 @@ function serviceLabelEditor(resource: TeaSpeakResourceDetail): string {
 }
 
 export async function renderUserDns(): Promise<void> {
-  renderAppShell(loadingPage(), 'DNSهای من');
+  renderAppShell(loadingPage(), 'DNS های من');
   try {
     const [records, resourcesResponse] = await Promise.all([
       getUserDnsRecords(),
@@ -304,12 +304,12 @@ export async function renderUserDns(): Promise<void> {
       { label: 'عملیات', render: (record) => `<div class="table-actions"><button type="button" class="icon-button icon-button--danger" data-user-dns-unassign="${Number(record.id)}" title="قطع اتصال DNS">${icon('link_off')}</button></div>` },
     ], records, { emptyTitle: 'DNS اختصاصی ندارید', emptyText: 'برای یکی از سرویس‌های TeaSpeak خود یک ساب‌دامین بسازید.' });
 
-    renderAppShell(`${pageHeader('DNSهای من', 'مدیریت ساب‌دامین‌های متصل به سرویس‌های TeaSpeak.', [{ label: 'افزودن DNS', icon: 'add_link', id: 'add-user-dns' }])}
+    renderAppShell(`${pageHeader('DNS های من', 'مدیریت ساب‌دامین‌های متصل به سرویس‌های TeaSpeak.', [{ label: 'افزودن DNS', icon: 'add_link', id: 'add-user-dns' }])}
       <div class="admin-section-metrics">
         <article class="admin-section-metric"><span>${icon('language')}</span><div><small>DNSهای فعال</small><b>${faNumber(records.length)}</b><em>ساب‌دامین متصل</em></div></article>
         <article class="admin-section-metric admin-section-metric--cyan"><span>${icon('dns')}</span><div><small>TeaSpeakهای قابل انتخاب</small><b>${faNumber(resources.length)}</b><em>فقط سرویس‌های TeaSpeak</em></div></article>
       </div>
-      ${card('ساب‌دامین‌های متصل', table, { icon: 'language', className: 'user-dns-card' })}`, 'DNSهای من');
+      ${card('ساب‌دامین‌های متصل', table, { icon: 'language', className: 'user-dns-card' })}`, 'DNS های من');
 
     document.querySelector('#add-user-dns')?.addEventListener('click', () => openDnsAssignmentDialog({ onAssigned: renderUserDns }));
     qsa<HTMLButtonElement>('[data-user-dns-unassign]').forEach((button) => button.addEventListener('click', () => {
@@ -319,7 +319,7 @@ export async function renderUserDns(): Promise<void> {
       }, true);
     }));
   } catch (error) {
-    renderAppShell(`${pageHeader('DNSهای من', 'مدیریت ساب‌دامین‌ها')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'DNSهای من');
+    renderAppShell(`${pageHeader('DNS های من', 'مدیریت ساب‌دامین‌ها')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'DNS های من');
   }
 }
 
@@ -850,6 +850,6 @@ export async function renderAccount(): Promise<void> {
   renderAppShell(loadingPage(), 'حساب کاربری');
   try { const profile=await getUserProfile({ force: true }); renderAppShell(`${pageHeader('حساب کاربری','اطلاعات هویتی و وضعیت حساب شما.')}
     <div class="profile-grid"><section class="profile-card"><div class="profile-cover"></div><div class="profile-avatar">${icon('person')}</div><h2>${escapeHtml(`${profile.firstName??''} ${profile.lastName??''}`.trim()||'کاربر ابر چایی')}</h2><p dir="ltr">${escapeHtml(profile.phone)}</p>${badge(profile.role)}<div class="profile-stats"><div><span>عضویت</span><b>${faDateShort(profile.createdAt)}</b></div><div><span>آخرین ورود</span><b>${faDateShort(profile.lastLogin)}</b></div></div></section>
-    ${card('اطلاعات حساب',`<div class="form-grid readonly-form">${field('firstName','نام',{value:profile.firstName})}${field('lastName','نام خانوادگی',{value:profile.lastName})}${field('phone','شماره موبایل',{value:profile.phone,dir:'ltr'})}${field('email','ایمیل',{value:profile.email,dir:'ltr'})}</div><div class="account-status"><div>${icon(profile.online?'online_prediction':'wifi_off')}<span><b>وضعیت اتصال</b><small>${profile.online?'اکنون آنلاین هستید':'در حال حاضر آفلاین هستید'}</small></span>${badge(profile.online?'ONLINE':'OFFLINE')}</div><div>${icon(profile.emailVerified?'verified':'mark_email_unread')}<span><b>وضعیت ایمیل</b><small>${profile.emailVerified?'ایمیل تأیید شده است':'ایمیل هنوز تأیید نشده است'}</small></span>${badge(profile.emailVerified?'ACTIVE':'PENDING')}</div><div>${icon('security')}<span><b>سطح دسترسی</b><small>بر اساس هویت دریافت‌شده از backend</small></span><strong>${escapeHtml(translateEnum(profile.role))}</strong></div></div>`,{icon:'manage_accounts'})}</div>`,'حساب کاربری'); qsa<HTMLInputElement>('.readonly-form input').forEach(input=>input.readOnly=true); }
+    ${card('اطلاعات حساب',`<div class="form-grid readonly-form">${field('firstName','نام',{value:profile.firstName})}${field('lastName','نام خانوادگی',{value:profile.lastName})}${field('phone','شماره موبایل',{value:profile.phone,dir:'ltr'})}${field('email','ایمیل',{value:profile.email,dir:'ltr'})}</div><div class="account-status"><div>${icon(profile.online?'online_prediction':'wifi_off')}<span><b>وضعیت اتصال</b><small>${profile.online?'اکنون آنلاین هستید':'در حال حاضر آفلاین هستید'}</small></span>${badge(profile.online?'ONLINE':'OFFLINE')}</div><div>${icon(profile.emailVerified?'verified':'mark_email_unread')}<span><b>وضعیت ایمیل</b><small>${profile.emailVerified?'ایمیل تأیید شده است':'ایمیل هنوز تأیید نشده است'}</small></span>${badge(profile.emailVerified?'ACTIVE':'PENDING')}</div></div>`,{icon:'manage_accounts'})}</div>`,'حساب کاربری'); qsa<HTMLInputElement>('.readonly-form input').forEach(input=>input.readOnly=true); }
   catch(error){renderAppShell(`${pageHeader('حساب کاربری','اطلاعات پروفایل')}${errorNotice(error instanceof ApiError?error.message:undefined)}`,'حساب کاربری');}
 }

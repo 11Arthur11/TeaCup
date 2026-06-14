@@ -1,5 +1,5 @@
 import { api, ApiError } from '../api/client.js';
-import { getMockLiveServiceStatus } from '../api/live-status.js';
+import { liveLogDestination, liveLogEndpoint, startLiveLogStream, type LiveLogConnectionState, type LiveLogEvent } from '../api/live-logs.js';
 import { getAdminDashboardOverview, invalidateAdminDashboardOverview, type PeriodComparison, type ProvisionStrategy, type WalletFlowComparisons } from '../api/admin-dashboard.js';
 import { getAdminZoneRecords, reassignAdminDnsRecord, toggleAdminDnsZone, unassignAdminDnsRecord, type AdminDnsRecord } from '../api/dns.js';
 import { contentOf, dataOf, pageOf } from '../api/data.js';
@@ -1466,8 +1466,30 @@ function adminDnsRecordValueCell(record: AdminDnsRecord): string {
   return `<span class="dns-record-value-cell"><code class="dns-record-value" dir="ltr">${escapeHtml(adminDnsRecordValue(record))}</code>${meta ? `<small dir="ltr">${escapeHtml(meta)}</small>` : ''}</span>`;
 }
 
-function adminDnsRecordGroup(title: string, description: string, symbol: string, count: number, table: string, open = false): string {
-  return `<details class="dns-record-group" ${open ? 'open' : ''}>
+type DnsRecordGroupKey = 'teacloud' | 'provider';
+interface DnsRecordGroupState { teacloud: boolean; provider: boolean; }
+const dnsRecordGroupOpenState = new Map<string, DnsRecordGroupState>();
+
+function dnsRecordGroupState(zoneName: string, providerDefaultOpen: boolean): DnsRecordGroupState {
+  const key = zoneName.trim().toLowerCase();
+  const existing = dnsRecordGroupOpenState.get(key);
+  if (existing) return existing;
+  const initial = { teacloud: true, provider: providerDefaultOpen };
+  dnsRecordGroupOpenState.set(key, initial);
+  return initial;
+}
+
+function bindDnsRecordGroupState(zoneName: string): void {
+  const state = dnsRecordGroupState(zoneName, false);
+  qsa<HTMLDetailsElement>('[data-dns-record-group]').forEach((details) => {
+    const key = details.dataset.dnsRecordGroup as DnsRecordGroupKey | undefined;
+    if (!key) return;
+    details.addEventListener('toggle', () => { state[key] = details.open; });
+  });
+}
+
+function adminDnsRecordGroup(key: DnsRecordGroupKey, title: string, description: string, symbol: string, count: number, table: string, open = false): string {
+  return `<details class="dns-record-group" data-dns-record-group="${key}" ${open ? 'open' : ''}>
     <summary>
       <span class="dns-record-group__icon">${icon(symbol)}</span>
       <span class="dns-record-group__copy"><b>${escapeHtml(title)}</b><small>${escapeHtml(description)}</small></span>
@@ -1532,7 +1554,7 @@ export async function renderAdminLiaraDns(): Promise<void> {
       <div class="detail-grid"><div class="detail-main">
         ${card('DNS Zoneها', zoneTable, { icon: 'language', className: 'dns-zone-card' })}
       </div><aside>
-        ${card('پیکربندی Provider', `<form id="dns-form" class="form-grid">${field('baseUrl', 'Base URL', { value: provider?.baseUrl, required: true, dir: 'ltr' })}${field('apiKey', 'API Key', { type: 'password', required: true, dir: 'ltr' })}<button class="button button--primary button--block">${icon('save')} ذخیره تنظیمات</button>${toggleField('active', 'Provider فعال باشد؟', provider?.active ?? false)}</form><div class="provider-state"><span>وضعیت اتصال</span>${badge(provider?.status)}</div>`, { icon: 'dns' })}
+        ${card('پیکربندی Liara', `<form id="dns-form" class="form-grid">${field('baseUrl', 'Base URL', { value: provider?.baseUrl, required: true, dir: 'ltr' })}${field('apiKey', 'API Key', { type: 'password', required: true, dir: 'ltr' })}<button class="button button--primary button--block">${icon('save')} ذخیره تنظیمات</button>${toggleField('active', 'فعال باشد؟', provider?.active ?? false)}</form><div class="provider-state"><span>وضعیت اتصال</span>${badge(provider?.status)}</div>`, { icon: 'dns' })}
       </aside></div>`, 'DNS لیارا');
 
     qs<HTMLFormElement>('#dns-form').addEventListener('submit', async (event) => {
@@ -1564,9 +1586,10 @@ export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void>
     const providerRecords = records.filter((record) => !isTeaCloudDnsRecord(record));
     const assignedCount = teaCloudRecords.filter((record) => record.assigned).length;
     const detachedCount = teaCloudRecords.length - assignedCount;
-    const recordGroups = `<div class="dns-record-groups">
-      ${adminDnsRecordGroup('رکوردهای TeaCloud', 'رکوردهای SRV دارای مالک و سرویس مقصد؛ مقدار assigned فقط وضعیت اتصال فعال را مشخص می‌کند.', 'hub', teaCloudRecords.length, adminTeaCloudDnsRecordTable(teaCloudRecords, safeZoneName), true)}
-      ${adminDnsRecordGroup('رکوردهای Provider', 'رکوردهای غیر SRV یا SRVهایی که مالک و سرویس مقصد کامل TeaCloud ندارند.', 'cloud_queue', providerRecords.length, adminProviderDnsRecordTable(providerRecords, safeZoneName), providerRecords.length <= 6)}
+    const groupState = dnsRecordGroupState(safeZoneName, providerRecords.length <= 6);
+    const recordGroups = `<div class="dns-record-groups" data-dns-zone="${escapeHtml(safeZoneName)}">
+      ${adminDnsRecordGroup('teacloud', 'رکوردهای TeaCloud', 'رکوردهای SRV دارای مالک و سرویس مقصد؛ مقدار assigned فقط وضعیت اتصال فعال را مشخص می‌کند.', 'hub', teaCloudRecords.length, adminTeaCloudDnsRecordTable(teaCloudRecords, safeZoneName), groupState.teacloud)}
+      ${adminDnsRecordGroup('provider', 'رکوردهای Provider', 'رکوردهای غیر SRV یا SRVهایی که مالک و سرویس مقصد کامل TeaCloud ندارند.', 'cloud_queue', providerRecords.length, adminProviderDnsRecordTable(providerRecords, safeZoneName), groupState.provider)}
     </div>`;
 
     renderAppShell(`${pageHeader(`رکوردهای ${safeZoneName}`, 'رکوردهای TeaCloud و Provider در دو جدول مستقل و قابل جمع‌شدن نمایش داده می‌شوند.', [{ label: 'بازگشت به Zoneها', icon: 'arrow_forward', href: '/admin/dns/liara', variant: 'ghost' }])}
@@ -1577,6 +1600,8 @@ export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void>
         { label: 'نیازمند ReAssign', value: faNumber(detachedCount), hint: 'رکورد TeaCloud بدون اتصال فعال', symbol: 'link_off', tone: 'orange' },
       ])}
       ${card('رکوردهای Zone', recordGroups, { icon: 'dns', className: 'dns-records-card' })}`, 'رکوردهای DNS');
+
+    bindDnsRecordGroupState(safeZoneName);
 
     qsa<HTMLButtonElement>('[data-dns-reassign]').forEach((button) => button.addEventListener('click', () => {
       const recordId = Number(button.dataset.dnsReassign);
@@ -1596,13 +1621,98 @@ export async function renderAdminDnsZoneRecords(zoneName: string): Promise<void>
   }
 }
 
-export async function renderAdminLiveStatus(): Promise<void> {
-  const snapshot = getMockLiveServiceStatus();
-  const logRows = snapshot.logs.map((entry) => `<div class="backend-log__line backend-log__line--${entry.level.toLowerCase()}">
-    <time>${escapeHtml(entry.timestamp)}</time><span>${escapeHtml(entry.level)}</span><b>${escapeHtml(entry.source)}</b><code>${escapeHtml(entry.message)}</code>
-  </div>`).join('');
+function liveLogTone(level: string): string {
+  const normalized = level.trim().toUpperCase();
+  if (normalized === 'ERROR' || normalized === 'FATAL' || normalized === 'CRITICAL') return 'error';
+  if (normalized === 'WARN' || normalized === 'WARNING') return 'warn';
+  if (normalized === 'SUCCESS') return 'success';
+  if (normalized === 'DEBUG' || normalized === 'TRACE') return 'debug';
+  return 'info';
+}
 
-  renderAppShell(`${pageHeader('مانیتورینگ', 'نمایش آزمایشی لاگ‌های مهم backend؛ داده‌های این صفحه فعلاً mock هستند.')}
-    ${card('لاگ لحظه‌ای backend', `<div class="backend-log-toolbar"><div>${icon('sensors')}<span><b>جریان لاگ آزمایشی</b><small dir="ltr">${escapeHtml(snapshot.streamLabel)}</small></span></div><time>آخرین بروزرسانی: ${faDate(snapshot.generatedAt)}</time></div><div class="backend-log" role="log" aria-label="لاگ لحظه‌ای backend">${logRows}</div>`, { icon: 'terminal', className: 'monitoring-log-card' })}
+function liveLogClock(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp || '—';
+  return new Intl.DateTimeFormat('fa-IR', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(date);
+}
+
+function liveLogStateView(state: LiveLogConnectionState): { label: string; tone: string } {
+  switch (state) {
+    case 'connected': return { label: 'متصل', tone: 'success' };
+    case 'connecting': return { label: 'در حال اتصال', tone: 'info' };
+    case 'reconnecting': return { label: 'اتصال مجدد', tone: 'warning' };
+    case 'error': return { label: 'خطای اتصال', tone: 'danger' };
+    default: return { label: 'قطع', tone: 'neutral' };
+  }
+}
+
+function liveLogRow(event: LiveLogEvent): string {
+  const tone = liveLogTone(event.level);
+  return `<div class="backend-log__line backend-log__line--${tone}" data-live-log-entry>
+    <time title="${escapeHtml(event.timestamp)}">${escapeHtml(liveLogClock(event.timestamp))}</time>
+    <span>${escapeHtml(event.level)}</span>
+    <b title="${escapeHtml(event.logger)}">${escapeHtml(event.logger)}</b>
+    <em title="${escapeHtml(event.thread)}">${escapeHtml(event.thread)}</em>
+    <code>${escapeHtml(event.message)}</code>
+  </div>`;
+}
+
+export async function renderAdminLiveStatus(): Promise<void> {
+  const endpoint = liveLogEndpoint();
+  renderAppShell(`${pageHeader('مانیتورینگ', 'نمایش مستقیم لاگ‌های backend از WebSocket و پروتکل STOMP؛ این صفحه Polling نمی‌شود.')}
+    ${card('لاگ لحظه‌ای backend', `<div class="backend-log-toolbar">
+      <div>${icon('sensors')}<span><b>جریان زنده STOMP</b><small dir="ltr">${escapeHtml(endpoint)} → ${escapeHtml(liveLogDestination)}</small></span></div>
+      <aside class="backend-log-toolbar__meta">
+        <span class="backend-log-connection backend-log-connection--info" data-live-log-state><i></i><b>در حال اتصال</b></span>
+        <small data-live-log-detail>در انتظار برقراری ارتباط</small>
+        <time data-live-log-updated>هنوز لاگی دریافت نشده</time>
+        <button type="button" class="icon-button" data-live-log-clear title="پاک‌کردن خروجی">${icon('delete_sweep')}</button>
+      </aside>
+    </div>
+    <div class="backend-log" data-live-log-output data-preserve-scroll="admin-live-logs" role="log" aria-live="polite" aria-label="لاگ لحظه‌ای backend">
+      <div class="backend-log__empty" data-live-log-empty>${icon('hourglass_top')}<span>در انتظار اولین پیام از backend…</span></div>
+    </div>`, { icon: 'terminal', className: 'monitoring-log-card' })}
   `, 'مانیتورینگ');
+
+  const output = qs<HTMLElement>('[data-live-log-output]');
+  const stateElement = qs<HTMLElement>('[data-live-log-state]');
+  const stateLabel = qs<HTMLElement>('[data-live-log-state] b');
+  const detailElement = qs<HTMLElement>('[data-live-log-detail]');
+  const updatedElement = qs<HTMLElement>('[data-live-log-updated]');
+  const clearButton = qs<HTMLButtonElement>('[data-live-log-clear]');
+  const maxEntries = 500;
+
+  const updateState = (state: LiveLogConnectionState, detail?: string): void => {
+    const view = liveLogStateView(state);
+    stateElement.className = `backend-log-connection backend-log-connection--${view.tone}`;
+    stateLabel.textContent = view.label;
+    detailElement.textContent = detail || (state === 'connected' ? 'اشتراک /topic/logs فعال است' : 'WebSocket به‌صورت خودکار دوباره تلاش می‌کند');
+  };
+
+  const appendLog = (event: LiveLogEvent): void => {
+    const nearBottom = output.scrollHeight - output.scrollTop - output.clientHeight < 90;
+    output.querySelector('[data-live-log-empty]')?.remove();
+    output.insertAdjacentHTML('beforeend', liveLogRow(event));
+    while (output.querySelectorAll('[data-live-log-entry]').length > maxEntries) {
+      output.querySelector('[data-live-log-entry]')?.remove();
+    }
+    updatedElement.textContent = `آخرین پیام: ${liveLogClock(event.timestamp)}`;
+    if (nearBottom) output.scrollTop = output.scrollHeight;
+  };
+
+  clearButton.addEventListener('click', () => {
+    output.innerHTML = `<div class="backend-log__empty" data-live-log-empty>${icon('playlist_remove')}<span>خروجی پاک شد؛ پیام‌های جدید اینجا نمایش داده می‌شوند.</span></div>`;
+    updatedElement.textContent = 'هنوز لاگ جدیدی دریافت نشده';
+  });
+
+  startLiveLogStream({
+    onLog: appendLog,
+    onState: updateState,
+    onProtocolError: (message) => {
+      console.warn('[TeaCloud live logs]', message);
+      detailElement.textContent = message;
+    },
+  });
 }

@@ -23,7 +23,7 @@ function availabilityMarkup(state: AvailabilityUiState, zoneName = ''): string {
   switch (state) {
     case 'waiting': return `${icon('schedule')}<span>پس از توقف تایپ، آزادبودن نام بررسی می‌شود.</span>`;
     case 'checking': return '<span class="spinner spinner--small"></span><span>در حال بررسی آزادبودن ساب‌دامین...</span>';
-    case 'available': return `${icon('check_circle')}<span>این ساب‌دامین آزاد است و می‌توانید آن را ثبت کنید.${zoneName ? ` <b dir="ltr">.${escapeHtml(zoneName)}</b>` : ''}</span>`;
+    case 'available': return `${icon('check_circle')}<span>این ساب‌دامین آزاد است و می‌توانید آن را ثبت کنید</span>`;
     case 'taken': return `${icon('cancel')}<span>این نام قبلاً ثبت شده است؛ نام دیگری انتخاب کنید.</span>`;
     case 'invalid': return `${icon('info')}<span>فقط حروف انگلیسی کوچک، عدد و خط تیره مجاز است؛ خط تیره نباید ابتدا، انتها یا پشت‌سرهم باشد.</span>`;
     case 'error': return `${icon('warning')}<span>بررسی نام انجام نشد. دوباره تایپ کنید یا چند لحظه بعد تلاش کنید.</span>`;
