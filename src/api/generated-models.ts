@@ -267,7 +267,7 @@ export interface WalletTransactionFilterRequest {
   size?: number;
   relatedResourceId?: number;
   transactionType?: "CREDIT" | "DEBIT";
-  transactionReason?: "PROLONG" | "PURCHASE" | "WALLET_CHARGE";
+  transactionReason?: "PROLONG" | "PURCHASE" | "REFUND" | "WALLET_CHARGE";
   fromCreatedAt?: string;
   toCreatedAt?: string;
 }
@@ -520,6 +520,7 @@ export interface InvoiceUserResponse {
   createdAt?: string;
   paidAt?: string;
   status?: "PAID" | "CANCELLED" | "PENDING";
+  taxPercentage?: number;
 }
 
 export interface PagedModelInvoiceUserResponse {
@@ -907,6 +908,7 @@ export interface InvoiceAdminResponse {
   paidAt?: string;
   status?: "PAID" | "CANCELLED" | "PENDING";
   paymentTransaction?: PaymentTransactionDetailResponse;
+  taxPercentage?: number;
 }
 
 export interface PagedModelInvoiceAdminResponse {
@@ -1096,4 +1098,43 @@ export interface DataResponseListDnsRecordAdminResponse {
   success?: boolean;
   type?: string;
   data?: Array<DnsRecordAdminResponse>;
+}
+
+export interface ApplicationSettingDto {
+  invoiceProperties?: InvoiceProperties;
+  productPeriodSettings?: ProductPeriodSettings;
+}
+
+/** DataResponse, the type of responses with data only */
+export interface DataResponseApplicationSettingDto {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: ApplicationSettingDto;
+}
+
+/** DetailedDataResponse, the type of responses with data and message */
+export interface DetailedDataResponseApplicationSettingDto {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: ApplicationSettingDto;
+  message?: string;
+}
+
+export interface InvoiceProperties {
+  minimumWalletChargeAmountIrt?: number;
+  taxPercentage?: number;
+}
+
+export interface PeriodDeleteSetting {
+  suspendDeleteAfterSeconds?: number;
+}
+
+export interface ProductPeriodSettings {
+  hourly?: PeriodDeleteSetting;
+  daily?: PeriodDeleteSetting;
+  monthly?: PeriodDeleteSetting;
 }

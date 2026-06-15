@@ -6,6 +6,7 @@ import { getUserDnsRecordForResource, getUserDnsRecords, unassignUserDnsRecord, 
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
+import { calculateInvoicePricing } from '../core/invoice-pricing.js';
 import { confirmDialog, openDialog } from '../core/dialog.js';
 import { brandLogo, escapeHtml, icon, qs, qsa, requiredNumber } from '../core/dom.js';
 import { faDate, faDateShort, faNumber, money, remainingTime, resourceStatusHint, runtimeStatusHint, translateEnum } from '../core/format.js';
@@ -20,6 +21,7 @@ import { renderAppShell } from '../ui/layout.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
+import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js';
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
 import { openDnsAssignmentDialog } from '../ui/dns-assignment.js';
@@ -38,7 +40,7 @@ const resourceKindOf = (resource: UserResourceListItem): ResourceKind => {
   return resource.productName?.toUpperCase().includes('AUDIO') ? 'AUDIO_BOT' : 'TEASPEAK';
 };
 interface InvoiceDetailDto {
-  invoiceToken?: string; token?: string; status?: string; money?: Models.Money; amount?: Models.Money | number;
+  invoiceToken?: string; token?: string; status?: string; money?: Models.Money; amount?: Models.Money | number; taxPercentage?: number;
   description?: string; createdAt?: string; paidAt?: string; ownerId?: number; paymentTransaction?: Models.PaymentTransactionDetailResponse;
   items?: Array<{ title?: string; description?: string; amount?: Models.Money }>;
 }
@@ -61,7 +63,7 @@ interface FinanceFilters {
 }
 
 const transactionTypes = new Set<TransactionTypeFilter>(['CREDIT', 'DEBIT']);
-const transactionReasons = new Set<TransactionReasonFilter>(['PROLONG', 'PURCHASE', 'WALLET_CHARGE']);
+const transactionReasons = new Set<TransactionReasonFilter>(['PROLONG', 'PURCHASE', 'REFUND', 'WALLET_CHARGE']);
 
 function readFinanceFilters(params = new URLSearchParams(location.search)): FinanceFilters {
   const type = params.get('transactionType') as TransactionTypeFilter | null;
@@ -612,7 +614,7 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
 
     const financeFilterToolbar = tab === 'transactions' ? `<form id="finance-filter-form" class="finance-filter-toolbar" aria-label="فیلتر تراکنش‌های کیف پول">
       <label><span>نوع</span><select name="transactionType"><option value="" ${!filters.transactionType ? 'selected' : ''}>همه</option><option value="CREDIT" ${filters.transactionType === 'CREDIT' ? 'selected' : ''}>افزایش</option><option value="DEBIT" ${filters.transactionType === 'DEBIT' ? 'selected' : ''}>کاهش</option></select></label>
-      <label><span>دلیل</span><select name="transactionReason"><option value="" ${!filters.transactionReason ? 'selected' : ''}>همه</option><option value="PROLONG" ${filters.transactionReason === 'PROLONG' ? 'selected' : ''}>تمدید</option><option value="PURCHASE" ${filters.transactionReason === 'PURCHASE' ? 'selected' : ''}>خرید</option><option value="WALLET_CHARGE" ${filters.transactionReason === 'WALLET_CHARGE' ? 'selected' : ''}>شارژ</option></select></label>
+      <label><span>دلیل</span><select name="transactionReason"><option value="" ${!filters.transactionReason ? 'selected' : ''}>همه</option><option value="PROLONG" ${filters.transactionReason === 'PROLONG' ? 'selected' : ''}>تمدید</option><option value="PURCHASE" ${filters.transactionReason === 'PURCHASE' ? 'selected' : ''}>خرید</option><option value="REFUND" ${filters.transactionReason === 'REFUND' ? 'selected' : ''}>بازگشت وجه</option><option value="WALLET_CHARGE" ${filters.transactionReason === 'WALLET_CHARGE' ? 'selected' : ''}>شارژ</option></select></label>
       <label class="finance-filter-toolbar__date"><span>از</span><input name="fromCreatedAt" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(filters.fromCreatedAt))}" /></label>
       <label class="finance-filter-toolbar__date"><span>تا</span><input name="toCreatedAt" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(filters.toCreatedAt))}" /></label>
       <button type="submit" class="icon-button" aria-label="اعمال فیلتر" title="اعمال فیلتر">${icon('filter_alt')}</button>
@@ -623,7 +625,7 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
       ? transactionRows(transactions) + pagination(transactionMeta.number, transactionMeta.totalPages)
       : dataTable<Models.InvoiceUserResponse>([
           { label: 'شناسه فاکتور', render: (row) => invoiceTokenView(row.invoiceToken, `/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
-          { label: 'مبلغ', render: (row) => `<b>${money(row.money)}</b>` },
+          { label: 'قابل پرداخت', render: (row) => invoiceAmountCell(row.money, row.taxPercentage) },
           { label: 'وضعیت', render: (row) => badge(row.status) },
           { label: 'تاریخ ایجاد', render: (row) => faDate(row.createdAt) },
           { label: '', render: (row) => `<a data-link class="button button--ghost button--small" href="/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}">جزئیات</a>` },
@@ -706,7 +708,7 @@ export async function renderInvoices(page = 0): Promise<void> {
     renderAppShell(`${pageHeader('صورت‌حساب‌ها', 'مشاهده وضعیت، جزئیات و پرداخت فاکتورهای حساب.')}
       <div class="filter-bar"><div class="segmented"><a data-link class="${!status ? 'active' : ''}" href="/panel/invoices">همه</a><a data-link class="${status === 'PENDING' ? 'active' : ''}" href="/panel/invoices?status=PENDING">در انتظار</a><a data-link class="${status === 'PAID' ? 'active' : ''}" href="/panel/invoices?status=PAID">پرداخت‌شده</a><a data-link class="${status === 'CANCELLED' ? 'active' : ''}" href="/panel/invoices?status=CANCELLED">لغوشده</a></div></div>
       ${card('فهرست صورت‌حساب‌ها', dataTable<Models.InvoiceUserResponse>([
-        { label: 'شناسه فاکتور', render: (row) => invoiceTokenView(row.invoiceToken, `/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) }, { label: 'مبلغ', render: (row) => `<b>${money(row.money)}</b>` },
+        { label: 'شناسه فاکتور', render: (row) => invoiceTokenView(row.invoiceToken, `/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) }, { label: 'قابل پرداخت', render: (row) => invoiceAmountCell(row.money, row.taxPercentage) },
         { label: 'وضعیت', render: (row) => badge(row.status) }, { label: 'تاریخ ایجاد', render: (row) => faDate(row.createdAt) }, { label: 'پرداخت', render: (row) => faDate(row.paidAt) },
         { label: '', render: (row) => `<a data-link class="button button--ghost button--small" href="/panel/invoices/${encodeURIComponent(row.invoiceToken ?? '')}">جزئیات</a>` }
       ], invoices) + pagination(meta.number, meta.totalPages), { icon: 'receipt_long' })}`, 'صورت‌حساب‌ها');
@@ -739,11 +741,12 @@ export async function renderInvoiceDetail(invoiceToken: string): Promise<void> {
     const invoice = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as InvoiceDetailDto;
     const gateways = invoice.status === 'PENDING' ? dataOf(await api.call('getAllGateways', {})) ?? [] : [];
     const amount = typeof invoice.amount === 'number' ? { amount: invoice.amount, currency: 'IRT' as const } : invoice.amount ?? invoice.money;
+    const pricing = calculateInvoicePricing(amount, invoice.taxPercentage);
     renderAppShell(`${pageHeader('جزئیات صورت‌حساب', `شناسه: ${invoiceToken}`, [{label:'بازگشت',icon:'arrow_forward',href:'/panel/finance?tab=invoices',variant:'ghost'}])}
-      <div class="invoice-layout"><section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(invoiceToken)}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item)=>`<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}<footer><span>مبلغ قابل پرداخت</span><strong>${money(amount)}</strong></footer></section>
+      <div class="invoice-layout"><section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب</span><h2>${escapeHtml(invoice.description || 'خدمات ابر چایی')}</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(invoiceToken)}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoice.items?.length ? `<div class="invoice-items">${invoice.items.map((item)=>`<div><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.description)}</small></span><strong>${money(item.amount)}</strong></div>`).join('')}</div>` : ''}${invoiceTaxBreakdown(amount, invoice.taxPercentage)}<footer><span>مبلغ قابل پرداخت</span><strong>${money(pricing.total)}</strong></footer></section>
       <aside>${invoice.status === 'PENDING' ? card('پرداخت آنلاین', `<p class="muted">در گاه پرداخت خود را انتخاب کنید. لطفا هنگام انتقال به درگاه شکیبا باشید.</p><div class="gateway-list">${gateways.map((gateway) => `<label><input type="radio" name="gateway" value="${gateway.id}"/><span>${icon('account_balance')}<b>${escapeHtml(gateway.name)}</b></span></label>`).join('') || '<p>درگاه فعالی وجود ندارد.</p>'}</div><button id="pay-invoice" class="button button--primary button--block" ${gateways.length ? '' : 'disabled'}>${icon('payments')} پرداخت صورت‌حساب</button>`, {icon:'lock'}) : card('وضعیت پرداخت', `<div class="payment-result">${icon(invoice.status === 'PAID' ? 'verified' : 'cancel')}<h3>${translateEnum(invoice.status)}</h3><p>${invoice.status === 'PAID' ? 'پرداخت این فاکتور با موفقیت ثبت شده است.' : 'این فاکتور قابل پرداخت نیست.'}</p></div>`, {icon:'receipt'})}</aside></div>`, 'جزئیات فاکتور');
     bindInvoiceTokenCopies();
-    showPaymentRedirectResult(invoiceToken, new URLSearchParams(location.search).get('result'), amount);
+    showPaymentRedirectResult(invoiceToken, new URLSearchParams(location.search).get('result'), pricing.total);
     document.querySelector('#pay-invoice')?.addEventListener('click', async () => {
       const selected = document.querySelector<HTMLInputElement>('input[name="gateway"]:checked'); if (!selected) return notify('یک درگاه پرداخت انتخاب کنید.', 'warning');
       const response = await runAction(() => api.call('payInvoice', { query: { invoiceToken, gatewayId: Number(selected.value) } }), { silentSuccess: true });

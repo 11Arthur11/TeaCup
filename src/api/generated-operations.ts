@@ -111,6 +111,8 @@ export const operations = {
   "unassignRecord_1": { method: "DELETE", path: "/v1/admin/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
+  "getSettings": { method: "GET", path: "/v1/admin/app-settings", bodyKind: null, responseKind: "json" },
+  "setSettings": { method: "POST", path: "/v1/admin/app-settings", bodyKind: "json", responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -552,6 +554,10 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
+  "getSettings": Record<string, never>;
+  "setSettings": {
+    body: Models.ApplicationSettingDto;
+  };
 }
 
 export interface OperationOutputMap {
@@ -669,6 +675,8 @@ export interface OperationOutputMap {
   "unassignRecord_1": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
+  "getSettings": Models.DataResponseApplicationSettingDto;
+  "setSettings": Models.DetailedDataResponseApplicationSettingDto;
 }
 
 export interface OperationMeta {

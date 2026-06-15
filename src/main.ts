@@ -21,7 +21,7 @@ import {
 } from './pages/user.js';
 import {
   renderAdminCategories, renderAdminDashboard, renderAdminDns, renderAdminGateways, renderAdminInvoiceDetail, renderAdminInvoices, renderAdminLiaraDns,
-  renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminLiveStatus, renderAdminTicketDetail, renderAdminDnsZoneRecords,
+  renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminSystem, renderAdminTicketDetail, renderAdminDnsZoneRecords,
   renderAdminTickets, renderAdminUserDetail, renderAdminUsers, renderAdminProducts, renderAudioNodeDetail, renderAudioNodes,
   renderQueryInstanceDetail, renderQueryInstances
 } from './pages/admin.js';
@@ -218,9 +218,10 @@ router
   .register('/admin/dns', adminArea('dns', () => renderAdminDns()))
   .register('/admin/dns/liara', liveAdminArea('dns', () => renderAdminLiaraDns()))
   .register('/admin/dns/liara/zones/:zoneName', liveAdminArea('dns', (ctx) => renderAdminDnsZoneRecords(ctx.params.zoneName ?? '')))
-  .register('/admin/monitoring', adminArea('liveStatus', () => renderAdminLiveStatus()))
+  .register('/admin/system', adminArea('liveStatus', () => renderAdminSystem()))
   .register('/admin/profile', liveAdminArea('profile', () => renderAccount()))
-  .register('/admin/live-status', adminArea('liveStatus', () => { router.navigate('/admin/monitoring', true); }))
+  .register('/admin/monitoring', adminArea('liveStatus', () => { router.navigate('/admin/system', true); }))
+  .register('/admin/live-status', adminArea('liveStatus', () => { router.navigate('/admin/system', true); }))
   .setFallback(() => renderNotFound());
 
 window.addEventListener('unhandledrejection', (event) => {

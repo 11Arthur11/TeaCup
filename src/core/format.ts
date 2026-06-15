@@ -89,6 +89,7 @@ const enumLabels: Record<string, string> = {
   DEBIT: 'کاهش موجودی',
   PROLONG: 'تمدید',
   PURCHASE: 'خرید',
+  REFUND: 'بازگشت وجه',
   WALLET_CHARGE: 'شارژ کیف پول',
 
   // Products and resources

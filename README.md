@@ -103,7 +103,7 @@ globalThis.TEACLOUD_CONFIG = {
 - `/admin/dns`: فهرست DNS providerها
 - `/admin/dns/liara`: تنظیمات Liara DNS و مدیریت Zoneها
 - `/admin/dns/liara/zones/:zoneName`: رکوردهای Zone، لینک مالک/سرویس و ReAssign
-- `/admin/monitoring`: صفحه mock وضعیت لحظه‌ای و لاگ ترمینالی زیرساخت
+- `/admin/system`: تنظیمات عمومی برنامه و لاگ زنده زیرساخت از WebSocket/STOMP
 
 قرارداد پیشنهادی داشبورد در `docs/DASHBOARD_API_CONTRACT.md` مستند شده است.
 
@@ -151,7 +151,7 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - دوره سرویس با enum `ProductPeriod` در فهرست منابع کاربر و مدیریت نمایش داده می‌شود.
 - تاریخ انقضا همراه با زمان باقی‌مانده محاسبه‌شده در frontend نمایش داده می‌شود.
 - جزئیات TeaSpeak از `address` و `port` برای ساخت و کپی رشته اتصال استفاده می‌کند.
-- صفحه «مانیتورینگ» فعلاً فقط یک log viewer آزمایشی دارد و متریک دیگری دریافت یا نمایش نمی‌دهد.
+- صفحه «سیستم» تنظیمات عمومی برنامه را از `/v1/admin/app-settings` مدیریت می‌کند و لاگ زنده Backend را نیز نمایش می‌دهد.
 
 
 ### همگام‌سازی OpenAPI 0.1.2
@@ -189,7 +189,7 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - تم پیش‌فرض تیره است و کاربر می‌تواند از هدر عمومی، Topbar یا سایدبار موبایل به تم روشن تغییر دهد.
 - انتخاب تم در `localStorage` با کلید `teacloud-theme` ذخیره می‌شود؛ این مقدار فقط ترجیح ظاهری است و در احراز هویت نقشی ندارد.
 - تم روشن همچنان هویت آبی TeaCloud را حفظ می‌کند و کارت‌ها، جدول‌ها، فرم‌ها، دیالوگ‌ها، Toastها، صفحات عمومی، داشبوردها و Product Editor را پوشش می‌دهد.
-- مانیتورینگ و log viewer عمداً در هر دو تم تیره باقی مانده‌اند تا خوانایی متن‌های ترمینالی حفظ شود.
+- بخش لاگ زنده در صفحه سیستم عمداً در هر دو تم تیره باقی مانده است تا خوانایی متن‌های ترمینالی حفظ شود.
 
 ## Dashboard tour and persisted theme
 

@@ -40,7 +40,7 @@ const adminNav: NavItem[] = [
   { label: 'نودهای ربات موزیک', href: '/admin/audio-nodes', icon: 'headphones', area: 'audioNodes' },
   { label: 'اعلان‌های عمومی', href: '/admin/notifications', icon: 'campaign', area: 'notifications' },
   { label: 'تنظیمات DNS', href: '/admin/dns', icon: 'language', area: 'dns' },
-  { label: 'مانیتورینگ', href: '/admin/monitoring', icon: 'monitor_heart', area: 'liveStatus' },
+  { label: 'سیستم', href: '/admin/system', icon: 'settings_suggest', area: 'liveStatus' },
   { label: 'پروفایل', href: '/admin/profile', icon: 'manage_accounts', area: 'profile' },
 ];
 

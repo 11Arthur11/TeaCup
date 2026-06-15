@@ -5,6 +5,7 @@ import { getAdminZoneRecords, reassignAdminDnsRecord, toggleAdminDnsZone, unassi
 import { contentOf, dataOf, pageOf } from '../api/data.js';
 import type * as Models from '../api/generated-models.js';
 import { runAction } from '../core/action.js';
+import { calculateInvoicePricing } from '../core/invoice-pricing.js';
 import { canAccessAdminArea } from '../core/authorization.js';
 import { confirmDialog, openDialog } from '../core/dialog.js';
 import { brandLogo, escapeHtml, icon, qs, qsa, requiredNumber } from '../core/dom.js';
@@ -18,6 +19,7 @@ import { openUserPicker } from '../ui/user-picker.js';
 import { bindFileSelection } from '../ui/file-selection.js';
 import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
+import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js';
 import { createProductPresentationEditor } from '../ui/product-presentation.js';
 
 interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
@@ -1029,7 +1031,7 @@ function openPaymentTransactionDialog(invoice: Models.InvoiceAdminResponse): voi
   openDialog({
     title: 'اطلاعات تراکنش درگاه',
     description: invoice.invoiceToken ? `تراکنش فاکتور ${invoice.invoiceToken}` : 'جزئیات ثبت‌شده توسط درگاه پرداخت',
-    content: paymentTransactionContent(invoice.paymentTransaction, invoice.money),
+    content: paymentTransactionContent(invoice.paymentTransaction, calculateInvoicePricing(invoice.money, invoice.taxPercentage).total),
     compact: true,
     hideFooter: true,
   });
@@ -1081,7 +1083,7 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
       ${card('فاکتورها', dataTable<Models.InvoiceAdminResponse>([
         { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, `/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
         { label: 'کاربر', render: (row) => adminUserReference(row.ownerId) },
-        { label: 'مبلغ', render: (row) => money(row.money) },
+        { label: 'قابل پرداخت', render: (row) => invoiceAmountCell(row.money, row.taxPercentage) },
         { label: 'وضعیت', render: (row) => badge(row.status) },
         { label: 'ایجاد', render: (row) => faDate(row.createdAt) },
         { label: 'پرداخت', render: (row) => faDate(row.paidAt) },
@@ -1163,10 +1165,11 @@ export async function renderAdminInvoiceDetail(invoiceToken: string): Promise<vo
   }
 
   const token = invoice.invoiceToken || invoiceToken;
+  const pricing = calculateInvoicePricing(invoice.money, invoice.taxPercentage);
   renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
     <div class="invoice-layout admin-invoice-detail">
-      <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>فاکتور خدمات TeaCloud</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl><footer><span>مبلغ فاکتور</span><strong>${money(invoice.money)}</strong></footer></section>
-      <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(invoice.paymentTransaction, invoice.money), { icon: 'account_balance' })}</aside>
+      <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>فاکتور خدمات TeaCloud</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoiceTaxBreakdown(invoice.money, invoice.taxPercentage)}<footer><span>مبلغ قابل پرداخت</span><strong>${money(pricing.total)}</strong></footer></section>
+      <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>درصد مالیات</dt><dd>${faNumber(pricing.taxPercentage)}٪</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(invoice.paymentTransaction, pricing.total), { icon: 'account_balance' })}</aside>
     </div>`, 'جزئیات فاکتور');
   bindInvoiceTokenCopies();
 }
@@ -1659,9 +1662,116 @@ function liveLogRow(event: LiveLogEvent): string {
   </div>`;
 }
 
-export async function renderAdminLiveStatus(): Promise<void> {
+interface NullableInvoiceSettingsUpdate {
+  minimumWalletChargeAmountIrt: number | null;
+  taxPercentage: number | null;
+}
+
+interface NullablePeriodDeleteUpdate {
+  suspendDeleteAfterSeconds: number | null;
+}
+
+interface NullableProductPeriodSettingsUpdate {
+  hourly: NullablePeriodDeleteUpdate | null;
+  daily: NullablePeriodDeleteUpdate | null;
+  monthly: NullablePeriodDeleteUpdate | null;
+}
+
+interface ApplicationSettingsUpdatePayload {
+  invoiceProperties: NullableInvoiceSettingsUpdate | null;
+  productPeriodSettings: NullableProductPeriodSettingsUpdate | null;
+}
+
+function safeSettingNumber(value: unknown): number {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+}
+
+function systemSettingField(name: string, label: string, value: number, hint: string, options: { max?: number; suffix?: string } = {}): string {
+  return `<label class="system-setting-field"><span>${escapeHtml(label)}</span><div><input name="${escapeHtml(name)}" type="number" min="0" ${options.max == null ? '' : `max="${options.max}"`} step="1" value="${value}" required /><em>${escapeHtml(options.suffix ?? '')}</em></div><small>${escapeHtml(hint)}</small></label>`;
+}
+
+function applicationSettingsForm(settings: Models.ApplicationSettingDto): string {
+  const minimumWalletCharge = safeSettingNumber(settings.invoiceProperties?.minimumWalletChargeAmountIrt);
+  const taxPercentage = safeSettingNumber(settings.invoiceProperties?.taxPercentage);
+  const hourlyDelete = safeSettingNumber(settings.productPeriodSettings?.hourly?.suspendDeleteAfterSeconds);
+  const dailyDelete = safeSettingNumber(settings.productPeriodSettings?.daily?.suspendDeleteAfterSeconds);
+  const monthlyDelete = safeSettingNumber(settings.productPeriodSettings?.monthly?.suspendDeleteAfterSeconds);
+
+  return `<form id="app-settings-form" class="system-settings-form">
+    <section class="system-settings-group">
+      <header><span>${icon('receipt_long')}</span><div><h3>تنظیمات مالی</h3><p>محدودیت شارژ کیف پول و درصد مالیات فاکتورها.</p></div></header>
+      <div class="system-settings-fields">
+        ${systemSettingField('minimumWalletChargeAmountIrt', 'حداقل مبلغ شارژ کیف پول', minimumWalletCharge, 'کمترین مبلغ مجاز برای ایجاد فاکتور شارژ کیف پول.', { suffix: 'تومان' })}
+        ${systemSettingField('taxPercentage', 'درصد مالیات فاکتور', taxPercentage, 'عدد ۹ به معنای مالیات ۹ درصدی است.', { max: 100, suffix: '٪' })}
+      </div>
+    </section>
+    <section class="system-settings-group">
+      <header><span>${icon('timer')}</span><div><h3>حذف سرویس‌های تعلیق‌شده</h3><p>زمان نگهداری Resource بعد از Suspend بر اساس دوره محصول.</p></div></header>
+      <div class="system-settings-fields system-settings-fields--three">
+        ${systemSettingField('hourlySuspendDeleteAfterSeconds', 'دوره ساعتی', hourlyDelete, 'فاصله Suspend تا حذف برای محصولات ساعتی.', { suffix: 'ثانیه' })}
+        ${systemSettingField('dailySuspendDeleteAfterSeconds', 'دوره روزانه', dailyDelete, 'فاصله Suspend تا حذف برای محصولات روزانه.', { suffix: 'ثانیه' })}
+        ${systemSettingField('monthlySuspendDeleteAfterSeconds', 'دوره ماهانه', monthlyDelete, 'فاصله Suspend تا حذف برای محصولات ماهانه.', { suffix: 'ثانیه' })}
+      </div>
+    </section>
+    <footer class="system-settings-actions"><p>${icon('difference')} فقط فیلدهای تغییرکرده ارسال می‌شوند و سایر مقادیر در Payload برابر <code>null</code> خواهند بود.</p><button type="submit" class="button button--primary" data-save-app-settings disabled>${icon('save')} ذخیره تنظیمات</button></footer>
+  </form>`;
+}
+
+function readApplicationSettingsPayload(form: HTMLFormElement, original: Models.ApplicationSettingDto): ApplicationSettingsUpdatePayload | undefined {
+  const values = new FormData(form);
+  const current = {
+    minimumWalletChargeAmountIrt: safeSettingNumber(values.get('minimumWalletChargeAmountIrt')),
+    taxPercentage: safeSettingNumber(values.get('taxPercentage')),
+    hourlySuspendDeleteAfterSeconds: safeSettingNumber(values.get('hourlySuspendDeleteAfterSeconds')),
+    dailySuspendDeleteAfterSeconds: safeSettingNumber(values.get('dailySuspendDeleteAfterSeconds')),
+    monthlySuspendDeleteAfterSeconds: safeSettingNumber(values.get('monthlySuspendDeleteAfterSeconds')),
+  };
+  const previous = {
+    minimumWalletChargeAmountIrt: safeSettingNumber(original.invoiceProperties?.minimumWalletChargeAmountIrt),
+    taxPercentage: safeSettingNumber(original.invoiceProperties?.taxPercentage),
+    hourlySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.hourly?.suspendDeleteAfterSeconds),
+    dailySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.daily?.suspendDeleteAfterSeconds),
+    monthlySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.monthly?.suspendDeleteAfterSeconds),
+  };
+
+  const minimumChanged = current.minimumWalletChargeAmountIrt !== previous.minimumWalletChargeAmountIrt;
+  const taxChanged = current.taxPercentage !== previous.taxPercentage;
+  const hourlyChanged = current.hourlySuspendDeleteAfterSeconds !== previous.hourlySuspendDeleteAfterSeconds;
+  const dailyChanged = current.dailySuspendDeleteAfterSeconds !== previous.dailySuspendDeleteAfterSeconds;
+  const monthlyChanged = current.monthlySuspendDeleteAfterSeconds !== previous.monthlySuspendDeleteAfterSeconds;
+  if (!minimumChanged && !taxChanged && !hourlyChanged && !dailyChanged && !monthlyChanged) return undefined;
+
+  return {
+    invoiceProperties: minimumChanged || taxChanged ? {
+      minimumWalletChargeAmountIrt: minimumChanged ? current.minimumWalletChargeAmountIrt : null,
+      taxPercentage: taxChanged ? current.taxPercentage : null,
+    } : null,
+    productPeriodSettings: hourlyChanged || dailyChanged || monthlyChanged ? {
+      hourly: hourlyChanged ? { suspendDeleteAfterSeconds: current.hourlySuspendDeleteAfterSeconds } : null,
+      daily: dailyChanged ? { suspendDeleteAfterSeconds: current.dailySuspendDeleteAfterSeconds } : null,
+      monthly: monthlyChanged ? { suspendDeleteAfterSeconds: current.monthlySuspendDeleteAfterSeconds } : null,
+    } : null,
+  };
+}
+
+export async function renderAdminSystem(): Promise<void> {
+  renderAppShell(loadingPage(), 'سیستم');
+  let settings: Models.ApplicationSettingDto | undefined;
+  let settingsError: unknown;
+  try {
+    settings = dataOf(await api.call('getSettings', {}));
+  } catch (error) {
+    settingsError = error;
+  }
+
   const endpoint = liveLogEndpoint();
-  renderAppShell(`${pageHeader('مانیتورینگ', 'نمایش مستقیم لاگ‌های backend از WebSocket و پروتکل STOMP؛ این صفحه Polling نمی‌شود.')}
+  const settingsContent = settings
+    ? applicationSettingsForm(settings)
+    : `<div class="system-settings-error">${adminError(settingsError)}</div>`;
+
+  renderAppShell(`${pageHeader('سیستم', 'تنظیمات عمومی برنامه و مانیتورینگ زنده Backend از یک بخش واحد.')}
+    ${card('تنظیمات برنامه', settingsContent, { icon: 'settings_suggest', className: 'system-settings-card' })}
     ${card('لاگ لحظه‌ای backend', `<div class="backend-log-toolbar">
       <div>${icon('sensors')}<span><b>جریان زنده STOMP</b><small dir="ltr">${escapeHtml(endpoint)} → ${escapeHtml(liveLogDestination)}</small></span></div>
       <aside class="backend-log-toolbar__meta">
@@ -1674,7 +1784,30 @@ export async function renderAdminLiveStatus(): Promise<void> {
     <div class="backend-log" data-live-log-output data-preserve-scroll="admin-live-logs" role="log" aria-live="polite" aria-label="لاگ لحظه‌ای backend">
       <div class="backend-log__empty" data-live-log-empty>${icon('hourglass_top')}<span>در انتظار اولین پیام از backend…</span></div>
     </div>`, { icon: 'terminal', className: 'monitoring-log-card' })}
-  `, 'مانیتورینگ');
+  `, 'سیستم');
+
+  if (settings) {
+    const form = qs<HTMLFormElement>('#app-settings-form');
+    const saveButton = qs<HTMLButtonElement>('[data-save-app-settings]', form);
+    const syncDirtyState = (): void => {
+      saveButton.disabled = !form.checkValidity() || !readApplicationSettingsPayload(form, settings);
+    };
+    form.addEventListener('input', syncDirtyState);
+    form.addEventListener('change', syncDirtyState);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const payload = readApplicationSettingsPayload(form, settings);
+      if (!payload) {
+        notify('هیچ تغییری برای ذخیره‌سازی وجود ندارد.', 'info');
+        return;
+      }
+      const response = await runAction(() => api.call('setSettings', {
+        body: payload as unknown as Models.ApplicationSettingDto,
+      }));
+      if (response) await renderAdminSystem();
+    });
+  }
 
   const output = qs<HTMLElement>('[data-live-log-output]');
   const stateElement = qs<HTMLElement>('[data-live-log-state]');
