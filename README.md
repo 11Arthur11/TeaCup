@@ -200,3 +200,10 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - The tour starts only after a `REGISTER_SUCCESS` response and a successful render of `/panel`.
 - The user can restart it through the guide control above the user sidebar footer.
 - Sidebar tour targets are addressed by their visual order through `sidebar-index`, so tour order/text can be updated without changing TypeScript.
+
+## ویرایش زمان تنظیمات سیستم
+
+- فرم Application Settings در صفحه `/admin/system` به‌صورت پیش‌فرض بسته و قابل باز/بسته‌شدن است.
+- زمان حذف سرویس‌های تعلیق‌شده برای دوره‌های ساعتی، روزانه و ماهانه در dialog مستقل و با واحد ثانیه، دقیقه، ساعت یا روز ویرایش می‌شود.
+- frontend مقدار انتخابی را پیش از ارسال به میلی‌ثانیه تبدیل می‌کند. نام property فعلی OpenAPI همچنان `suspendDeleteAfterSeconds` است، اما مقدار ارسالی مطابق قرارداد اجرایی backend بر حسب میلی‌ثانیه است.
+- تنظیمات و لاگ زنده داخل یک layout با فاصله ثابت قرار دارند تا کارت‌ها به یکدیگر نچسبند.

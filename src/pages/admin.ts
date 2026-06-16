@@ -1668,6 +1668,7 @@ interface NullableInvoiceSettingsUpdate {
 }
 
 interface NullablePeriodDeleteUpdate {
+  /** Backend property name is retained for API compatibility; the submitted value is milliseconds. */
   suspendDeleteAfterSeconds: number | null;
 }
 
@@ -1682,13 +1683,63 @@ interface ApplicationSettingsUpdatePayload {
   productPeriodSettings: NullableProductPeriodSettingsUpdate | null;
 }
 
+type DurationUnit = 'second' | 'minute' | 'hour' | 'day';
+
+const durationUnitMilliseconds: Record<DurationUnit, number> = {
+  second: 1_000,
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+};
+
+const durationUnitLabels: Record<DurationUnit, string> = {
+  second: 'ثانیه',
+  minute: 'دقیقه',
+  hour: 'ساعت',
+  day: 'روز',
+};
+
 function safeSettingNumber(value: unknown): number {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
 }
 
+function formatDurationValue(value: number): string {
+  return new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value);
+}
+
+function durationPresentation(milliseconds: number): { value: number; unit: DurationUnit } {
+  const safeMilliseconds = safeSettingNumber(milliseconds);
+  const units: DurationUnit[] = ['day', 'hour', 'minute', 'second'];
+  const unit = units.find((candidate) => safeMilliseconds >= durationUnitMilliseconds[candidate]) ?? 'second';
+  return {
+    value: safeMilliseconds / durationUnitMilliseconds[unit],
+    unit,
+  };
+}
+
+function durationDisplay(milliseconds: number): string {
+  const presentation = durationPresentation(milliseconds);
+  return `${formatDurationValue(presentation.value)} ${durationUnitLabels[presentation.unit]}`;
+}
+
 function systemSettingField(name: string, label: string, value: number, hint: string, options: { max?: number; suffix?: string } = {}): string {
   return `<label class="system-setting-field"><span>${escapeHtml(label)}</span><div><input name="${escapeHtml(name)}" type="number" min="0" ${options.max == null ? '' : `max="${options.max}"`} step="1" value="${value}" required /><em>${escapeHtml(options.suffix ?? '')}</em></div><small>${escapeHtml(hint)}</small></label>`;
+}
+
+function systemDurationSettingField(name: string, label: string, milliseconds: number, hint: string): string {
+  const safeMilliseconds = safeSettingNumber(milliseconds);
+  return `<article class="system-duration-setting" data-duration-setting>
+    <input type="hidden" name="${escapeHtml(name)}" value="${safeMilliseconds}" data-duration-value />
+    <span class="system-duration-setting__icon">${icon('timer')}</span>
+    <div class="system-duration-setting__copy">
+      <small>${escapeHtml(label)}</small>
+      <b data-duration-display>${escapeHtml(durationDisplay(safeMilliseconds))}</b>
+      <em data-duration-milliseconds>${faNumber(safeMilliseconds)} میلی‌ثانیه</em>
+      <p>${escapeHtml(hint)}</p>
+    </div>
+    <button type="button" class="button button--ghost button--small" data-edit-duration data-duration-input="${escapeHtml(name)}" data-duration-label="${escapeHtml(label)}">${icon('edit')} ویرایش زمان</button>
+  </article>`;
 }
 
 function applicationSettingsForm(settings: Models.ApplicationSettingDto): string {
@@ -1707,15 +1758,102 @@ function applicationSettingsForm(settings: Models.ApplicationSettingDto): string
       </div>
     </section>
     <section class="system-settings-group">
-      <header><span>${icon('timer')}</span><div><h3>حذف سرویس‌های تعلیق‌شده</h3><p>زمان نگهداری Resource بعد از Suspend بر اساس دوره محصول.</p></div></header>
-      <div class="system-settings-fields system-settings-fields--three">
-        ${systemSettingField('hourlySuspendDeleteAfterSeconds', 'دوره ساعتی', hourlyDelete, 'فاصله Suspend تا حذف برای محصولات ساعتی.', { suffix: 'ثانیه' })}
-        ${systemSettingField('dailySuspendDeleteAfterSeconds', 'دوره روزانه', dailyDelete, 'فاصله Suspend تا حذف برای محصولات روزانه.', { suffix: 'ثانیه' })}
-        ${systemSettingField('monthlySuspendDeleteAfterSeconds', 'دوره ماهانه', monthlyDelete, 'فاصله Suspend تا حذف برای محصولات ماهانه.', { suffix: 'ثانیه' })}
+      <header><span>${icon('timer')}</span><div><h3>حذف سرویس‌های تعلیق‌شده</h3><p>زمان نگهداری Resource بعد از Suspend بر اساس دوره محصول. مقدار نهایی به میلی‌ثانیه برای Backend ارسال می‌شود.</p></div></header>
+      <div class="system-duration-settings">
+        ${systemDurationSettingField('hourlySuspendDeleteAfterSeconds', 'دوره ساعتی', hourlyDelete, 'فاصله Suspend تا حذف برای محصولات ساعتی.')}
+        ${systemDurationSettingField('dailySuspendDeleteAfterSeconds', 'دوره روزانه', dailyDelete, 'فاصله Suspend تا حذف برای محصولات روزانه.')}
+        ${systemDurationSettingField('monthlySuspendDeleteAfterSeconds', 'دوره ماهانه', monthlyDelete, 'فاصله Suspend تا حذف برای محصولات ماهانه.')}
       </div>
     </section>
     <footer class="system-settings-actions"><p>${icon('difference')} فقط فیلدهای تغییرکرده ارسال می‌شوند و سایر مقادیر در Payload برابر <code>null</code> خواهند بود.</p><button type="submit" class="button button--primary" data-save-app-settings disabled>${icon('save')} ذخیره تنظیمات</button></footer>
   </form>`;
+}
+
+function applicationSettingsFold(settings: Models.ApplicationSettingDto): string {
+  return `<details class="system-settings-fold" data-system-settings-fold>
+    <summary>
+      <span class="system-settings-fold__icon">${icon('tune')}</span>
+      <span class="system-settings-fold__copy"><b>Application Settings</b><small>تنظیمات مالی و زمان حذف سرویس‌های تعلیق‌شده</small></span>
+      <span class="system-settings-fold__status" data-system-settings-fold-status>برای ویرایش باز کنید</span>
+      <span class="system-settings-fold__chevron">${icon('expand_more')}</span>
+    </summary>
+    <div class="system-settings-fold__body">${applicationSettingsForm(settings)}</div>
+  </details>`;
+}
+
+function openDurationSettingDialog(button: HTMLButtonElement, form: HTMLFormElement): void {
+  const inputName = button.dataset.durationInput ?? '';
+  const hiddenInput = form.elements.namedItem(inputName);
+  if (!(hiddenInput instanceof HTMLInputElement)) {
+    notify('فیلد زمان موردنظر پیدا نشد.', 'error');
+    return;
+  }
+
+  const label = button.dataset.durationLabel || 'زمان حذف سرویس';
+  const currentMilliseconds = safeSettingNumber(hiddenInput.value);
+  const initial = durationPresentation(currentMilliseconds);
+  const editor = document.createElement('form');
+  editor.className = 'duration-editor-form';
+  editor.innerHTML = `<label class="field"><span>مقدار</span><input name="durationValue" type="number" min="0" step="0.01" value="${initial.value}" required inputmode="decimal" /></label>
+    <label class="field"><span>واحد</span><select name="durationUnit" required>
+      ${(Object.keys(durationUnitLabels) as DurationUnit[]).map((unit) => `<option value="${unit}" ${unit === initial.unit ? 'selected' : ''}>${durationUnitLabels[unit]}</option>`).join('')}
+    </select></label>
+    <div class="duration-editor-preview">${icon('calculate')}<span>مقدار ارسالی: <b data-duration-preview>${faNumber(currentMilliseconds)} میلی‌ثانیه</b></span></div>`;
+
+  const valueInput = qs<HTMLInputElement>('[name="durationValue"]', editor);
+  const unitSelect = qs<HTMLSelectElement>('[name="durationUnit"]', editor);
+  const preview = qs<HTMLElement>('[data-duration-preview]', editor);
+  let previousUnit = initial.unit;
+
+  const currentEditorMilliseconds = (): number => {
+    const value = Number(valueInput.value);
+    const unit = unitSelect.value as DurationUnit;
+    if (!Number.isFinite(value) || value < 0 || !(unit in durationUnitMilliseconds)) return Number.NaN;
+    return Math.round(value * durationUnitMilliseconds[unit]);
+  };
+
+  const updatePreview = (): void => {
+    const milliseconds = currentEditorMilliseconds();
+    preview.textContent = Number.isSafeInteger(milliseconds) ? `${faNumber(milliseconds)} میلی‌ثانیه` : 'مقدار نامعتبر';
+  };
+
+  valueInput.addEventListener('input', updatePreview);
+  unitSelect.addEventListener('change', () => {
+    const previousValue = Number(valueInput.value);
+    const nextUnit = unitSelect.value as DurationUnit;
+    if (Number.isFinite(previousValue) && previousValue >= 0 && nextUnit in durationUnitMilliseconds) {
+      const milliseconds = previousValue * durationUnitMilliseconds[previousUnit];
+      const converted = milliseconds / durationUnitMilliseconds[nextUnit];
+      valueInput.value = String(Number(converted.toFixed(4)));
+    }
+    previousUnit = nextUnit;
+    updatePreview();
+  });
+
+  openDialog({
+    title: `ویرایش ${label}`,
+    description: 'واحد دلخواه را انتخاب کنید؛ مقدار قبل از ارسال به میلی‌ثانیه تبدیل می‌شود.',
+    content: editor,
+    compact: true,
+    confirmLabel: 'اعمال زمان',
+    onConfirm: () => {
+      if (!editor.reportValidity()) return false;
+      const milliseconds = currentEditorMilliseconds();
+      if (!Number.isSafeInteger(milliseconds) || milliseconds < 0) {
+        notify('مقدار زمان معتبر نیست.', 'error');
+        return false;
+      }
+      hiddenInput.value = String(milliseconds);
+      const setting = button.closest<HTMLElement>('[data-duration-setting]');
+      const display = setting?.querySelector<HTMLElement>('[data-duration-display]');
+      const millisecondsLabel = setting?.querySelector<HTMLElement>('[data-duration-milliseconds]');
+      if (display) display.textContent = durationDisplay(milliseconds);
+      if (millisecondsLabel) millisecondsLabel.textContent = `${faNumber(milliseconds)} میلی‌ثانیه`;
+      hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+      hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+  });
 }
 
 function readApplicationSettingsPayload(form: HTMLFormElement, original: Models.ApplicationSettingDto): ApplicationSettingsUpdatePayload | undefined {
@@ -1723,23 +1861,23 @@ function readApplicationSettingsPayload(form: HTMLFormElement, original: Models.
   const current = {
     minimumWalletChargeAmountIrt: safeSettingNumber(values.get('minimumWalletChargeAmountIrt')),
     taxPercentage: safeSettingNumber(values.get('taxPercentage')),
-    hourlySuspendDeleteAfterSeconds: safeSettingNumber(values.get('hourlySuspendDeleteAfterSeconds')),
-    dailySuspendDeleteAfterSeconds: safeSettingNumber(values.get('dailySuspendDeleteAfterSeconds')),
-    monthlySuspendDeleteAfterSeconds: safeSettingNumber(values.get('monthlySuspendDeleteAfterSeconds')),
+    hourlySuspendDeleteAfterMilliseconds: safeSettingNumber(values.get('hourlySuspendDeleteAfterSeconds')),
+    dailySuspendDeleteAfterMilliseconds: safeSettingNumber(values.get('dailySuspendDeleteAfterSeconds')),
+    monthlySuspendDeleteAfterMilliseconds: safeSettingNumber(values.get('monthlySuspendDeleteAfterSeconds')),
   };
   const previous = {
     minimumWalletChargeAmountIrt: safeSettingNumber(original.invoiceProperties?.minimumWalletChargeAmountIrt),
     taxPercentage: safeSettingNumber(original.invoiceProperties?.taxPercentage),
-    hourlySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.hourly?.suspendDeleteAfterSeconds),
-    dailySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.daily?.suspendDeleteAfterSeconds),
-    monthlySuspendDeleteAfterSeconds: safeSettingNumber(original.productPeriodSettings?.monthly?.suspendDeleteAfterSeconds),
+    hourlySuspendDeleteAfterMilliseconds: safeSettingNumber(original.productPeriodSettings?.hourly?.suspendDeleteAfterSeconds),
+    dailySuspendDeleteAfterMilliseconds: safeSettingNumber(original.productPeriodSettings?.daily?.suspendDeleteAfterSeconds),
+    monthlySuspendDeleteAfterMilliseconds: safeSettingNumber(original.productPeriodSettings?.monthly?.suspendDeleteAfterSeconds),
   };
 
   const minimumChanged = current.minimumWalletChargeAmountIrt !== previous.minimumWalletChargeAmountIrt;
   const taxChanged = current.taxPercentage !== previous.taxPercentage;
-  const hourlyChanged = current.hourlySuspendDeleteAfterSeconds !== previous.hourlySuspendDeleteAfterSeconds;
-  const dailyChanged = current.dailySuspendDeleteAfterSeconds !== previous.dailySuspendDeleteAfterSeconds;
-  const monthlyChanged = current.monthlySuspendDeleteAfterSeconds !== previous.monthlySuspendDeleteAfterSeconds;
+  const hourlyChanged = current.hourlySuspendDeleteAfterMilliseconds !== previous.hourlySuspendDeleteAfterMilliseconds;
+  const dailyChanged = current.dailySuspendDeleteAfterMilliseconds !== previous.dailySuspendDeleteAfterMilliseconds;
+  const monthlyChanged = current.monthlySuspendDeleteAfterMilliseconds !== previous.monthlySuspendDeleteAfterMilliseconds;
   if (!minimumChanged && !taxChanged && !hourlyChanged && !dailyChanged && !monthlyChanged) return undefined;
 
   return {
@@ -1748,9 +1886,9 @@ function readApplicationSettingsPayload(form: HTMLFormElement, original: Models.
       taxPercentage: taxChanged ? current.taxPercentage : null,
     } : null,
     productPeriodSettings: hourlyChanged || dailyChanged || monthlyChanged ? {
-      hourly: hourlyChanged ? { suspendDeleteAfterSeconds: current.hourlySuspendDeleteAfterSeconds } : null,
-      daily: dailyChanged ? { suspendDeleteAfterSeconds: current.dailySuspendDeleteAfterSeconds } : null,
-      monthly: monthlyChanged ? { suspendDeleteAfterSeconds: current.monthlySuspendDeleteAfterSeconds } : null,
+      hourly: hourlyChanged ? { suspendDeleteAfterSeconds: current.hourlySuspendDeleteAfterMilliseconds } : null,
+      daily: dailyChanged ? { suspendDeleteAfterSeconds: current.dailySuspendDeleteAfterMilliseconds } : null,
+      monthly: monthlyChanged ? { suspendDeleteAfterSeconds: current.monthlySuspendDeleteAfterMilliseconds } : null,
     } : null,
   };
 }
@@ -1767,10 +1905,11 @@ export async function renderAdminSystem(): Promise<void> {
 
   const endpoint = liveLogEndpoint();
   const settingsContent = settings
-    ? applicationSettingsForm(settings)
+    ? applicationSettingsFold(settings)
     : `<div class="system-settings-error">${adminError(settingsError)}</div>`;
 
   renderAppShell(`${pageHeader('سیستم', 'تنظیمات عمومی برنامه و مانیتورینگ زنده Backend از یک بخش واحد.')}
+    <div class="system-page-stack">
     ${card('تنظیمات برنامه', settingsContent, { icon: 'settings_suggest', className: 'system-settings-card' })}
     ${card('لاگ لحظه‌ای backend', `<div class="backend-log-toolbar">
       <div>${icon('sensors')}<span><b>جریان زنده STOMP</b><small dir="ltr">${escapeHtml(endpoint)} → ${escapeHtml(liveLogDestination)}</small></span></div>
@@ -1784,14 +1923,24 @@ export async function renderAdminSystem(): Promise<void> {
     <div class="backend-log" data-live-log-output data-preserve-scroll="admin-live-logs" role="log" aria-live="polite" aria-label="لاگ لحظه‌ای backend">
       <div class="backend-log__empty" data-live-log-empty>${icon('hourglass_top')}<span>در انتظار اولین پیام از backend…</span></div>
     </div>`, { icon: 'terminal', className: 'monitoring-log-card' })}
+    </div>
   `, 'سیستم');
 
   if (settings) {
     const form = qs<HTMLFormElement>('#app-settings-form');
     const saveButton = qs<HTMLButtonElement>('[data-save-app-settings]', form);
+    const fold = qs<HTMLDetailsElement>('[data-system-settings-fold]');
+    const foldStatus = qs<HTMLElement>('[data-system-settings-fold-status]', fold);
     const syncDirtyState = (): void => {
-      saveButton.disabled = !form.checkValidity() || !readApplicationSettingsPayload(form, settings);
+      const dirty = Boolean(readApplicationSettingsPayload(form, settings));
+      saveButton.disabled = !form.checkValidity() || !dirty;
+      fold.classList.toggle('system-settings-fold--dirty', dirty);
+      foldStatus.textContent = dirty ? 'تغییرات ذخیره‌نشده' : fold.open ? 'فرم باز است' : 'برای ویرایش باز کنید';
     };
+    fold.addEventListener('toggle', syncDirtyState);
+    qsa<HTMLButtonElement>('[data-edit-duration]', form).forEach((button) => {
+      button.addEventListener('click', () => openDurationSettingDialog(button, form));
+    });
     form.addEventListener('input', syncDirtyState);
     form.addEventListener('change', syncDirtyState);
     form.addEventListener('submit', async (event) => {
