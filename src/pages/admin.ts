@@ -21,12 +21,13 @@ import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js';
 import { createProductPresentationEditor } from '../ui/product-presentation.js';
+import { openAudioBotPanelAccess } from '../ui/audio-bot-access.js';
 
 interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
 interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
 interface AdminResourceDetailDto extends Models.AbstractResourceDetailResponse {
   address?: string; port?: number; maxClients?: number; teaSpeakStatus?: Models.AbstractResourceDetailResponse['teaSpeakStatus'];
-  botNickname?: string; serverAddress?: string; serverPassword?: string;
+  botNickname?: string; serverAddress?: string; serverPassword?: string; botStatus?: string;
 }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
@@ -456,13 +457,6 @@ function bindAdminConnectionCopy(): void {
   }));
 }
 
-function adminAudioPlaylistCard(playlists: Models.ABPlayListsResponse[]): string {
-  return card('Playlistهای AudioBot', `<div class="playlist-grid">${playlists.map((playlist) => `<article class="playlist-card"><span>${icon('queue_music')}</span><div><b>${escapeHtml(playlist.title || playlist.playlistFilename)}</b><small>${faNumber(playlist.songCount)} قطعه</small></div><button type="button" class="icon-button" data-admin-playlist="${escapeHtml(playlist.playlistFilename)}" title="مدیریت Playlist">${icon('chevron_left')}</button></article>`).join('') || emptyState('Playlist ندارید', 'برای این AudioBot هنوز Playlist ساخته نشده است.')}</div>`, {
-    icon: 'library_music',
-    actions: '<button type="button" id="admin-new-playlist" class="button button--secondary button--small">ساخت Playlist</button>',
-  });
-}
-
 function openAdminResourceEdit(resource: AdminResourceDetailDto, resourceId: number): void {
   const form = document.createElement('form');
   form.className = 'form-grid';
@@ -488,49 +482,6 @@ function openAdminAudioSettings(resource: AdminResourceDetailDto, resourceId: nu
   } });
 }
 
-function bindAdminPlaylistActions(resourceId: number, playlists: Models.ABPlayListsResponse[]): void {
-  document.querySelector('#admin-new-playlist')?.addEventListener('click', () => {
-    const form = document.createElement('form');
-    form.innerHTML = field('playlistName', 'نام Playlist', { required: true });
-    openDialog({ title: 'ساخت Playlist', content: form, confirmLabel: 'ساخت', onConfirm: async () => {
-      if (!form.reportValidity()) return false;
-      const data = new FormData(form);
-      const ok = await runAction(() => api.call('addAudioBotPlaylist', { path: { resourceId }, body: { playlistName: String(data.get('playlistName') ?? '') } }));
-      if (ok) await renderAdminResourceDetail(resourceId);
-      return Boolean(ok);
-    } });
-  });
-
-  qsa<HTMLButtonElement>('[data-admin-playlist]').forEach((button) => button.addEventListener('click', async () => {
-    const filename = button.dataset.adminPlaylist ?? '';
-    const playlist = playlists.find((item) => item.playlistFilename === filename);
-    const dialog = openDialog({ title: playlist?.title || filename, description: 'قطعه‌ها و عملیات مدیریتی Playlist', content: '<div class="dialog-loading"><span class="spinner"></span>در حال دریافت...</div>', wide: true });
-    try {
-      const response = await api.call('getAudioBotPlaylistDetail', { path: { resourceId, playlistFilename: filename }, body: { page: 0, size: 100 } });
-      const detail = dataOf(response);
-      const content = qs<HTMLElement>('.dialog__content', dialog);
-      content.innerHTML = `<div class="dialog-toolbar"><button type="button" id="admin-add-track" class="button button--primary button--small">${icon('add')} افزودن Track</button><button type="button" id="admin-delete-playlist" class="button button--danger button--small">${icon('delete')} حذف Playlist</button></div>${dataTable<Models.ABPlayListItemResponse>([{ label: '#', render: (row) => faNumber(row.order) }, { label: 'عنوان', render: (row) => `<b>${escapeHtml(row.title)}</b><small class="block ltr">${escapeHtml(row.link)}</small>` }, { label: 'نوع', render: (row) => escapeHtml(row.audioType) }], detail?.playListItems ?? [])}`;
-      content.querySelector('#admin-add-track')?.addEventListener('click', () => {
-        const form = document.createElement('form');
-        form.innerHTML = field('trackLink', 'لینک Track', { required: true, dir: 'ltr', placeholder: 'https://...' });
-        openDialog({ title: 'افزودن Track', content: form, confirmLabel: 'افزودن', onConfirm: async () => {
-          if (!form.reportValidity()) return false;
-          const data = new FormData(form);
-          return Boolean(await runAction(() => api.call('addTrackToAudioBotPlaylist', { path: { resourceId, playlistFilename: filename }, body: { trackLink: String(data.get('trackLink') ?? '') } })));
-        } });
-      });
-      content.querySelector('#admin-delete-playlist')?.addEventListener('click', () => confirmDialog('حذف Playlist', 'این عملیات برگشت‌پذیر نیست.', 'حذف', async () => {
-        if (await runAction(() => api.call('deleteAudioBotPlaylist', { path: { resourceId, playlistFilename: filename } }))) {
-          dialog.close();
-          await renderAdminResourceDetail(resourceId);
-        }
-      }, true));
-    } catch (error) {
-      qs<HTMLElement>('.dialog__content', dialog).innerHTML = adminError(error);
-    }
-  }));
-}
-
 export async function renderAdminResourceDetail(resourceId: number): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات منبع');
   try {
@@ -539,38 +490,46 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
     if (!resource) throw new Error('منبع دریافت نشد.');
     const isAudio = resource.resourceType === 'AUDIO_BOT';
     const isTeaSpeak = resource.resourceType === 'TEASPEAK';
-    let playlists: Models.ABPlayListsResponse[] = [];
-    if (isAudio) {
-      try { playlists = dataOf(await api.call('getAudioBotPlaylists', { path: { resourceId } })) ?? []; }
-      catch { playlists = []; }
-    }
+
+    const botStatus = resource.botStatus?.trim().toUpperCase();
+    const powerControls = isAudio
+      ? botStatus === 'ONLINE'
+        ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} خاموش‌کردن AudioBot</button>`
+        : botStatus === 'OFFLINE'
+          ? `<button id="admin-audio-power" data-start="true" class="button button--secondary button--block">${icon('play_circle')} روشن‌کردن AudioBot</button>`
+          : `<button class="button button--ghost button--block" disabled>${icon('sync_problem')} وضعیت اجرای AudioBot نامشخص است</button>`
+      : `<button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button>
+         <button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button>`;
 
     const actionCard = card('عملیات مدیریتی', `<div class="admin-resource-actions">
-      <button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button>
-      <button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button>
+      ${powerControls}
       <button id="admin-edit-resource" class="button button--ghost button--block">${icon('edit')} ویرایش سرویس</button>
       <button id="admin-force-prolong" class="button button--primary button--block">${icon('event_repeat')} تمدید اجباری</button>
-      ${isAudio ? `<button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
+      ${isAudio ? `<button id="admin-audio-access" class="button button--secondary button--block">${icon('dashboard')} پنل اختصاصی AudioBot</button><button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
       ${isTeaSpeak ? `<button id="admin-privilege" class="button button--ghost button--block">${icon('key')} ساخت Privilege</button>` : ''}
       <button id="admin-delete-resource" class="button button--danger button--block">${icon('delete_forever')} حذف سرویس کاربر</button>
     </div><p class="muted">عملیات نوع سرویس از همان endpointهای مدیریتی TeaSpeak و AudioBot اجرا می‌شود.</p>`, { icon: 'settings' });
 
     renderAppShell(`${pageHeader(resource.label || resource.productName || `منبع #${resourceId}`, `${translateEnum(resource.resourceType)} — ${badge(resource.resourceStatus)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/resources', variant: 'ghost' }])}
       <div class="detail-grid"><div class="detail-main">
-        ${card('مشخصات منبع', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? 'فعال' : 'غیرفعال'}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>وضعیت TeaSpeak</dt><dd>${badge(resource.teaSpeakStatus)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}</dl>`, { icon: 'info' })}
+        ${card('مشخصات منبع', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? 'فعال' : 'غیرفعال'}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>وضعیت TeaSpeak</dt><dd>${badge(resource.teaSpeakStatus)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت AudioBot</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}</dl>`, { icon: 'info' })}
         ${isTeaSpeak ? adminTeaSpeakConnection(resource) : ''}
-        ${isAudio ? adminAudioPlaylistCard(playlists) : ''}
       </div><aside>${actionCard}</aside></div>`, 'جزئیات منبع');
 
     bindAdminConnectionCopy();
-    if (isAudio) bindAdminPlaylistActions(resourceId, playlists);
     const runServiceAction = async (start: boolean): Promise<void> => {
       const operation = isAudio ? (start ? 'startAudioBot' : 'stopAudioBot') : (start ? 'startTeaSpeak' : 'stopTeaSpeak');
       if (await runAction(() => api.call(operation, { path: { resourceId } } as never))) await renderAdminResourceDetail(resourceId);
     };
     document.querySelector('#admin-start')?.addEventListener('click', () => confirmDialog('شروع سرویس', 'سرویس راه‌اندازی شود؟', 'شروع', () => runServiceAction(true)));
     document.querySelector('#admin-stop')?.addEventListener('click', () => confirmDialog('توقف سرویس', 'این عملیات ممکن است ارتباط کاربران را قطع کند.', 'توقف', () => runServiceAction(false), true));
+    document.querySelector<HTMLButtonElement>('#admin-audio-power')?.addEventListener('click', (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      const start = button.dataset.start === 'true';
+      confirmDialog(start ? 'روشن‌کردن AudioBot' : 'خاموش‌کردن AudioBot', start ? 'ربات موسیقی راه‌اندازی شود؟' : 'ربات موسیقی متوقف شود؟', start ? 'روشن‌کردن' : 'خاموش‌کردن', () => runServiceAction(start), !start);
+    });
     document.querySelector('#admin-edit-resource')?.addEventListener('click', () => openAdminResourceEdit(resource, resourceId));
+    document.querySelector('#admin-audio-access')?.addEventListener('click', () => openAudioBotPanelAccess(resourceId, resource.label || resource.productName || `AudioBot #${resourceId}`));
     document.querySelector('#admin-audio-settings')?.addEventListener('click', () => openAdminAudioSettings(resource, resourceId));
     document.querySelector('#admin-force-prolong')?.addEventListener('click', () => confirmDialog('تمدید اجباری سرویس', 'سرویس بدون کسر هزینه از کیف پول کاربر توسط مدیر تمدید شود؟', 'تمدید اجباری', async () => {
       if (await runAction(() => api.call('forceProlongResource', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);

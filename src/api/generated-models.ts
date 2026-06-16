@@ -62,14 +62,6 @@ export interface AbstractNewResourceRequest {
   label?: string;
 }
 
-export interface AudioBotPlaylistCreateRequest {
-  playlistName?: string;
-}
-
-export interface AudioBotPlaylistTrackAddRequest {
-  trackLink?: string;
-}
-
 export interface BasePaginationRequest {
   page?: number;
   size?: number;
@@ -84,7 +76,7 @@ export interface ABPlayListDetailResponse {
 }
 
 export interface ABPlayListItemResponse {
-  order?: number;
+  index?: number;
   link?: string;
   title?: string;
   audioType?: string;
@@ -119,9 +111,9 @@ export interface RedirectResponse {
 }
 
 export interface AssignSubdomainRequest {
-  zoneId: number;
-  subdomain: string;
-  teaSpeakResourceId: number;
+  zoneId?: number;
+  subdomain?: string;
+  teaSpeakResourceId?: number;
 }
 
 export interface RegisterRequest {
@@ -243,6 +235,36 @@ export interface AudioBotNodeInitRequest {
   password: string;
   maxBotInstance?: number;
   enabled?: boolean;
+}
+
+export interface ApplicationSettingDto {
+  invoiceProperties?: InvoiceProperties;
+  productPeriodSettings?: ProductPeriodSettings;
+}
+
+export interface InvoiceProperties {
+  minimumWalletChargeAmountIrt?: number;
+  taxPercentage?: number;
+}
+
+export interface PeriodDeleteSetting {
+  suspendDeleteAfterSeconds?: number;
+}
+
+export interface ProductPeriodSettings {
+  hourly?: PeriodDeleteSetting;
+  daily?: PeriodDeleteSetting;
+  monthly?: PeriodDeleteSetting;
+}
+
+/** DetailedDataResponse, the type of responses with data and message */
+export interface DetailedDataResponseApplicationSettingDto {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: ApplicationSettingDto;
+  message?: string;
 }
 
 export interface QueryInstanceEditRequest {
@@ -440,6 +462,11 @@ export interface AbstractResourceDetailResponse {
   privilegeToken?: {
   token?: string;
 };
+  botNickname?: string;
+  serverAddress?: string;
+  serverPassword?: string;
+  /** AudioBot runtime status returned by resource detail. */
+  botStatus?: string;
 }
 
 /** DataResponse, the type of responses with data only */
@@ -451,20 +478,23 @@ export interface DataResponseAbstractResourceDetailResponse {
   data?: AbstractResourceDetailResponse;
 }
 
-export interface ABPlayListsResponse {
-  playlistFilename?: string;
-  title?: string;
-  songCount?: number;
-  displayOffset?: number;
+export interface ABApiTokenResponse {
+  credentials?: string;
+  validUntil?: string;
+}
+
+export interface AudioBotScopedPanelAccessResponse {
+  panelAddress?: string;
+  token?: ABApiTokenResponse;
 }
 
 /** DataResponse, the type of responses with data only */
-export interface DataResponseListABPlayListsResponse {
+export interface DataResponseAudioBotScopedPanelAccessResponse {
   /** Operation success state, boolean */
   success?: boolean;
   /** Operation Type */
   type?: string;
-  data?: Array<ABPlayListsResponse>;
+  data?: AudioBotScopedPanelAccessResponse;
 }
 
 /** DataResponse, the type of responses with data only */
@@ -904,11 +934,11 @@ export interface InvoiceAdminResponse {
   invoiceToken?: string;
   ownerId?: number;
   money?: Money;
+  taxPercentage?: number;
   createdAt?: string;
   paidAt?: string;
   status?: "PAID" | "CANCELLED" | "PENDING";
   paymentTransaction?: PaymentTransactionDetailResponse;
-  taxPercentage?: number;
 }
 
 export interface PagedModelInvoiceAdminResponse {
@@ -1080,6 +1110,15 @@ export interface DataResponseAudioBotNodeDetailResponse {
   data?: AudioBotNodeDetailResponse;
 }
 
+/** DataResponse, the type of responses with data only */
+export interface DataResponseApplicationSettingDto {
+  /** Operation success state, boolean */
+  success?: boolean;
+  /** Operation Type */
+  type?: string;
+  data?: ApplicationSettingDto;
+}
+
 /** Admin DNS record row. assigned=true means the record is managed by TeaCloud and linked to a TeaSpeak resource. */
 export interface DnsRecordAdminResponse {
   id?: number;
@@ -1098,43 +1137,4 @@ export interface DataResponseListDnsRecordAdminResponse {
   success?: boolean;
   type?: string;
   data?: Array<DnsRecordAdminResponse>;
-}
-
-export interface ApplicationSettingDto {
-  invoiceProperties?: InvoiceProperties;
-  productPeriodSettings?: ProductPeriodSettings;
-}
-
-/** DataResponse, the type of responses with data only */
-export interface DataResponseApplicationSettingDto {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: ApplicationSettingDto;
-}
-
-/** DetailedDataResponse, the type of responses with data and message */
-export interface DetailedDataResponseApplicationSettingDto {
-  /** Operation success state, boolean */
-  success?: boolean;
-  /** Operation Type */
-  type?: string;
-  data?: ApplicationSettingDto;
-  message?: string;
-}
-
-export interface InvoiceProperties {
-  minimumWalletChargeAmountIrt?: number;
-  taxPercentage?: number;
-}
-
-export interface PeriodDeleteSetting {
-  suspendDeleteAfterSeconds?: number;
-}
-
-export interface ProductPeriodSettings {
-  hourly?: PeriodDeleteSetting;
-  daily?: PeriodDeleteSetting;
-  monthly?: PeriodDeleteSetting;
 }

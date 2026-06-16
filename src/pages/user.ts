@@ -25,6 +25,7 @@ import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
 import { openDnsAssignmentDialog } from '../ui/dns-assignment.js';
+import { openAudioBotPanelAccess } from '../ui/audio-bot-access.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -64,6 +65,15 @@ interface FinanceFilters {
 
 const transactionTypes = new Set<TransactionTypeFilter>(['CREDIT', 'DEBIT']);
 const transactionReasons = new Set<TransactionReasonFilter>(['PROLONG', 'PURCHASE', 'REFUND', 'WALLET_CHARGE']);
+
+
+function audioBotStatusHint(value?: string): string {
+  switch (value?.trim().toUpperCase()) {
+    case 'ONLINE': return 'AudioBot روشن است و از طریق پنل اختصاصی قابل مدیریت است.';
+    case 'OFFLINE': return 'AudioBot خاموش است و می‌توانید آن را روشن کنید.';
+    default: return 'وضعیت اجرای AudioBot از سرویس دریافت نشده است.';
+  }
+}
 
 function readFinanceFilters(params = new URLSearchParams(location.search)): FinanceFilters {
   const type = params.get('transactionType') as TransactionTypeFilter | null;
@@ -356,38 +366,38 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
       try { dnsRecord = await getUserDnsRecordForResource(resourceId); }
       catch { dnsRecord = undefined; }
     }
-    let playlists: Models.ABPlayListsResponse[] = [];
-    if (isAudio) {
-      try { playlists = dataOf(await api.call('getAudioBotPlaylists', { path: { resourceId } })) ?? []; }
-      catch { playlists = []; }
-    }
 
+    const audioBotStatus = resource.botStatus?.trim().toUpperCase();
     const powerActions = isTeaSpeak
       ? teaSpeakStatus === 'ONLINE'
         ? `<button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop_circle')}<span><b>خاموش‌کردن</b><small>توقف امن TeaSpeak</small></span></button>`
         : teaSpeakStatus === 'OFFLINE'
           ? `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_circle')}<span><b>روشن‌کردن</b><small>راه‌اندازی TeaSpeak</small></span></button>`
           : ''
-      : `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_arrow')}<span><b>شروع</b><small>راه‌اندازی AudioBot</small></span></button><button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop')}<span><b>توقف</b><small>خاموش‌کردن AudioBot</small></span></button>`;
+      : audioBotStatus === 'ONLINE'
+        ? `<button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop_circle')}<span><b>خاموش‌کردن ربات</b><small>AudioBot اکنون آنلاین است</small></span></button>`
+        : audioBotStatus === 'OFFLINE'
+          ? `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_circle')}<span><b>روشن‌کردن ربات</b><small>AudioBot اکنون آفلاین است</small></span></button>`
+          : `<button class="quick-action" type="button" disabled>${icon('sync_problem')}<span><b>وضعیت نامشخص</b><small>کنترل اجرا موقتاً در دسترس نیست</small></span></button>`;
 
     const lifecycleText = resourceStatusHint(resource.resourceStatus);
     const runtimeBlock = isTeaSpeak
       ? `<div class="service-runtime-state"><span>وضعیت TeaSpeak</span>${badge(resource.teaSpeakStatus)}<p>${escapeHtml(runtimeStatusHint(resource.teaSpeakStatus))}</p></div>`
-      : '';
+      : isAudio
+        ? `<div class="service-runtime-state"><span>وضعیت AudioBot</span>${badge(resource.botStatus)}<p>${escapeHtml(audioBotStatusHint(resource.botStatus))}</p></div>`
+        : '';
 
     renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${serviceLabelEditor(resource)}
       <div class="detail-grid"><div class="detail-main">
-        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
+        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action quick-action--panel" data-service-action="audio-access">${icon('dashboard')}<span><b>پنل اختصاصی</b><small>دریافت آدرس و Credentials</small></span></button><button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
         ${isTeaSpeak ? privilegeTokenPanel(resource) : ''}
-        ${isAudio ? card('Playlistهای AudioBot', `<div class="playlist-grid">${playlists.map((playlist) => `<article class="playlist-card"><span>${icon('queue_music')}</span><div><b>${escapeHtml(playlist.title || playlist.playlistFilename)}</b><small>${faNumber(playlist.songCount)} قطعه</small></div><button class="icon-button" data-playlist="${escapeHtml(playlist.playlistFilename)}">${icon('chevron_left')}</button></article>`).join('') || emptyState('Playlist ندارید', 'یک Playlist بسازید و لینک قطعه‌های صوتی را به آن اضافه کنید.')} </div>`, { icon: 'library_music', actions: '<button id="new-playlist" class="button button--secondary button--small">ساخت Playlist</button>' }) : ''}
         ${card('تراکنش‌های این سرویس', transactionRows(resourceTransactions, false), { icon: 'receipt_long', className: 'service-transactions-card', actions: '<a data-link class="button button--ghost button--small" href="/panel/finance?tab=transactions">همه تراکنش‌ها</a>' })}
       </div><aside class="detail-aside">
-        ${card('مشخصات سرویس', `<dl class="description-list"><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع سرویس</dt><dd>${translateEnum(resource.resourceType)}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>آدرس اتصال</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت اتصال</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}<div><dt>دوره سرویس</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>تاریخ انقضا</dt><dd><span class="expiration-cell"><b>${faDate(resource.expiration)}</b><small>${escapeHtml(remainingTime(resource.expiration))}</small></span></dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? badge('ACTIVE') : badge('DISABLED')}</dd></div></dl>`, { icon: 'info' })}
+        ${card('مشخصات سرویس', `<dl class="description-list"><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع سرویس</dt><dd>${translateEnum(resource.resourceType)}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>آدرس اتصال</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت اتصال</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت ربات</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}<div><dt>دوره سرویس</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>تاریخ انقضا</dt><dd><span class="expiration-cell"><b>${faDate(resource.expiration)}</b><small>${escapeHtml(remainingTime(resource.expiration))}</small></span></dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? badge('ACTIVE') : badge('DISABLED')}</dd></div></dl>`, { icon: 'info' })}
         ${card('راهنمای سریع', `<div class="help-box">${icon('support_agent')}<p>برای مشکل فنی این سرویس، یک تیکت مرتبط ثبت کنید تا تیم پشتیبانی اطلاعات سرویس را مشاهده کند.</p><a data-link href="/panel/tickets?resource=${resource.id}" class="text-link">ارسال تیکت مرتبط</a></div>`, { icon: 'help' })}
       </aside></div>`, resource.label || 'جزئیات سرویس');
     bindServiceActions(resource);
     if (isTeaSpeak) { bindTeaSpeakConnection(resource, dnsRecord); bindPrivilegeToken(resource); }
-    if (isAudio) bindPlaylistActions(resourceId, playlists);
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات سرویس', 'اطلاعات سرویس')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'جزئیات سرویس');
   }
@@ -466,6 +476,10 @@ function bindServiceActions(resource: TeaSpeakResourceDetail): void {
         if (await runAction(() => api.call('prolongResource_1', { path: { resourceId }, body: { autoProlong: enabled } }))) await renderServiceDetail(resourceId);
       }, !enabled);
     }
+    if (action === 'audio-access') {
+      openAudioBotPanelAccess(resourceId, resource.label || resource.productName || `AudioBot #${resourceId}`);
+      return;
+    }
     if (action === 'audio-settings') {
       void openAudioEdit(resourceId);
       return;
@@ -516,24 +530,6 @@ async function openAudioEdit(resourceId: number): Promise<void> {
   openDialog({ title: 'تنظیمات اتصال AudioBot', content: form, confirmLabel: 'ذخیره', onConfirm: async () => {
     const data = new FormData(form); return Boolean(await runAction(() => api.call('editAudioBot', { path: { resourceId }, body: { botNickname: String(data.get('botNickname') ?? ''), serverAddress: String(data.get('serverAddress') ?? ''), serverPassword: String(data.get('serverPassword') ?? '') } }))) || false;
   }});
-}
-
-function bindPlaylistActions(resourceId: number, playlists: Models.ABPlayListsResponse[]): void {
-  document.querySelector('#new-playlist')?.addEventListener('click', () => {
-    const form = document.createElement('form'); form.innerHTML = field('playlistName','نام Playlist',{required:true});
-    openDialog({ title: 'ساخت Playlist', content: form, confirmLabel: 'ساخت', onConfirm: async () => { if (!form.reportValidity()) return false; const data = new FormData(form); if (!await runAction(() => api.call('addAudioBotPlaylist', { path: { resourceId }, body: { playlistName: String(data.get('playlistName') ?? '') } }))) return false; await renderServiceDetail(resourceId); return true; } });
-  });
-  qsa<HTMLButtonElement>('[data-playlist]').forEach((button) => button.addEventListener('click', async () => {
-    const filename = button.dataset.playlist ?? ''; const playlist = playlists.find((item) => item.playlistFilename === filename);
-    const dialog = openDialog({ title: playlist?.title || filename, description: 'قطعه‌های Playlist و عملیات مدیریت', content: '<div class="dialog-loading"><span class="spinner"></span>در حال دریافت...</div>', wide: true });
-    try {
-      const response = await api.call('getAudioBotPlaylistDetail', { path: { resourceId, playlistFilename: filename }, body: { page: 0, size: 100 } }); const detail = dataOf(response);
-      const content = qs<HTMLElement>('.dialog__content', dialog);
-      content.innerHTML = `<div class="dialog-toolbar"><button id="add-track" class="button button--primary button--small">${icon('add')} افزودن Track</button><button id="delete-playlist" class="button button--danger button--small">${icon('delete')} حذف Playlist</button></div>${dataTable<Models.ABPlayListItemResponse>([{label:'#',render:r=>faNumber(r.order)},{label:'عنوان',render:r=>`<b>${escapeHtml(r.title)}</b><small class="block ltr">${escapeHtml(r.link)}</small>`},{label:'نوع',render:r=>escapeHtml(r.audioType)}], detail?.playListItems ?? [])}`;
-      content.querySelector('#add-track')?.addEventListener('click', () => { const form=document.createElement('form'); form.innerHTML=field('trackLink','لینک Track',{required:true,dir:'ltr',placeholder:'https://...'}); openDialog({title:'افزودن Track',content:form,confirmLabel:'افزودن',onConfirm:async()=>{if(!form.reportValidity())return false; const data=new FormData(form); const ok=await runAction(()=>api.call('addTrackToAudioBotPlaylist',{path:{resourceId,playlistFilename:filename},body:{trackLink:String(data.get('trackLink')??'')}})); return Boolean(ok);}}); });
-      content.querySelector('#delete-playlist')?.addEventListener('click', () => confirmDialog('حذف Playlist','این عملیات برگشت‌پذیر نیست.','حذف',async()=>{if(await runAction(()=>api.call('deleteAudioBotPlaylist',{path:{resourceId,playlistFilename:filename}}))){dialog.close();await renderServiceDetail(resourceId);}},true));
-    } catch (error) { qs<HTMLElement>('.dialog__content', dialog).innerHTML = errorNotice(error instanceof ApiError ? error.message : undefined); }
-  }));
 }
 
 export async function renderProducts(categorySlug = ''): Promise<void> {

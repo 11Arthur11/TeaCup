@@ -15,9 +15,6 @@ export const operations = {
   "newResource": { method: "POST", path: "/v1/services/new", bodyKind: "json", responseKind: "json" },
   "stopAudioBot": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/stop", bodyKind: null, responseKind: "json" },
   "startAudioBot": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/start", bodyKind: null, responseKind: "json" },
-  "getAudioBotPlaylists": { method: "GET", path: "/v1/services/audio-bot/{resourceId}/playlists", bodyKind: null, responseKind: "json" },
-  "addAudioBotPlaylist": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/playlists", bodyKind: "json", responseKind: "json" },
-  "addTrackToAudioBotPlaylist": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}/tracks", bodyKind: "json", responseKind: "json" },
   "getAudioBotPlaylistDetail": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}/details", bodyKind: "json", responseKind: "json" },
   "editAudioBot": { method: "POST", path: "/v1/services/audio-bot/{resourceId}/edit", bodyKind: "json", responseKind: "json" },
   "payInvoice": { method: "POST", path: "/v1/payments/pay", bodyKind: null, responseKind: "json" },
@@ -52,6 +49,8 @@ export const operations = {
   "editCategory": { method: "POST", path: "/v1/admin/categories/edit/{categoryId}", bodyKind: "json", responseKind: "json" },
   "editAudioBotNode": { method: "POST", path: "/v1/admin/audio-bot-nodes/{nodeId}/edit", bodyKind: "json", responseKind: "json" },
   "initAudioBotNode": { method: "POST", path: "/v1/admin/audio-bot-nodes/initiate", bodyKind: "json", responseKind: "json" },
+  "getSettings": { method: "GET", path: "/v1/admin/app-settings", bodyKind: null, responseKind: "json" },
+  "setSettings": { method: "POST", path: "/v1/admin/app-settings", bodyKind: "json", responseKind: "json" },
   "forceProlongResource": { method: "PATCH", path: "/v1/admin/resources/{resourceId}/force-prolong", bodyKind: null, responseKind: "json" },
   "removeQueryInstance": { method: "DELETE", path: "/v1/admin/query-instances/{id}", bodyKind: null, responseKind: "json" },
   "editQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}", bodyKind: "json", responseKind: "json" },
@@ -75,6 +74,7 @@ export const operations = {
   "getIp": { method: "GET", path: "/v1/test/ip", bodyKind: null, responseKind: "json" },
   "getResources": { method: "GET", path: "/v1/services", bodyKind: null, responseKind: "json" },
   "getResourceById": { method: "GET", path: "/v1/services/{resourceId}", bodyKind: null, responseKind: "json" },
+  "getPanelAccess": { method: "GET", path: "/v1/services/audio-bot/{resourceId}/access", bodyKind: null, responseKind: "json" },
   "getProductByCategorySlug": { method: "GET", path: "/v1/products/{categorySlug}", bodyKind: null, responseKind: "json" },
   "getAllGateways": { method: "GET", path: "/v1/payments/gateways", bodyKind: null, responseKind: "json" },
   "getAllGlobalNotifications_1": { method: "GET", path: "/v1/notifications", bodyKind: null, responseKind: "json" },
@@ -106,13 +106,10 @@ export const operations = {
   "getAllAudioBotNodes": { method: "GET", path: "/v1/admin/audio-bot-nodes", bodyKind: null, responseKind: "json" },
   "getAudioBotNodeDetail": { method: "GET", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
   "deleteAudioBotNode": { method: "DELETE", path: "/v1/admin/audio-bot-nodes/{nodeId}", bodyKind: null, responseKind: "json" },
-  "deleteAudioBotPlaylist": { method: "DELETE", path: "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}", bodyKind: null, responseKind: "json" },
   "unassignRecord": { method: "DELETE", path: "/v1/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
   "unassignRecord_1": { method: "DELETE", path: "/v1/admin/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
-  "getSettings": { method: "GET", path: "/v1/admin/app-settings", bodyKind: null, responseKind: "json" },
-  "setSettings": { method: "POST", path: "/v1/admin/app-settings", bodyKind: "json", responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -174,24 +171,6 @@ export interface OperationInputMap {
     path: {
     resourceId: number;
   };
-  };
-  "getAudioBotPlaylists": {
-    path: {
-    resourceId: number;
-  };
-  };
-  "addAudioBotPlaylist": {
-    path: {
-    resourceId: number;
-  };
-    body: Models.AudioBotPlaylistCreateRequest;
-  };
-  "addTrackToAudioBotPlaylist": {
-    path: {
-    resourceId: number;
-    playlistFilename: string;
-  };
-    body: Models.AudioBotPlaylistTrackAddRequest;
   };
   "getAudioBotPlaylistDetail": {
     path: {
@@ -328,6 +307,10 @@ export interface OperationInputMap {
   "initAudioBotNode": {
     body: Models.AudioBotNodeInitRequest;
   };
+  "getSettings": Record<string, never>;
+  "setSettings": {
+    body: Models.ApplicationSettingDto;
+  };
   "forceProlongResource": {
     path: {
     resourceId: number;
@@ -410,6 +393,11 @@ export interface OperationInputMap {
   "getIp": Record<string, never>;
   "getResources": Record<string, never>;
   "getResourceById": {
+    path: {
+    resourceId: number;
+  };
+  };
+  "getPanelAccess": {
     path: {
     resourceId: number;
   };
@@ -528,12 +516,6 @@ export interface OperationInputMap {
     nodeId: number;
   };
   };
-  "deleteAudioBotPlaylist": {
-    path: {
-    resourceId: number;
-    playlistFilename: string;
-  };
-  };
   "unassignRecord": {
     path: {
     recordId: number;
@@ -554,10 +536,6 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
-  "getSettings": Record<string, never>;
-  "setSettings": {
-    body: Models.ApplicationSettingDto;
-  };
 }
 
 export interface OperationOutputMap {
@@ -573,9 +551,6 @@ export interface OperationOutputMap {
   "newResource": Models.SimpleResponse;
   "stopAudioBot": Models.SimpleResponse;
   "startAudioBot": Models.SimpleResponse;
-  "getAudioBotPlaylists": Models.DataResponseListABPlayListsResponse;
-  "addAudioBotPlaylist": Models.SimpleResponse;
-  "addTrackToAudioBotPlaylist": Models.SimpleResponse;
   "getAudioBotPlaylistDetail": Models.DataResponseABPlayListDetailResponse;
   "editAudioBot": Models.SimpleResponse;
   "payInvoice": Models.DataResponseRedirectResponse;
@@ -612,6 +587,8 @@ export interface OperationOutputMap {
   "editCategory": Models.SimpleResponse;
   "editAudioBotNode": Models.SimpleResponse;
   "initAudioBotNode": Models.SimpleResponse;
+  "getSettings": Models.DataResponseApplicationSettingDto;
+  "setSettings": Models.DetailedDataResponseApplicationSettingDto;
   "forceProlongResource": Models.SimpleResponse;
   "removeQueryInstance": Models.SimpleResponse;
   "editQueryInstance": Models.SimpleResponse;
@@ -637,6 +614,7 @@ export interface OperationOutputMap {
 };
   "getResources": Models.DataResponseListResourceListResponse;
   "getResourceById": Models.DataResponseAbstractResourceDetailResponse;
+  "getPanelAccess": Models.DataResponseAudioBotScopedPanelAccessResponse;
   "getProductByCategorySlug": unknown;
   "getAllGateways": Models.DataResponseListGatewayListUserResponse;
   "getAllGlobalNotifications_1": Models.DataResponseListSystemNotificationUserResponse;
@@ -670,13 +648,10 @@ export interface OperationOutputMap {
   "getAllAudioBotNodes": Models.DataResponseListAudioBotNodeListResponse;
   "getAudioBotNodeDetail": Models.DataResponseAudioBotNodeDetailResponse;
   "deleteAudioBotNode": Models.SimpleResponse;
-  "deleteAudioBotPlaylist": Models.SimpleResponse;
   "unassignRecord": Models.SimpleResponse;
   "unassignRecord_1": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
-  "getSettings": Models.DataResponseApplicationSettingDto;
-  "setSettings": Models.DetailedDataResponseApplicationSettingDto;
 }
 
 export interface OperationMeta {

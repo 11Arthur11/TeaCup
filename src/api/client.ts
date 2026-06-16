@@ -32,7 +32,7 @@ function reportForbidden(path: string, operationId?: OperationId): void {
 const API_BASE_URL = runtimeApiBaseUrl();
 
 const MAX_CONCURRENT_REQUESTS = 6;
-const READ_ONLY_POST_OPERATIONS = new Set<OperationId>(['getAllResources', 'getAudioBotPlaylistDetail']);
+const READ_ONLY_POST_OPERATIONS = new Set<OperationId>(['getAllResources']);
 
 function fillPath(pathTemplate: string, values?: Record<string, unknown>): string {
   return pathTemplate.replace(/\{([^}]+)\}/g, (_match, key: string) => encodeURIComponent(String(values?.[key] ?? '')));

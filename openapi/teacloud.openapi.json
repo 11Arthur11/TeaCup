@@ -452,125 +452,6 @@
         }
       }
     },
-    "/v1/services/audio-bot/{resourceId}/playlists": {
-      "get": {
-        "tags": [
-          "audio-bot-service-controller"
-        ],
-        "operationId": "getAudioBotPlaylists",
-        "parameters": [
-          {
-            "name": "resourceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataResponseListABPlayListsResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "audio-bot-service-controller"
-        ],
-        "operationId": "addAudioBotPlaylist",
-        "parameters": [
-          {
-            "name": "resourceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AudioBotPlaylistCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimpleResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}/tracks": {
-      "post": {
-        "tags": [
-          "audio-bot-service-controller"
-        ],
-        "operationId": "addTrackToAudioBotPlaylist",
-        "parameters": [
-          {
-            "name": "resourceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "playlistFilename",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AudioBotPlaylistTrackAddRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimpleResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}/details": {
       "post": {
         "tags": [
@@ -1794,6 +1675,54 @@
         }
       }
     },
+    "/v1/admin/app-settings": {
+      "get": {
+        "tags": [
+          "application-settings-controller"
+        ],
+        "operationId": "getSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponseApplicationSettingDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "application-settings-controller"
+        ],
+        "operationId": "setSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationSettingDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedDataResponseApplicationSettingDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/resources/{resourceId}/force-prolong": {
       "patch": {
         "tags": [
@@ -2456,6 +2385,37 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/DataResponseAbstractResourceDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/services/audio-bot/{resourceId}/access": {
+      "get": {
+        "tags": [
+          "audio-bot-service-controller"
+        ],
+        "operationId": "getPanelAccess",
+        "parameters": [
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponseAudioBotScopedPanelAccessResponse"
                 }
               }
             }
@@ -3432,45 +3392,6 @@
         }
       }
     },
-    "/v1/services/audio-bot/{resourceId}/playlists/{playlistFilename}": {
-      "delete": {
-        "tags": [
-          "audio-bot-service-controller"
-        ],
-        "operationId": "deleteAudioBotPlaylist",
-        "parameters": [
-          {
-            "name": "resourceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "playlistFilename",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimpleResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/dns/records/{recordId}": {
       "delete": {
         "tags": [
@@ -3591,54 +3512,6 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/SimpleResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/admin/app-settings": {
-      "get": {
-        "tags": [
-          "application-settings-controller"
-        ],
-        "operationId": "getSettings",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataResponseApplicationSettingDto"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "application-settings-controller"
-        ],
-        "operationId": "setSettings",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApplicationSettingDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/DetailedDataResponseApplicationSettingDto"
                 }
               }
             }
@@ -3820,22 +3693,6 @@
           "productId"
         ]
       },
-      "AudioBotPlaylistCreateRequest": {
-        "type": "object",
-        "properties": {
-          "playlistName": {
-            "type": "string"
-          }
-        }
-      },
-      "AudioBotPlaylistTrackAddRequest": {
-        "type": "object",
-        "properties": {
-          "trackLink": {
-            "type": "string"
-          }
-        }
-      },
       "BasePaginationRequest": {
         "type": "object",
         "properties": {
@@ -3879,7 +3736,7 @@
       "ABPlayListItemResponse": {
         "type": "object",
         "properties": {
-          "order": {
+          "index": {
             "type": "integer",
             "format": "int32"
           },
@@ -3976,12 +3833,7 @@
             "type": "integer",
             "format": "int64"
           }
-        },
-        "required": [
-          "zoneId",
-          "subdomain",
-          "teaSpeakResourceId"
-        ]
+        }
       },
       "RegisterRequest": {
         "type": "object",
@@ -4341,6 +4193,79 @@
           "username",
           "webAddress"
         ]
+      },
+      "ApplicationSettingDto": {
+        "type": "object",
+        "properties": {
+          "invoiceProperties": {
+            "$ref": "#/components/schemas/InvoiceProperties"
+          },
+          "productPeriodSettings": {
+            "$ref": "#/components/schemas/ProductPeriodSettings"
+          }
+        }
+      },
+      "InvoiceProperties": {
+        "type": "object",
+        "properties": {
+          "minimumWalletChargeAmountIrt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "taxPercentage": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PeriodDeleteSetting": {
+        "type": "object",
+        "properties": {
+          "suspendDeleteAfterSeconds": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ProductPeriodSettings": {
+        "type": "object",
+        "properties": {
+          "hourly": {
+            "$ref": "#/components/schemas/PeriodDeleteSetting"
+          },
+          "daily": {
+            "$ref": "#/components/schemas/PeriodDeleteSetting"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/PeriodDeleteSetting"
+          }
+        }
+      },
+      "DetailedDataResponseApplicationSettingDto": {
+        "type": "object",
+        "description": "DetailedDataResponse, the type of responses with data and message",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Operation success state, boolean"
+          },
+          "type": {
+            "type": "string",
+            "description": "Operation Type",
+            "examples": [
+              "SUCCESS",
+              "ERROR",
+              "PROCESSING",
+              "FAILURE"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApplicationSettingDto"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
       },
       "QueryInstanceEditRequest": {
         "type": "object",
@@ -5007,6 +4932,19 @@
                 "type": "string"
               }
             }
+          },
+          "botNickname": {
+            "type": "string"
+          },
+          "serverAddress": {
+            "type": "string"
+          },
+          "serverPassword": {
+            "type": "string"
+          },
+          "botStatus": {
+            "type": "string",
+            "description": "AudioBot runtime status returned by resource detail."
           }
         }
       },
@@ -5033,26 +4971,30 @@
           }
         }
       },
-      "ABPlayListsResponse": {
+      "ABApiTokenResponse": {
         "type": "object",
         "properties": {
-          "playlistFilename": {
+          "credentials": {
             "type": "string"
           },
-          "title": {
-            "type": "string"
-          },
-          "songCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "displayOffset": {
-            "type": "integer",
-            "format": "int32"
+          "validUntil": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
-      "DataResponseListABPlayListsResponse": {
+      "AudioBotScopedPanelAccessResponse": {
+        "type": "object",
+        "properties": {
+          "panelAddress": {
+            "type": "string"
+          },
+          "token": {
+            "$ref": "#/components/schemas/ABApiTokenResponse"
+          }
+        }
+      },
+      "DataResponseAudioBotScopedPanelAccessResponse": {
         "type": "object",
         "description": "DataResponse, the type of responses with data only",
         "properties": {
@@ -5071,10 +5013,7 @@
             ]
           },
           "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ABPlayListsResponse"
-            }
+            "$ref": "#/components/schemas/AudioBotScopedPanelAccessResponse"
           }
         }
       },
@@ -6472,6 +6411,10 @@
           "money": {
             "$ref": "#/components/schemas/Money"
           },
+          "taxPercentage": {
+            "type": "integer",
+            "format": "int32"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -6490,10 +6433,6 @@
           },
           "paymentTransaction": {
             "$ref": "#/components/schemas/PaymentTransactionDetailResponse"
-          },
-          "taxPercentage": {
-            "type": "integer",
-            "format": "int32"
           }
         }
       },
@@ -6989,6 +6928,29 @@
           }
         }
       },
+      "DataResponseApplicationSettingDto": {
+        "type": "object",
+        "description": "DataResponse, the type of responses with data only",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Operation success state, boolean"
+          },
+          "type": {
+            "type": "string",
+            "description": "Operation Type",
+            "examples": [
+              "SUCCESS",
+              "ERROR",
+              "PROCESSING",
+              "FAILURE"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApplicationSettingDto"
+          }
+        }
+      },
       "DnsRecordAdminResponse": {
         "type": "object",
         "description": "Admin DNS record row. assigned=true means the record is managed by TeaCloud and linked to a TeaSpeak resource.",
@@ -7043,102 +7005,6 @@
             "items": {
               "$ref": "#/components/schemas/DnsRecordAdminResponse"
             }
-          }
-        }
-      },
-      "ApplicationSettingDto": {
-        "type": "object",
-        "properties": {
-          "invoiceProperties": {
-            "$ref": "#/components/schemas/InvoiceProperties"
-          },
-          "productPeriodSettings": {
-            "$ref": "#/components/schemas/ProductPeriodSettings"
-          }
-        }
-      },
-      "DataResponseApplicationSettingDto": {
-        "type": "object",
-        "description": "DataResponse, the type of responses with data only",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Operation success state, boolean"
-          },
-          "type": {
-            "type": "string",
-            "description": "Operation Type",
-            "examples": [
-              "SUCCESS",
-              "ERROR",
-              "PROCESSING",
-              "FAILURE"
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/ApplicationSettingDto"
-          }
-        }
-      },
-      "DetailedDataResponseApplicationSettingDto": {
-        "type": "object",
-        "description": "DetailedDataResponse, the type of responses with data and message",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Operation success state, boolean"
-          },
-          "type": {
-            "type": "string",
-            "description": "Operation Type",
-            "examples": [
-              "SUCCESS",
-              "ERROR",
-              "PROCESSING",
-              "FAILURE"
-            ]
-          },
-          "data": {
-            "$ref": "#/components/schemas/ApplicationSettingDto"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "InvoiceProperties": {
-        "type": "object",
-        "properties": {
-          "minimumWalletChargeAmountIrt": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "taxPercentage": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "PeriodDeleteSetting": {
-        "type": "object",
-        "properties": {
-          "suspendDeleteAfterSeconds": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "ProductPeriodSettings": {
-        "type": "object",
-        "properties": {
-          "hourly": {
-            "$ref": "#/components/schemas/PeriodDeleteSetting"
-          },
-          "daily": {
-            "$ref": "#/components/schemas/PeriodDeleteSetting"
-          },
-          "monthly": {
-            "$ref": "#/components/schemas/PeriodDeleteSetting"
           }
         }
       }

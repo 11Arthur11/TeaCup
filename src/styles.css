@@ -3976,3 +3976,103 @@ html.landing-loader-lock body {
   .system-duration-settings { grid-template-columns: 1fr; }
   .duration-editor-form { grid-template-columns: 1fr; }
 }
+
+/* AudioBot scoped panel access */
+.quick-action:disabled,
+.button:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+  transform: none;
+}
+.quick-action--panel {
+  border-color: color-mix(in srgb, var(--purple-500) 32%, var(--border));
+  background: color-mix(in srgb, var(--purple-500) 6%, var(--surface-2));
+}
+.quick-action--panel > .material-symbols-rounded {
+  color: var(--purple-500);
+}
+.audio-bot-access {
+  display: grid;
+  gap: 12px;
+}
+.audio-bot-access__item {
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+.audio-bot-access__item > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-3);
+}
+.audio-bot-access__item > span > .material-symbols-rounded {
+  font-size: 19px;
+  color: var(--blue-600);
+}
+.audio-bot-access__item > span small {
+  font-size: .64rem;
+  font-weight: 700;
+}
+.audio-bot-access__url {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--blue-600);
+  font-size: .72rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.audio-bot-access__url > .material-symbols-rounded {
+  flex: 0 0 auto;
+  font-size: 17px;
+}
+.audio-bot-access__credential-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.audio-bot-access__credential-row code,
+.audio-bot-access__item > code {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .68rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.audio-bot-access__meta {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 3px;
+  color: var(--text-3);
+  font-size: .62rem;
+}
+.audio-bot-access__meta > .material-symbols-rounded {
+  font-size: 18px;
+}
+.audio-bot-access__meta b {
+  color: var(--text-2);
+  font-size: .64rem;
+}
+.audio-bot-access__hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: .61rem;
+  line-height: 1.85;
+}

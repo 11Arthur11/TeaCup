@@ -207,3 +207,7 @@ See `docs/BACKEND_API_CAPABILITY_GAPS.md` for the complete backend capability an
 - زمان حذف سرویس‌های تعلیق‌شده برای دوره‌های ساعتی، روزانه و ماهانه در dialog مستقل و با واحد ثانیه، دقیقه، ساعت یا روز ویرایش می‌شود.
 - frontend مقدار انتخابی را پیش از ارسال به میلی‌ثانیه تبدیل می‌کند. نام property فعلی OpenAPI همچنان `suspendDeleteAfterSeconds` است، اما مقدار ارسالی مطابق قرارداد اجرایی backend بر حسب میلی‌ثانیه است.
 - تنظیمات و لاگ زنده داخل یک layout با فاصله ثابت قرار دارند تا کارت‌ها به یکدیگر نچسبند.
+
+## AudioBot scoped panel access (0.1.12)
+
+AudioBot resource details no longer expose playlist/track mutation controls in the TeaCloud frontend. Runtime start/stop is rendered as one status-aware control from `botStatus`, and both user/admin resource detail pages can request scoped panel access through `GET /v1/services/audio-bot/{resourceId}/access`. The returned panel URL opens in a new tab and the temporary credentials can be copied from the access dialog.
