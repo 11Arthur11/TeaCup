@@ -69,7 +69,8 @@ const transactionReasons = new Set<TransactionReasonFilter>(['PROLONG', 'PURCHAS
 
 function audioBotStatusHint(value?: string): string {
   switch (value?.trim().toUpperCase()) {
-    case 'ONLINE': return 'AudioBot روشن است و از طریق پنل اختصاصی قابل مدیریت است.';
+    case 'CONNECTED': return 'AudioBot متصل و در حال اجرا است؛ برای توقف می‌توانید آن را خاموش کنید.';
+    case 'CONNECTING': return 'AudioBot در حال اتصال است؛ در صورت نیاز می‌توانید فرایند اتصال را متوقف کنید.';
     case 'OFFLINE': return 'AudioBot خاموش است و می‌توانید آن را روشن کنید.';
     default: return 'وضعیت اجرای AudioBot از سرویس دریافت نشده است.';
   }
@@ -374,11 +375,13 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
         : teaSpeakStatus === 'OFFLINE'
           ? `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_circle')}<span><b>روشن‌کردن</b><small>راه‌اندازی TeaSpeak</small></span></button>`
           : ''
-      : audioBotStatus === 'ONLINE'
-        ? `<button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop_circle')}<span><b>خاموش‌کردن ربات</b><small>AudioBot اکنون آنلاین است</small></span></button>`
-        : audioBotStatus === 'OFFLINE'
-          ? `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_circle')}<span><b>روشن‌کردن ربات</b><small>AudioBot اکنون آفلاین است</small></span></button>`
-          : `<button class="quick-action" type="button" disabled>${icon('sync_problem')}<span><b>وضعیت نامشخص</b><small>کنترل اجرا موقتاً در دسترس نیست</small></span></button>`;
+      : audioBotStatus === 'OFFLINE'
+        ? `<button class="quick-action quick-action--success" data-service-action="start">${icon('play_circle')}<span><b>روشن‌کردن ربات</b><small>AudioBot اکنون آفلاین است</small></span></button>`
+        : audioBotStatus === 'CONNECTED'
+          ? `<button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop_circle')}<span><b>خاموش‌کردن ربات</b><small>AudioBot اکنون متصل است</small></span></button>`
+          : audioBotStatus === 'CONNECTING'
+            ? `<button class="quick-action quick-action--danger" data-service-action="stop">${icon('stop_circle')}<span><b>توقف اتصال ربات</b><small>AudioBot در حال اتصال است</small></span></button>`
+            : `<button class="quick-action" type="button" disabled>${icon('sync_problem')}<span><b>وضعیت نامشخص</b><small>کنترل اجرا موقتاً در دسترس نیست</small></span></button>`;
 
     const lifecycleText = resourceStatusHint(resource.resourceStatus);
     const runtimeBlock = isTeaSpeak

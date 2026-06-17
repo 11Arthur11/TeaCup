@@ -107,6 +107,7 @@ const enumLabels: Record<string, string> = {
 
   // DNS provider and zone lifecycle
   CONNECTED: 'متصل',
+  CONNECTING: 'در حال اتصال',
   API_KEY_REJECTED: 'کلید API رد شده',
   SERVER_ERROR: 'خطای Provider',
   UNKNOWN: 'نامشخص',
@@ -146,6 +147,7 @@ const enumTones: Record<string, BadgeTone> = {
   ROUND_ROBIN: 'success',
   BALANCED: 'info',
   CONNECTED: 'success',
+  CONNECTING: 'warning',
   CREATING: 'info',
   DELETING: 'warning',
 

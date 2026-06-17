@@ -466,7 +466,7 @@ export interface AbstractResourceDetailResponse {
   serverAddress?: string;
   serverPassword?: string;
   /** AudioBot runtime status returned by resource detail. */
-  botStatus?: string;
+  botStatus?: "OFFLINE" | "CONNECTING" | "CONNECTED";
 }
 
 /** DataResponse, the type of responses with data only */

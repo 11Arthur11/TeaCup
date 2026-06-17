@@ -40,3 +40,14 @@ The dialog:
 ## Playlist and track controls
 
 Playlist/track mutation UI was removed from both user and admin resource details. The remaining playlist-detail read endpoint present in the supplied OpenAPI is intentionally not surfaced because playlist management is now owned by the dedicated AudioBot panel.
+
+
+## Runtime status contract
+
+AudioBot runtime status is read from `botStatus` using the backend enum values:
+
+- `OFFLINE`: show the Start action.
+- `CONNECTING`: show an active Stop action; clicking it calls the AudioBot stop endpoint.
+- `CONNECTED`: show an active Stop action.
+
+Legacy `ONLINE` is not used for AudioBot runtime state.

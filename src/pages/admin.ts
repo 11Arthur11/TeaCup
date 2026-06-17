@@ -27,7 +27,7 @@ interface AdminProductListDto { id?: number; categoryName?: string; categorySlug
 interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
 interface AdminResourceDetailDto extends Models.AbstractResourceDetailResponse {
   address?: string; port?: number; maxClients?: number; teaSpeakStatus?: Models.AbstractResourceDetailResponse['teaSpeakStatus'];
-  botNickname?: string; serverAddress?: string; serverPassword?: string; botStatus?: string;
+  botNickname?: string; serverAddress?: string; serverPassword?: string; botStatus?: Models.AbstractResourceDetailResponse['botStatus'];
 }
 const objectOf = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
 const arrayOf = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
@@ -493,11 +493,13 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
 
     const botStatus = resource.botStatus?.trim().toUpperCase();
     const powerControls = isAudio
-      ? botStatus === 'ONLINE'
-        ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} خاموش‌کردن AudioBot</button>`
-        : botStatus === 'OFFLINE'
-          ? `<button id="admin-audio-power" data-start="true" class="button button--secondary button--block">${icon('play_circle')} روشن‌کردن AudioBot</button>`
-          : `<button class="button button--ghost button--block" disabled>${icon('sync_problem')} وضعیت اجرای AudioBot نامشخص است</button>`
+      ? botStatus === 'OFFLINE'
+        ? `<button id="admin-audio-power" data-start="true" class="button button--secondary button--block">${icon('play_circle')} روشن‌کردن AudioBot</button>`
+        : botStatus === 'CONNECTED'
+          ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} خاموش‌کردن AudioBot</button>`
+          : botStatus === 'CONNECTING'
+            ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} توقف اتصال AudioBot</button>`
+            : `<button class="button button--ghost button--block" disabled>${icon('sync_problem')} وضعیت اجرای AudioBot نامشخص است</button>`
       : `<button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button>
          <button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button>`;
 
