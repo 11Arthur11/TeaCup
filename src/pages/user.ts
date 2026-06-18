@@ -25,7 +25,7 @@ import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js
 import { parseProductPresentation, renderProductCard } from '../ui/product-presentation.js';
 import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
 import { openDnsAssignmentDialog } from '../ui/dns-assignment.js';
-import { openAudioBotPanelAccess } from '../ui/audio-bot-access.js';
+import { audioBotPanelAccessCard, bindAudioBotPanelAccessCards } from '../ui/audio-bot-access.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -392,14 +392,16 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
 
     renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${serviceLabelEditor(resource)}
       <div class="detail-grid"><div class="detail-main">
-        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action quick-action--panel" data-service-action="audio-access">${icon('dashboard')}<span><b>پنل اختصاصی</b><small>دریافت آدرس و Credentials</small></span></button><button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
+        ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
         ${isTeaSpeak ? privilegeTokenPanel(resource) : ''}
+        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`) : ''}
         ${card('تراکنش‌های این سرویس', transactionRows(resourceTransactions, false), { icon: 'receipt_long', className: 'service-transactions-card', actions: '<a data-link class="button button--ghost button--small" href="/panel/finance?tab=transactions">همه تراکنش‌ها</a>' })}
       </div><aside class="detail-aside">
         ${card('مشخصات سرویس', `<dl class="description-list"><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع سرویس</dt><dd>${translateEnum(resource.resourceType)}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>آدرس اتصال</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت اتصال</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت ربات</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}<div><dt>دوره سرویس</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>تاریخ انقضا</dt><dd><span class="expiration-cell"><b>${faDate(resource.expiration)}</b><small>${escapeHtml(remainingTime(resource.expiration))}</small></span></dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? badge('ACTIVE') : badge('DISABLED')}</dd></div></dl>`, { icon: 'info' })}
         ${card('راهنمای سریع', `<div class="help-box">${icon('support_agent')}<p>برای مشکل فنی این سرویس، یک تیکت مرتبط ثبت کنید تا تیم پشتیبانی اطلاعات سرویس را مشاهده کند.</p><a data-link href="/panel/tickets?resource=${resource.id}" class="text-link">ارسال تیکت مرتبط</a></div>`, { icon: 'help' })}
       </aside></div>`, resource.label || 'جزئیات سرویس');
     bindServiceActions(resource);
+    if (isAudio) bindAudioBotPanelAccessCards();
     if (isTeaSpeak) { bindTeaSpeakConnection(resource, dnsRecord); bindPrivilegeToken(resource); }
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات سرویس', 'اطلاعات سرویس')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'جزئیات سرویس');
@@ -478,10 +480,6 @@ function bindServiceActions(resource: TeaSpeakResourceDetail): void {
       return confirmDialog(enabled ? 'فعال‌کردن تمدید خودکار' : 'غیرفعال‌کردن تمدید خودکار', enabled ? 'سرویس در پایان هر دوره به‌صورت خودکار تمدید شود؟' : 'تمدید خودکار این سرویس متوقف شود؟', enabled ? 'فعال‌کردن' : 'غیرفعال‌کردن', async () => {
         if (await runAction(() => api.call('prolongResource_1', { path: { resourceId }, body: { autoProlong: enabled } }))) await renderServiceDetail(resourceId);
       }, !enabled);
-    }
-    if (action === 'audio-access') {
-      openAudioBotPanelAccess(resourceId, resource.label || resource.productName || `AudioBot #${resourceId}`);
-      return;
     }
     if (action === 'audio-settings') {
       void openAudioEdit(resourceId);

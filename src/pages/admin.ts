@@ -21,7 +21,7 @@ import { renderTicketMessage } from '../ui/ticket-message.js';
 import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js';
 import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js';
 import { createProductPresentationEditor } from '../ui/product-presentation.js';
-import { openAudioBotPanelAccess } from '../ui/audio-bot-access.js';
+import { audioBotPanelAccessCard, bindAudioBotPanelAccessCards } from '../ui/audio-bot-access.js';
 
 interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
 interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
@@ -507,7 +507,7 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
       ${powerControls}
       <button id="admin-edit-resource" class="button button--ghost button--block">${icon('edit')} ویرایش سرویس</button>
       <button id="admin-force-prolong" class="button button--primary button--block">${icon('event_repeat')} تمدید اجباری</button>
-      ${isAudio ? `<button id="admin-audio-access" class="button button--secondary button--block">${icon('dashboard')} پنل اختصاصی AudioBot</button><button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
+      ${isAudio ? `<button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
       ${isTeaSpeak ? `<button id="admin-privilege" class="button button--ghost button--block">${icon('key')} ساخت Privilege</button>` : ''}
       <button id="admin-delete-resource" class="button button--danger button--block">${icon('delete_forever')} حذف سرویس کاربر</button>
     </div><p class="muted">عملیات نوع سرویس از همان endpointهای مدیریتی TeaSpeak و AudioBot اجرا می‌شود.</p>`, { icon: 'settings' });
@@ -515,6 +515,7 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
     renderAppShell(`${pageHeader(resource.label || resource.productName || `منبع #${resourceId}`, `${translateEnum(resource.resourceType)} — ${badge(resource.resourceStatus)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/resources', variant: 'ghost' }])}
       <div class="detail-grid"><div class="detail-main">
         ${card('مشخصات منبع', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? 'فعال' : 'غیرفعال'}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>وضعیت TeaSpeak</dt><dd>${badge(resource.teaSpeakStatus)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت AudioBot</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}</dl>`, { icon: 'info' })}
+        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`) : ''}
         ${isTeaSpeak ? adminTeaSpeakConnection(resource) : ''}
       </div><aside>${actionCard}</aside></div>`, 'جزئیات منبع');
 
@@ -531,7 +532,7 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
       confirmDialog(start ? 'روشن‌کردن AudioBot' : 'خاموش‌کردن AudioBot', start ? 'ربات موسیقی راه‌اندازی شود؟' : 'ربات موسیقی متوقف شود؟', start ? 'روشن‌کردن' : 'خاموش‌کردن', () => runServiceAction(start), !start);
     });
     document.querySelector('#admin-edit-resource')?.addEventListener('click', () => openAdminResourceEdit(resource, resourceId));
-    document.querySelector('#admin-audio-access')?.addEventListener('click', () => openAudioBotPanelAccess(resourceId, resource.label || resource.productName || `AudioBot #${resourceId}`));
+    if (isAudio) bindAudioBotPanelAccessCards();
     document.querySelector('#admin-audio-settings')?.addEventListener('click', () => openAdminAudioSettings(resource, resourceId));
     document.querySelector('#admin-force-prolong')?.addEventListener('click', () => confirmDialog('تمدید اجباری سرویس', 'سرویس بدون کسر هزینه از کیف پول کاربر توسط مدیر تمدید شود؟', 'تمدید اجباری', async () => {
       if (await runAction(() => api.call('forceProlongResource', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);
@@ -1366,7 +1367,72 @@ export async function renderAudioNodes(): Promise<void> {
     renderAppShell(`${pageHeader('نودهای ربات موزیک', 'زیرساخت AudioBot')}${adminError(error)}`, 'نودهای ربات موزیک');
   }
 }
-function openNodeForm(node?:Models.AudioBotNodeListResponse):void{const form=document.createElement('form');form.className='form-grid';form.innerHTML=`${field('name','نام نود',{value:node?.name,required:true})}${!node?field('webAddress','آدرس وب',{value:'',required:true,dir:'ltr',placeholder:'http://host:45855',hint:'آدرس نباید با / پایان یابد.'}):''}${field('username','نام کاربری',{required:true,dir:'ltr'})}${field('password','رمز عبور',{type:'password',required:true,dir:'ltr'})}${field('maxBotInstance','حداکثر Bot',{type:'number',value:node?.maxBotInstance??10,required:true,min:1})}${toggleField('enabled','نود فعال باشد',node?.enabled??true)}`;openDialog({title:node?'ویرایش نود':'نود AudioBot جدید',content:form,confirmLabel:'ذخیره',onConfirm:async()=>{if(!form.reportValidity())return false;const data=new FormData(form);const common={name:String(data.get('name')??''),username:String(data.get('username')??''),password:String(data.get('password')??''),maxBotInstance:requiredNumber(data.get('maxBotInstance')),enabled:data.get('enabled')==='on'};const ok=node?await runAction(()=>api.call('editAudioBotNode',{path:{nodeId:Number(node.id)},body:common})):await runAction(()=>api.call('initAudioBotNode',{body:{...common,webAddress:String(data.get('webAddress')??'')}}));if(ok)await renderAudioNodes();return Boolean(ok);}});}
+function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNodeDetailResponse): void {
+  const editing = Boolean(node);
+  const currentUsername = node && 'username' in node ? String(node.username ?? '') : '';
+  const form = document.createElement('form');
+  form.className = 'form-grid';
+  form.innerHTML = `${editing ? `<div class="notice notice--info field--full">${icon('edit_note')}<span>فقط فیلدهایی که واقعاً تغییر کنند برای Backend ارسال می‌شوند. رمز عبور را برای عدم تغییر خالی بگذارید.</span></div>` : ''}
+    ${field('name', 'نام نود', { value: node?.name, required: !editing, hint: editing ? 'در صورت عدم تغییر، مقدار فعلی را نگه دارید.' : undefined })}
+    ${!editing ? field('webAddress', 'آدرس وب', { value: '', required: true, dir: 'ltr', placeholder: 'http://host:45855', hint: 'آدرس نباید با / پایان یابد.' }) : ''}
+    ${field('username', 'نام کاربری', { value: editing ? currentUsername : '', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined, hint: editing && !currentUsername ? 'فقط در صورت تغییر نام کاربری این فیلد را پر کنید.' : undefined })}
+    ${field('password', 'رمز عبور', { type: 'password', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined })}
+    ${field('maxBotInstance', 'حداکثر Bot', { type: 'number', value: node?.maxBotInstance ?? 10, required: !editing, min: 1 })}
+    ${toggleField('enabled', 'نود فعال باشد', node?.enabled ?? true)}`;
+
+  openDialog({
+    title: editing ? 'ویرایش نود' : 'نود AudioBot جدید',
+    content: form,
+    confirmLabel: 'ذخیره',
+    onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const data = new FormData(form);
+
+      if (node) {
+        const body: Models.AudioBotNodeEditRequest = {};
+        const nextName = String(data.get('name') ?? '').trim();
+        const nextUsername = String(data.get('username') ?? '').trim();
+        const nextPassword = String(data.get('password') ?? '');
+        const maxRaw = String(data.get('maxBotInstance') ?? '').trim();
+        const enabledInput = form.elements.namedItem('enabled') as HTMLInputElement | null;
+        const nextEnabled = Boolean(enabledInput?.checked);
+
+        if (nextName !== String(node.name ?? '').trim()) body.name = nextName;
+        if (nextUsername !== currentUsername) body.username = nextUsername;
+        if (nextPassword.length > 0) body.password = nextPassword;
+        if (maxRaw !== '') {
+          const nextMax = Number(maxRaw);
+          if (!Number.isFinite(nextMax) || nextMax < 1) {
+            notify('حداکثر Bot باید یک عدد معتبر و بزرگ‌تر از صفر باشد.', 'warning');
+            return false;
+          }
+          if (nextMax !== Number(node.maxBotInstance ?? 0)) body.maxBotInstance = nextMax;
+        }
+        if (nextEnabled !== Boolean(node.enabled)) body.enabled = nextEnabled;
+
+        if (Object.keys(body).length === 0) {
+          notify('هیچ تغییری برای ذخیره وجود ندارد.', 'warning');
+          return false;
+        }
+
+        const ok = await runAction(() => api.call('editAudioBotNode', { path: { nodeId: Number(node.id) }, body }));
+        if (ok) await renderAudioNodes();
+        return Boolean(ok);
+      }
+
+      const common = {
+        name: String(data.get('name') ?? '').trim(),
+        username: String(data.get('username') ?? '').trim(),
+        password: String(data.get('password') ?? ''),
+        maxBotInstance: requiredNumber(data.get('maxBotInstance')),
+        enabled: data.get('enabled') === 'on',
+      };
+      const ok = await runAction(() => api.call('initAudioBotNode', { body: { ...common, webAddress: String(data.get('webAddress') ?? '').trim() } }));
+      if (ok) await renderAudioNodes();
+      return Boolean(ok);
+    },
+  });
+}
 export async function renderAudioNodeDetail(nodeId: number): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات نود AudioBot');
   try {

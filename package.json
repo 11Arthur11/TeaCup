@@ -1,6 +1,6 @@
 {
   "name": "teacloud-frontend",
-  "version": "0.1.13",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "پنل مدیریت فارسی و RTL ابر چایی برای TeaSpeak و AudioBot",
