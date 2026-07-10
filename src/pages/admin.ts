@@ -1375,8 +1375,8 @@ function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNo
   form.innerHTML = `${editing ? `<div class="notice notice--info field--full">${icon('edit_note')}<span>فقط فیلدهایی که واقعاً تغییر کنند برای Backend ارسال می‌شوند. رمز عبور را برای عدم تغییر خالی بگذارید.</span></div>` : ''}
     ${field('name', 'نام نود', { value: node?.name, required: !editing, hint: editing ? 'در صورت عدم تغییر، مقدار فعلی را نگه دارید.' : undefined })}
     ${!editing ? field('webAddress', 'آدرس وب', { value: '', required: true, dir: 'ltr', placeholder: 'http://host:45855', hint: 'آدرس نباید با / پایان یابد.' }) : ''}
-    ${field('username', 'نام کاربری', { value: editing ? currentUsername : '', required: !editing, dir: 'ltr', hint: editing && !currentUsername ? 'فقط در صورت تغییر نام کاربری این فیلد را پر کنید.' : undefined })}
-    ${field('password', 'رمز عبور', { type: 'password', required: !editing, dir: 'ltr'})}
+    ${field('username', 'نام کاربری', { value: editing ? currentUsername : '', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined, hint: editing && !currentUsername ? 'فقط در صورت تغییر نام کاربری این فیلد را پر کنید.' : undefined })}
+    ${field('password', 'رمز عبور', { type: 'password', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined })}
     ${field('maxBotInstance', 'حداکثر Bot', { type: 'number', value: node?.maxBotInstance ?? 10, required: !editing, min: 1 })}
     ${toggleField('enabled', 'نود فعال باشد', node?.enabled ?? true)}`;
 

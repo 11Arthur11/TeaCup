@@ -1,6 +1,7 @@
 import { operations, type OperationId, type OperationInputMap, type OperationOutputMap } from './generated-operations.js';
 import { markBackendAvailable, markBackendUnavailable } from '../core/backend-availability.js';
 import { runtimeApiBaseUrl } from '../core/runtime-config.js';
+import { activateRateLimit, getRateLimitRetryAfter, isRateLimitActive } from '../core/request-guard.js';
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly payload?: unknown) {
@@ -25,8 +26,18 @@ export function setNetworkFailureHandler(handler: NetworkFailureHandler): void {
 }
 
 function reportForbidden(path: string, operationId?: OperationId): void {
+  // /auth/session is a probe, not a protected page action. Some production
+  // security setups answer 403 instead of 401 for anonymous visitors. Treat
+  // that response as a guest session instead of triggering a redirect loop.
   if (operationId === 'logout' || path === '/v1/auth/logout') return;
+  if (operationId === 'checkAuthentication' || path === '/v1/auth/session') return;
   forbiddenHandler?.({ operationId, path });
+}
+
+function rateLimitError(): ApiError {
+  const retryAfter = getRateLimitRetryAfter();
+  const suffix = retryAfter ? ` (Retry-After: ${retryAfter})` : '';
+  return new ApiError(`تعداد درخواست‌ها بیش از حد مجاز است. برای ادامه صفحه را دوباره بارگذاری کنید.${suffix}`, 429);
 }
 
 const API_BASE_URL = runtimeApiBaseUrl();
@@ -104,6 +115,7 @@ export class ApiClient {
   private readonly inFlightReads = new Map<string, Promise<unknown>>();
 
   async call<K extends OperationId>(operationId: K, input: OperationInputMap[K]): Promise<OperationOutputMap[K]> {
+    if (isRateLimitActive()) throw rateLimitError();
     const operation = operations[operationId];
     const isReadOnly = operation.method === 'GET' || operation.method === 'HEAD' || READ_ONLY_POST_OPERATIONS.has(operationId);
     const requestKey = isReadOnly ? `${operationId}:${stableSerialize(input)}` : undefined;
@@ -138,6 +150,7 @@ export class ApiClient {
     }
 
     return this.pool.run(async () => {
+      if (isRateLimitActive()) throw rateLimitError();
       let response: Response;
       try {
         response = await fetch(url, { method: operation.method, credentials: 'include', headers, body });
@@ -148,8 +161,9 @@ export class ApiClient {
       }
       markBackendAvailable();
       const parsed = await parseResponse(response, operation.responseKind);
+      if (response.status === 429) activateRateLimit(response.headers.get('Retry-After'));
       if (response.status === 403) reportForbidden(url.pathname, operationId);
-      if (isNoData(parsed) && response.status !== 403) return parsed as OperationOutputMap[K];
+      if (response.ok && isNoData(parsed)) return parsed as OperationOutputMap[K];
       if (!response.ok) throw new ApiError(messageFrom(parsed, `خطای ارتباط با سرور (${response.status})`), response.status, parsed);
       if (parsed && typeof parsed === 'object' && 'success' in parsed && (parsed as ApiEnvelope).success === false) {
         throw new ApiError(messageFrom(parsed, 'عملیات انجام نشد.'), response.status, parsed);
@@ -159,8 +173,10 @@ export class ApiClient {
   }
 
   async raw<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+    if (isRateLimitActive()) throw rateLimitError();
     const url = new URL(path, API_BASE_URL);
     return this.pool.run(async () => {
+      if (isRateLimitActive()) throw rateLimitError();
       let response: Response;
       try {
         response = await fetch(url, { ...init, credentials: 'include', headers: { Accept: 'application/json', ...(init.headers ?? {}) } });
@@ -172,8 +188,9 @@ export class ApiClient {
       markBackendAvailable();
       const kind = response.headers.get('content-type')?.includes('application/json') ? 'json' : 'void';
       const parsed = await parseResponse(response, kind);
+      if (response.status === 429) activateRateLimit(response.headers.get('Retry-After'));
       if (response.status === 403) reportForbidden(url.pathname);
-      if (isNoData(parsed) && response.status !== 403) return parsed as T;
+      if (response.ok && isNoData(parsed)) return parsed as T;
       if (!response.ok) throw new ApiError(messageFrom(parsed, `خطای ارتباط با سرور (${response.status})`), response.status, parsed);
       return parsed as T;
     });

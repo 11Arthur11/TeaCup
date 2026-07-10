@@ -5,6 +5,7 @@ import type { SystemNotificationUserResponse, WalletOverviewResponse } from '../
 import { openDialog } from './dialog.js';
 import { escapeHtml, icon, qsa } from './dom.js';
 import { faDate, money, remainingTime } from './format.js';
+import { isRateLimitActive, RATE_LIMIT_EVENT } from './request-guard.js';
 
 const REFRESH_INTERVAL_MS = 5_000;
 const RETRY_INTERVAL_MS = 1_000;
@@ -130,6 +131,7 @@ class UserChromeController {
 
   start(): void {
     bindDelegatedEvents();
+    if (isRateLimitActive()) return;
     updateDom();
     if (this.active || !isUserPanel()) return;
     this.active = true;
@@ -152,6 +154,7 @@ class UserChromeController {
   }
 
   private schedule(generation: number, delay = REFRESH_INTERVAL_MS): void {
+    if (isRateLimitActive()) { this.stop(); return; }
     if (!this.active || generation !== this.generation) return;
     if (this.timer !== undefined) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
@@ -161,6 +164,10 @@ class UserChromeController {
   }
 
   private async run(generation: number, immediate: boolean): Promise<void> {
+    if (isRateLimitActive()) {
+      this.stop();
+      return;
+    }
     if (!this.active || generation !== this.generation || !isUserPanel()) {
       this.stop();
       return;
@@ -198,4 +205,5 @@ class UserChromeController {
 }
 
 export const userChrome = new UserChromeController();
+window.addEventListener(RATE_LIMIT_EVENT, () => userChrome.stop());
 export const userChromeSnapshot = (): Readonly<UserChromeState> => state;

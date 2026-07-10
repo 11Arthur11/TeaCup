@@ -1,3 +1,4 @@
+import { isRateLimitActive } from './request-guard.js';
 export type BackendAvailability = 'unknown' | 'available' | 'unavailable';
 
 type Listener = (status: BackendAvailability) => void;
@@ -38,6 +39,7 @@ export function subscribeBackendAvailability(listener: Listener): () => void {
  * is treated as maintenance/unavailability.
  */
 export async function probeBackendAvailability(apiBaseUrl: string): Promise<BackendAvailability> {
+  if (isRateLimitActive()) return status;
   if (probePromise) return probePromise;
   probePromise = (async () => {
     const controller = new AbortController();

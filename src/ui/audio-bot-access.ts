@@ -18,7 +18,7 @@ function safePanelUrl(value?: string): string | undefined {
   const raw = value?.trim();
   if (!raw) return undefined;
   try {
-    const url = new URL(raw);
+    const url = new URL(raw + "/?logoutprevious");
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
   } catch {
     return undefined;

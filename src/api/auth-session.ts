@@ -2,14 +2,15 @@ import { api, ApiError } from './client.js';
 
 /**
  * The backend session cookie is the only source of truth for authentication.
- * A 204 response means the session is active; 401 means the visitor is a guest.
+ * A 204 response means the session is active. Anonymous sessions may be
+ * reported as either 401 or 403 depending on the production security layer.
  */
 export async function hasActiveAuthSession(): Promise<boolean> {
   try {
     await api.call('checkAuthentication', {});
     return true;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return false;
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return false;
     throw error;
   }
 }

@@ -13,6 +13,7 @@ import { store } from './core/store.js';
 import { notify } from './core/toast.js';
 import { renderAppShell, renderPublic } from './ui/layout.js';
 import { initializeTheme } from './core/theme.js';
+import { RATE_LIMIT_EVENT } from './core/request-guard.js';
 import { renderAuth } from './pages/auth.js';
 import { renderLanding, renderPublicProducts, renderRules } from './pages/landing.js';
 import {
@@ -52,6 +53,14 @@ setNetworkFailureHandler(() => {
   if (location.pathname.startsWith('/panel') || location.pathname.startsWith('/admin')) {
     showBackendUnavailableDialog();
   }
+});
+
+window.addEventListener(RATE_LIMIT_EVENT, () => {
+  // A 429 is sticky for the lifetime of this page. Stop all automatic refresh
+  // loops immediately; the ApiClient also rejects future calls before fetch.
+  pageRefresh.stop();
+  stopLiveLogStream();
+  notify('محدودیت تعداد درخواست فعال شد. درخواست خودکار دیگری ارسال نمی‌شود؛ برای تلاش مجدد صفحه را رفرش کنید.', 'warning', 9000);
 });
 
 type IdentityResolution =
@@ -158,6 +167,10 @@ function numberParam(context: RouteContext, key: string): number {
 function renderIdentityUnavailable(error: unknown): void {
   if (error instanceof ApiError && error.status === 0) {
     showBackendUnavailableDialog();
+    return;
+  }
+  if (error instanceof ApiError && error.status === 429) {
+    renderPublic(`<section class="error-page"><span>${icon('timer_off')}</span><h1>محدودیت تعداد درخواست</h1><p>برای جلوگیری از درخواست‌های تکراری، ارتباط خودکار با API تا زمان رفرش صفحه متوقف شده است.</p><button class="button button--primary" onclick="location.reload()">رفرش صفحه</button></section>`);
     return;
   }
   const message = error instanceof ApiError ? error.message : 'دریافت اطلاعات دسترسی با خطا مواجه شد.';
