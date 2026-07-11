@@ -12,27 +12,36 @@ interface AudioBotPanelAccessState {
   validUntil?: string;
 }
 
-const panelAccessCache = new Map<number, AudioBotPanelAccessState>();
+// Page-lifetime UI state only. This intentionally survives SPA polling/re-renders,
+// but is cleared by a real browser refresh because it is never persisted.
+const panelAccessViewState = new Map<number, AudioBotPanelAccessState>();
+const panelAccessRequests = new Map<number, Promise<AudioBotPanelAccessState>>();
 
 function safePanelUrl(value?: string): string | undefined {
   const raw = value?.trim();
   if (!raw) return undefined;
   try {
-    const url = new URL(raw + "/?logoutprevious");
+    const url = new URL(raw);
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
   } catch {
     return undefined;
   }
 }
 
-function cachedAccess(resourceId: number): AudioBotPanelAccessState | undefined {
-  const cached = panelAccessCache.get(resourceId);
-  if (!cached) return undefined;
-  if (!cached.validUntil) return cached;
-  const expiresAt = Date.parse(cached.validUntil);
-  if (!Number.isFinite(expiresAt) || expiresAt > Date.now()) return cached;
-  panelAccessCache.delete(resourceId);
-  return undefined;
+function pageAccess(resourceId: number): AudioBotPanelAccessState | undefined {
+  return panelAccessViewState.get(resourceId);
+}
+
+function panelHref(value?: string): string | undefined {
+  const safe = safePanelUrl(value);
+  if (!safe) return undefined;
+
+  // Keep the API-provided address untouched for display/copy, but every clickable
+  // panel link must carry the logoutprevious marker. Handle an existing query safely.
+  const hashIndex = safe.indexOf('#');
+  const base = hashIndex >= 0 ? safe.slice(0, hashIndex) : safe;
+  const hash = hashIndex >= 0 ? safe.slice(hashIndex) : '';
+  return `${base}${base.includes('?') ? '&' : '?'}logoutprevious${hash}`;
 }
 
 function accessErrorMessage(error: unknown): string {
@@ -45,6 +54,70 @@ function accessErrorMessage(error: unknown): string {
 
 function accessError(error: unknown): string {
   return `<div class="notice notice--warning">${icon('warning')}<span>${escapeHtml(accessErrorMessage(error))}</span></div>`;
+}
+
+function currentPanelCard(resourceId: number): HTMLElement | undefined {
+  return document.querySelector<HTMLElement>(`[data-audio-bot-panel-card][data-resource-id="${resourceId}"]`) ?? undefined;
+}
+
+function setCardLoading(resourceId: number): void {
+  const card = currentPanelCard(resourceId);
+  if (!card) return;
+  const button = card.querySelector<HTMLButtonElement>('[data-audio-bot-panel-load]');
+  const message = card.querySelector<HTMLElement>('[data-audio-bot-panel-message]');
+  if (message) message.innerHTML = '';
+  if (!button) return;
+  button.disabled = true;
+  button.innerHTML = `${icon('progress_activity')} در حال دریافت...`;
+}
+
+function setCardReady(resourceId: number, access: AudioBotPanelAccessState): void {
+  const card = currentPanelCard(resourceId);
+  if (!card) return;
+  revealCard(card, access);
+  const button = card.querySelector<HTMLButtonElement>('[data-audio-bot-panel-load]');
+  const message = card.querySelector<HTMLElement>('[data-audio-bot-panel-message]');
+  if (message) message.innerHTML = '';
+  if (button) {
+    button.disabled = false;
+    button.innerHTML = `${icon('refresh')} دریافت دسترسی جدید`;
+  }
+}
+
+function setCardFailed(resourceId: number, error: unknown): void {
+  const card = currentPanelCard(resourceId);
+  if (!card) return;
+  const button = card.querySelector<HTMLButtonElement>('[data-audio-bot-panel-load]');
+  const message = card.querySelector<HTMLElement>('[data-audio-bot-panel-message]');
+  if (message) message.innerHTML = accessError(error);
+  if (button) {
+    button.disabled = false;
+    button.innerHTML = `${icon('refresh')} تلاش دوباره`;
+  }
+}
+
+function requestPanelAccess(resourceId: number): Promise<AudioBotPanelAccessState> {
+  const existing = panelAccessRequests.get(resourceId);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const response = await api.call('getPanelAccess', { path: { resourceId } });
+    const responseData = dataOf(response);
+    const state: AudioBotPanelAccessState = {
+      panelAddress: responseData?.panelAddress?.trim() || '',
+      panelUrl: panelHref(responseData?.panelAddress),
+      credentials: responseData?.token?.credentials?.trim() || '',
+      validUntil: responseData?.token?.validUntil,
+    };
+    panelAccessViewState.set(resourceId, state);
+    return state;
+  })();
+
+  panelAccessRequests.set(resourceId, request);
+  void request.finally(() => {
+    if (panelAccessRequests.get(resourceId) === request) panelAccessRequests.delete(resourceId);
+  }).catch(() => undefined);
+  return request;
 }
 
 async function copyPanelValue(value: string, label: string): Promise<void> {
@@ -117,11 +190,12 @@ function revealCard(card: HTMLElement, access: AudioBotPanelAccessState): void {
 }
 
 export function audioBotPanelAccessCard(resourceId: number, resourceLabel = 'AudioBot'): string {
-  const access = cachedAccess(resourceId);
+  const access = pageAccess(resourceId);
+  const loading = panelAccessRequests.has(resourceId);
   return `<section class="card audio-bot-panel-card" data-audio-bot-panel-card data-resource-id="${resourceId}" data-resource-label="${escapeHtml(resourceLabel)}">
     <header class="card__header audio-bot-panel-card__header">
       <div>${icon('dashboard')}<h2>پنل اختصاصی AudioBot</h2>${metaMarkup(access)}</div>
-      <button type="button" class="button button--secondary button--small" data-audio-bot-panel-load>${icon(access ? 'refresh' : 'visibility')} ${access ? 'دریافت دسترسی جدید' : 'نمایش دسترسی'}</button>
+      <button type="button" class="button button--secondary button--small" data-audio-bot-panel-load ${loading ? 'disabled' : ''}>${loading ? `${icon('progress_activity')} در حال دریافت...` : `${icon(access ? 'refresh' : 'visibility')} ${access ? 'دریافت دسترسی جدید' : 'نمایش دسترسی'}`}</button>
     </header>
     <div class="card__body audio-bot-panel-card__body">
       <div class="audio-bot-panel-card__intro">
@@ -143,8 +217,11 @@ export function bindAudioBotPanelAccessCards(root: ParentNode = document): void 
     button.dataset.bound = 'true';
 
     const initialResourceId = Number(card.dataset.resourceId ?? 0);
-    const initialAccess = Number.isInteger(initialResourceId) && initialResourceId > 0 ? cachedAccess(initialResourceId) : undefined;
+    const initialAccess = Number.isInteger(initialResourceId) && initialResourceId > 0 ? pageAccess(initialResourceId) : undefined;
     if (initialAccess) bindCopyActions(card, initialAccess);
+    if (Number.isInteger(initialResourceId) && initialResourceId > 0 && panelAccessRequests.has(initialResourceId)) {
+      setCardLoading(initialResourceId);
+    }
 
     button.addEventListener('click', async () => {
       const resourceId = Number(card.dataset.resourceId ?? 0);
@@ -153,30 +230,14 @@ export function bindAudioBotPanelAccessCards(root: ParentNode = document): void 
         return;
       }
 
-      const message = card.querySelector<HTMLElement>('[data-audio-bot-panel-message]');
-      if (!message) return;
-
-      button.disabled = true;
-      button.innerHTML = `${icon('progress_activity')} در حال دریافت...`;
-      message.innerHTML = '';
-
+      setCardLoading(resourceId);
       try {
-        const response = await api.call('getPanelAccess', { path: { resourceId } });
-        const responseData = dataOf(response);
-        const state: AudioBotPanelAccessState = {
-          panelAddress: responseData?.panelAddress?.trim() || '',
-          panelUrl: safePanelUrl(responseData?.panelAddress),
-          credentials: responseData?.token?.credentials?.trim() || '',
-          validUntil: responseData?.token?.validUntil,
-        };
-        panelAccessCache.set(resourceId, state);
-        revealCard(card, state);
-        button.innerHTML = `${icon('refresh')} دریافت دسترسی جدید`;
+        const state = await requestPanelAccess(resourceId);
+        // A five-second detail refresh may have replaced `card` while the request was in flight.
+        // Always apply the result to the current card in the live DOM, not the stale closure node.
+        setCardReady(resourceId, state);
       } catch (error) {
-        message.innerHTML = accessError(error);
-        button.innerHTML = `${icon('refresh')} تلاش دوباره`;
-      } finally {
-        button.disabled = false;
+        setCardFailed(resourceId, error);
       }
     });
   });
@@ -195,7 +256,7 @@ export function openAudioBotPanelAccess(resourceId: number, resourceLabel = 'Aud
     try {
       const response = await api.call('getPanelAccess', { path: { resourceId } });
       const access = dataOf(response);
-      const panelUrl = safePanelUrl(access?.panelAddress);
+      const panelUrl = panelHref(access?.panelAddress);
       const panelAddress = access?.panelAddress?.trim() || '';
       const credentials = access?.token?.credentials?.trim() || '';
       const content = qs<HTMLElement>('.dialog__content', dialog);

@@ -171,13 +171,21 @@ export function renderAppShell(content: string, title = ''): void {
   const sidebarUserTitle = isAdminSection ? panelTitle : profileName;
   const sidebarUserSubtitle = isAdminSection ? roleLabel(state.identity.role) : (profile?.phone || roleLabel(state.identity.role));
   const root = appRoot();
+  const previousGuide = !isAdminSection
+    ? root.querySelector<HTMLButtonElement>('[data-dashboard-tour-start]')
+    : null;
+  const previousGuideLabel = previousGuide
+    ?.querySelector<HTMLElement>('[data-dashboard-tour-guide-label]')
+    ?.textContent?.trim() || 'راهنما';
+  const previousGuideHidden = previousGuide?.hidden ?? true;
+  const previousGuideTitle = previousGuide?.title || 'شروع راهنمای داشبورد';
 
   root.innerHTML = `<div class="app-shell ${state.sidebarOpen ? 'app-shell--sidebar-open' : ''}">
     <div class="sidebar-backdrop" data-sidebar-close></div>
     <aside class="sidebar">
       <div class="sidebar__top"><a data-link href="${isAdminSection ? '/admin' : '/panel'}" class="brand brand--sidebar"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a><button type="button" class="icon-button sidebar__mobile-close" data-sidebar-close>${icon('close')}</button></div>
       <div class="sidebar__scroll"><span class="nav-label">${panelTitle}</span><nav>${nav}</nav></div>
-      ${!isAdminSection ? `<div class="sidebar-guide-wrap"><button type="button" class="sidebar-guide" data-dashboard-tour-start hidden>${icon('help')}<span data-dashboard-tour-guide-label></span></button></div>` : ''}
+      ${!isAdminSection ? `<div class="sidebar-guide-wrap"><button type="button" class="sidebar-guide" data-dashboard-tour-start ${previousGuideHidden ? 'hidden' : ''} title="${escapeHtml(previousGuideTitle)}" aria-label="${escapeHtml(previousGuideTitle)}">${icon('help')}<span data-dashboard-tour-guide-label>${escapeHtml(previousGuideLabel)}</span></button></div>` : ''}
       <div class="sidebar__footer"><div class="sidebar-user"><span class="avatar">${icon(isAdminSection ? switchIcon : 'person')}</span><div><b title="${escapeHtml(sidebarUserTitle)}">${escapeHtml(sidebarUserTitle)}</b><small ${!isAdminSection && profile?.phone ? 'dir="ltr"' : ''} title="${escapeHtml(sidebarUserSubtitle)}">${escapeHtml(sidebarUserSubtitle)}</small></div></div><button type="button" class="icon-button" data-logout title="خروج">${icon('logout')}</button></div>
     </aside>
     <section class="workspace"><header class="topbar"><div><button type="button" class="icon-button topbar__menu" data-sidebar-open>${icon('menu')}</button><div class="topbar__title"><small>${panelTitle}</small><b>${escapeHtml(title || 'ابر چایی')}</b></div></div><div class="topbar__actions">

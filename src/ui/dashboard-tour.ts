@@ -676,17 +676,23 @@ export function bindDashboardTourGuide(): void {
     "[data-dashboard-tour-start]",
   );
   if (!button) return;
-  button.hidden = true;
+
+  // Do not force the guide back to `hidden` here. The application shell is
+  // recreated by background refreshes on live user pages; toggling `hidden`
+  // before the already-cached config promise resolves caused a visible blink
+  // every refresh cycle. The template owns the first-load hidden state, while
+  // subsequent renders preserve the resolved presentation synchronously.
   void loadConfig()
     .then((config) => {
-      if (!config.enabled || !button.isConnected) return;
+      if (!button.isConnected) return;
+      button.hidden = !config.enabled;
+      if (!config.enabled) return;
       const label = button.querySelector<HTMLElement>(
         "[data-dashboard-tour-guide-label]",
       );
       if (label) label.textContent = config.ui.guideLabel;
       button.title = config.ui.guideTitle;
       button.setAttribute("aria-label", config.ui.guideTitle);
-      button.hidden = false;
     })
     .catch(() => {
       if (!button.isConnected) return;
@@ -695,6 +701,8 @@ export function bindDashboardTourGuide(): void {
         "[data-dashboard-tour-guide-label]",
       );
       if (label) label.textContent = "راهنما";
+      button.title = "شروع راهنمای داشبورد";
+      button.setAttribute("aria-label", "شروع راهنمای داشبورد");
     });
   button.addEventListener("click", () => void requestDashboardTourStart());
 }
