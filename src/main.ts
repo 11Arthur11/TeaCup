@@ -23,7 +23,7 @@ import {
 import {
   renderAdminCategories, renderAdminDashboard, renderAdminDns, renderAdminGateways, renderAdminInvoiceDetail, renderAdminInvoices, renderAdminLiaraDns,
   renderAdminNotifications, renderAdminResourceDetail, renderAdminResources, renderAdminSystem, renderAdminTicketDetail, renderAdminDnsZoneRecords,
-  renderAdminTickets, renderAdminUserDetail, renderAdminUsers, renderAdminProducts, renderAudioNodeDetail, renderAudioNodes,
+  renderAdminTickets, renderAdminUserDetail, renderAdminUserWallet, renderAdminUsers, renderAdminProducts, renderAudioNodeDetail, renderAudioNodes,
   renderQueryInstanceDetail, renderQueryInstances
 } from './pages/admin.js';
 
@@ -214,6 +214,7 @@ router
   .register('/admin', adminArea('dashboard', () => renderAdminDashboard()))
   .register('/admin/users', liveAdminArea('users', (ctx) => renderAdminUsers(Number(ctx.query.get('page') ?? 0))))
   .register('/admin/users/:id', liveAdminArea('users', (ctx) => renderAdminUserDetail(numberParam(ctx, 'id'))))
+  .register('/admin/users/:id/wallet', liveAdminArea('users', (ctx) => renderAdminUserWallet(numberParam(ctx, 'id'), Number(ctx.query.get('page') ?? 0))))
   .register('/admin/resources', liveAdminArea('resources', (ctx) => renderAdminResources(Number(ctx.query.get('page') ?? 0))))
   .register('/admin/resources/:id', liveAdminArea('resources', (ctx) => renderAdminResourceDetail(numberParam(ctx, 'id'))))
   .register('/admin/products', liveAdminArea('products', () => renderAdminProducts()))

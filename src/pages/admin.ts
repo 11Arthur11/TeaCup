@@ -22,6 +22,7 @@ import { bindInvoiceTokenCopies, invoiceTokenView } from '../ui/invoice-token.js
 import { invoiceAmountCell, invoiceTaxBreakdown } from '../ui/invoice-pricing.js';
 import { createProductPresentationEditor } from '../ui/product-presentation.js';
 import { audioBotPanelAccessCard, bindAudioBotPanelAccessCards } from '../ui/audio-bot-access.js';
+import { readWalletTransactionFilters, walletTransactionApiFilter, walletTransactionFilterQuery, walletTransactionFilterToolbar } from '../ui/wallet-transaction-filter.js';
 
 interface AdminProductListDto { id?: number; categoryName?: string; categorySlug?: string; productName?: string; enabled?: boolean; price?: Models.Money; period?: string; productType?: string; maxClients?: number; providerNodeId?: number | null; expiration?: string; orderedResources?: number; }
 interface AdminProductDetailDto extends AdminProductListDto { presentation?: Models.ProductPresentation; }
@@ -288,23 +289,406 @@ export async function renderAdminUsers(page = 0): Promise<void> {
   }
 }
 
-export async function renderAdminUserDetail(userId:number): Promise<void> {
-  renderAppShell(loadingPage(),'جزئیات کاربر');
-  try {
-    const [detailResponse,rolesResponse,ticketsResponse]=await Promise.all([api.call('getUserById',{path:{userId}}),api.call('getRoles',{}),api.call('getAllUserTickets',{path:{userId},query:{filterRequest:{page:0,size:5}}})]);
-    const user=dataOf(detailResponse); const roles=dataOf(rolesResponse)??[]; const tickets=contentOf(ticketsResponse); if(!user)throw new Error('اطلاعات کاربر دریافت نشد.');
-    renderAppShell(`${pageHeader(`${user.firstName??''} ${user.lastName??''}`.trim()||`کاربر #${userId}`, `شناسه ${faNumber(user.id)} — ${escapeHtml(user.phone)}`, [{label:'بازگشت',icon:'arrow_forward',href:'/admin/users',variant:'ghost'}])}
-      <div class="detail-grid"><div class="detail-main">${card('اطلاعات حساب',`<dl class="description-list description-list--grid"><div><dt>شماره موبایل</dt><dd dir="ltr">${escapeHtml(user.phone)}</dd></div><div><dt>ایمیل</dt><dd class="ltr">${escapeHtml(user.email||'—')}</dd></div><div><dt>نقش فعلی</dt><dd>${badge(user.role)}</dd></div><div><dt>وضعیت اتصال</dt><dd><span class="user-online-status">${userPresenceAvatar(user.online)}<b>${user.online ? 'آنلاین' : 'آفلاین'}</b></span></dd></div><div><dt>تاریخ عضویت</dt><dd>${faDate(user.createdAt)}</dd></div><div><dt>آخرین ورود</dt><dd>${faDate(user.lastLogin)}</dd></div><div><dt>آخرین ویرایش</dt><dd>${faDate(user.updatedAt)}</dd></div></dl><div class="quick-actions"><button class="quick-action" id="edit-user">${icon('edit')}<span><b>ویرایش</b><small>نام و ایمیل</small></span></button><button class="quick-action" id="role-user">${icon('admin_panel_settings')}<span><b>تغییر نقش</b><small>سطح دسترسی</small></span></button><button class="quick-action" id="${user.locked?'unlock-user':'lock-user'}">${icon(user.locked?'lock_open':'lock')}<span><b>${user.locked?'بازکردن قفل':'قفل حساب'}</b><small>کنترل ورود</small></span></button></div>`,{icon:'manage_accounts'})}
-      ${card('تیکت‌های اخیر کاربر',dataTable<Models.TicketListAdminResponse>([{label:'موضوع',render:r=>`<a data-link class="text-link strong" href="/admin/tickets/${r.id}">${escapeHtml(r.subject)}</a>`},{label:'وضعیت',render:r=>badge(r.status)},{label:'تاریخ',render:r=>faDateShort(r.lastModified)}],tickets),{icon:'forum',actions:`<a data-link class="text-link" href="/admin/tickets?user=${userId}">همه تیکت‌ها</a>`})}</div>
-      <aside>${card('وضعیت امنیتی',`<div class="security-status"><div>${icon(user.online?'online_prediction':'wifi_off')}<span><b>وضعیت لحظه‌ای</b><small>${user.online?'کاربر اکنون آنلاین است':'کاربر در حال حاضر آفلاین است'}</small></span>${badge(user.online?'ONLINE':'OFFLINE')}</div><div>${icon(user.enabled?'check_circle':'block')}<span><b>حساب کاربری</b><small>${user.enabled?'فعال':'غیرفعال'}</small></span>${badge(user.enabled?'ACTIVE':'DISABLED')}</div><div>${icon(user.locked?'lock':'lock_open')}<span><b>وضعیت قفل</b><small>${user.locked?'ورود مسدود است':'ورود مجاز است'}</small></span>${badge(user.locked?'CLOSED':'ACTIVE')}</div><div>${icon(user.emailVerified?'verified':'mark_email_unread')}<span><b>تأیید ایمیل</b><small>${user.emailVerified?'تأیید شده':'تأیید نشده'}</small></span>${badge(user.emailVerified?'ACTIVE':'PENDING')}</div></div>`,{icon:'security'})}</aside></div>`, 'جزئیات کاربر');
-    bindAdminUserActions(user,roles);
-  } catch(error){renderAppShell(`${pageHeader('جزئیات کاربر','مدیریت حساب')}${adminError(error)}`,'جزئیات کاربر');}
+
+type AdminUserDetailTab = 'overview' | 'tickets' | 'wallet' | 'services' | 'invoices';
+type AdminUserOwnedTab = Exclude<AdminUserDetailTab, 'overview'>;
+
+const adminUserDetailTabs: Array<{ id: AdminUserDetailTab; label: string; icon: string }> = [
+  { id: 'overview', label: 'اطلاعات', icon: 'person' },
+  { id: 'tickets', label: 'تیکت‌ها', icon: 'forum' },
+  { id: 'wallet', label: 'کیف پول', icon: 'account_balance_wallet' },
+  { id: 'services', label: 'سرویس‌ها', icon: 'dns' },
+  { id: 'invoices', label: 'فاکتورها', icon: 'request_quote' },
+];
+
+function currentAdminUserTab(): AdminUserDetailTab {
+  const value = new URLSearchParams(location.search).get('tab');
+  return adminUserDetailTabs.some((tab) => tab.id === value) ? value as AdminUserDetailTab : 'overview';
+}
+
+function adminUserTabHref(userId: number, tab: AdminUserDetailTab, params?: URLSearchParams): string {
+  const query = params ? new URLSearchParams(params) : new URLSearchParams();
+  query.set('tab', tab);
+  query.delete('fromUser');
+  query.delete('fromTab');
+  if (tab === 'overview') {
+    query.delete('page');
+    query.delete('status');
+    query.delete('type');
+    query.delete('fromCreatedAt');
+    query.delete('toCreatedAt');
+  }
+  return `/admin/users/${userId}?${query.toString()}`;
+}
+
+function adminUserTabsMarkup(userId: number, active: AdminUserDetailTab): string {
+  return `<nav class="admin-user-tabs" aria-label="بخش‌های مرتبط با کاربر">
+    ${adminUserDetailTabs.map((tab) => `<a data-link class="${tab.id === active ? 'active' : ''}" href="${adminUserTabHref(userId, tab.id)}">${icon(tab.icon)}<span>${escapeHtml(tab.label)}</span></a>`).join('')}
+  </nav>`;
+}
+
+function adminOwnedDetailHref(path: string, userId: number, tab: AdminUserOwnedTab): string {
+  const url = new URL(path, location.origin);
+  url.searchParams.set('fromUser', String(userId));
+  url.searchParams.set('fromTab', tab);
+  return `${url.pathname}${url.search}`;
+}
+
+function adminDetailBackHref(fallback: string): string {
+  const params = new URLSearchParams(location.search);
+  const userId = Number(params.get('fromUser') ?? 0);
+  const tab = params.get('fromTab');
+  if (Number.isSafeInteger(userId) && userId > 0 && adminUserDetailTabs.some((item) => item.id === tab && item.id !== 'overview')) {
+    return `/admin/users/${userId}?tab=${encodeURIComponent(tab ?? 'overview')}`;
+  }
+  return fallback;
+}
+
+function adminUserOverviewTab(user: Models.UserDetailAdminResponse): string {
+  return `<div class="detail-grid"><div class="detail-main">
+    ${card('اطلاعات حساب', `<dl class="description-list description-list--grid">
+      <div><dt>شماره موبایل</dt><dd dir="ltr">${escapeHtml(user.phone)}</dd></div>
+      <div><dt>ایمیل</dt><dd class="ltr">${escapeHtml(user.email || '—')}</dd></div>
+      <div><dt>نقش فعلی</dt><dd>${badge(user.role)}</dd></div>
+      <div><dt>وضعیت اتصال</dt><dd><span class="user-online-status">${userPresenceAvatar(user.online)}<b>${user.online ? 'آنلاین' : 'آفلاین'}</b></span></dd></div>
+      <div><dt>تاریخ عضویت</dt><dd>${faDate(user.createdAt)}</dd></div>
+      <div><dt>آخرین ورود</dt><dd>${faDate(user.lastLogin)}</dd></div>
+      <div><dt>آخرین ویرایش</dt><dd>${faDate(user.updatedAt)}</dd></div>
+    </dl>
+    <div class="quick-actions quick-actions--three">
+      <button class="quick-action" id="edit-user">${icon('edit')}<span><b>ویرایش</b><small>نام و ایمیل</small></span></button>
+      <button class="quick-action" id="role-user">${icon('admin_panel_settings')}<span><b>تغییر نقش</b><small>سطح دسترسی</small></span></button>
+      <button class="quick-action" id="${user.locked ? 'unlock-user' : 'lock-user'}">${icon(user.locked ? 'lock_open' : 'lock')}<span><b>${user.locked ? 'بازکردن قفل' : 'قفل حساب'}</b><small>کنترل ورود</small></span></button>
+    </div>`, { icon: 'manage_accounts' })}
+  </div><aside>
+    ${card('وضعیت امنیتی', `<div class="security-status">
+      <div>${icon(user.online ? 'online_prediction' : 'wifi_off')}<span><b>وضعیت لحظه‌ای</b><small>${user.online ? 'کاربر اکنون آنلاین است' : 'کاربر در حال حاضر آفلاین است'}</small></span>${badge(user.online ? 'ONLINE' : 'OFFLINE')}</div>
+      <div>${icon(user.enabled ? 'check_circle' : 'block')}<span><b>حساب کاربری</b><small>${user.enabled ? 'فعال' : 'غیرفعال'}</small></span>${badge(user.enabled ? 'ACTIVE' : 'DISABLED')}</div>
+      <div>${icon(user.locked ? 'lock' : 'lock_open')}<span><b>وضعیت قفل</b><small>${user.locked ? 'ورود مسدود است' : 'ورود مجاز است'}</small></span>${badge(user.locked ? 'CLOSED' : 'ACTIVE')}</div>
+      <div>${icon(user.emailVerified ? 'verified' : 'mark_email_unread')}<span><b>تأیید ایمیل</b><small>${user.emailVerified ? 'تأیید شده' : 'تأیید نشده'}</small></span>${badge(user.emailVerified ? 'ACTIVE' : 'PENDING')}</div>
+    </div>`, { icon: 'security' })}
+  </aside></div>`;
 }
 
 function bindAdminUserActions(user:Models.UserDetailAdminResponse,roles:Models.RoleListResponse[]):void{
   document.querySelector('#edit-user')?.addEventListener('click',()=>{const form=document.createElement('form');form.className='form-grid';form.innerHTML=`${field('firstName','نام',{value:user.firstName})}${field('lastName','نام خانوادگی',{value:user.lastName})}${field('email','ایمیل',{value:user.email,type:'email',dir:'ltr'})}`;openDialog({title:'ویرایش کاربر',content:form,confirmLabel:'ذخیره',onConfirm:async()=>{const data=new FormData(form);const ok=await runAction(()=>api.call('editUser',{path:{userId:Number(user.id)},body:{firstName:String(data.get('firstName')??''),lastName:String(data.get('lastName')??''),email:String(data.get('email')??'')}}));if(ok)await renderAdminUserDetail(Number(user.id));return Boolean(ok);}});});
   document.querySelector('#role-user')?.addEventListener('click',()=>{const form=document.createElement('form');form.innerHTML=selectField('roleId','نقش',roles.map(role=>({value:role.id??'',label:`${role.name} — سطح ${role.hierarchy}`})),undefined,true);openDialog({title:'تغییر نقش کاربر',description:'این تغییر بلافاصله بر دسترسی‌های کاربر اثر می‌گذارد.',content:form,confirmLabel:'اعمال نقش',onConfirm:async()=>{if(!form.reportValidity())return false;const data=new FormData(form);const ok=await runAction(()=>api.call('setUserRole',{path:{userId:Number(user.id),roleId:requiredNumber(data.get('roleId'))}}));if(ok)await renderAdminUserDetail(Number(user.id));return Boolean(ok);}});});
   const lockAction=user.locked?'unlockUser':'lockUser';document.querySelector(user.locked?'#unlock-user':'#lock-user')?.addEventListener('click',()=>confirmDialog(user.locked?'بازکردن قفل حساب':'قفل‌کردن حساب',user.locked?'کاربر دوباره امکان ورود خواهد داشت.':'کاربر تا زمان بازشدن قفل امکان ورود ندارد.',user.locked?'بازکردن قفل':'قفل حساب',async()=>{if(await runAction(()=>api.call(lockAction,{path:{userId:Number(user.id)}})))await renderAdminUserDetail(Number(user.id));},!user.locked));
+}
+
+type AdminWalletAdjustmentType = NonNullable<Models.WalletTransactionAdminRequest['transactionType']>;
+type AdminWalletAdjustmentReason = NonNullable<Models.WalletTransactionAdminRequest['transactionReason']>;
+
+const adminWalletReasonOptions: Array<{ value: AdminWalletAdjustmentReason; label: string }> = [
+  { value: 'WALLET_CHARGE', label: 'شارژ کیف پول' },
+  { value: 'REFUND', label: 'بازگشت وجه' },
+  { value: 'PURCHASE', label: 'خرید' },
+  { value: 'PROLONG', label: 'تمدید' },
+];
+
+function adminWalletTransactionTable(transactions: Models.WalletTransactionResponse[], userId?: number): string {
+  return dataTable<Models.WalletTransactionResponse>([
+    { label: 'نوع', render: (row) => badge(row.type) },
+    { label: 'شرح', render: (row) => {
+      const relatedResourceId = Number(row.relatedResourceId ?? 0);
+      const resourceReference = relatedResourceId > 0
+        ? userId
+          ? `<a data-link class="text-link block" href="${adminOwnedDetailHref(`/admin/resources/${relatedResourceId}`, userId, 'wallet')}">سرویس #${faNumber(relatedResourceId)}</a>`
+          : `<small class="block">سرویس #${faNumber(relatedResourceId)}</small>`
+        : '';
+      return `<b>${translateEnum(row.reason)}</b>${resourceReference}`;
+    } },
+    { label: 'مبلغ', render: (row) => `<strong class="money ${row.type === 'CREDIT' ? 'money--credit' : 'money--debit'}">${row.type === 'CREDIT' ? '+' : '−'} ${money(row.amount)}</strong>` },
+    { label: 'تاریخ', render: (row) => faDate(row.createdAt) },
+  ], transactions, { emptyTitle: 'تراکنشی ثبت نشده', emptyText: 'برای این کاربر هنوز تراکنش کیف پولی وجود ندارد.' });
+}
+
+function openAdminWalletAdjustment(userId: number, type: AdminWalletAdjustmentType): void {
+  const credit = type === 'CREDIT';
+  const form = document.createElement('form');
+  form.className = 'form-grid';
+  form.innerHTML = `
+    ${field('amount', credit ? 'مبلغ افزایش موجودی' : 'مبلغ کاهش موجودی', { type: 'number', min: 1, step: '1', required: true, dir: 'ltr', hint: 'مبلغ به تومان وارد شود.' })}
+    ${selectField('transactionReason', 'دلیل تراکنش', adminWalletReasonOptions, credit ? 'WALLET_CHARGE' : 'PURCHASE', true)}
+    <div class="field field--full">${toggleField('persist', 'تراکنش در سوابق کیف پول ثبت شود', true)}</div>
+  `;
+
+  openDialog({
+    title: credit ? 'افزایش موجودی کاربر' : 'کاهش موجودی کاربر',
+    description: credit
+      ? 'یک تراکنش بستانکار برای کیف پول این کاربر ایجاد می‌شود.'
+      : 'یک تراکنش بدهکار ایجاد می‌شود و موجودی کیف پول کاربر کاهش پیدا می‌کند.',
+    content: form,
+    confirmLabel: credit ? 'افزایش موجودی' : 'کاهش موجودی',
+    onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const data = new FormData(form);
+      const amount = Number(data.get('amount'));
+      const transactionReason = String(data.get('transactionReason') ?? '') as AdminWalletAdjustmentReason;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        notify('مبلغ تراکنش باید بزرگ‌تر از صفر باشد.', 'warning');
+        return false;
+      }
+
+      const result = await runAction(() => api.call('adjust', {
+        path: { userId },
+        body: {
+          transactionType: type,
+          transactionReason,
+          amount,
+          persist: data.get('persist') === 'on',
+        },
+      }), { fallbackSuccess: credit ? 'موجودی کاربر افزایش یافت.' : 'موجودی کاربر کاهش یافت.' });
+
+      if (!result) return false;
+      router.navigate(`/admin/users/${userId}?tab=wallet`, true);
+      return true;
+    },
+  });
+}
+
+function adminUserInvoicesTable(invoices: Models.InvoiceAdminResponse[], userId: number): string {
+  return dataTable<Models.InvoiceAdminResponse>([
+    { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, adminOwnedDetailHref(`/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`, userId, 'invoices')) },
+    { label: 'قابل پرداخت', render: (row) => invoiceAmountCell(row.money, row.taxPercentage) },
+    { label: 'وضعیت', render: (row) => badge(row.status) },
+    { label: 'ایجاد', render: (row) => faDate(row.createdAt) },
+    { label: 'پرداخت', render: (row) => faDate(row.paidAt) },
+    { label: '', render: (row) => `<a data-link class="button button--ghost button--small" href="${adminOwnedDetailHref(`/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`, userId, 'invoices')}">جزئیات</a>` },
+  ], invoices, { emptyTitle: 'فاکتوری وجود ندارد', emptyText: 'برای این کاربر هنوز فاکتوری ثبت نشده است.' });
+}
+
+export async function renderAdminUserDetail(userId:number): Promise<void> {
+  renderAppShell(loadingPage(),'جزئیات کاربر');
+  try {
+    const params = new URLSearchParams(location.search);
+    const tab = currentAdminUserTab();
+    const page = Math.max(0, Number(params.get('page') ?? 0) || 0);
+    const [detailResponse, rolesResponse] = await Promise.all([
+      api.call('getUserById', { path: { userId } }),
+      api.call('getRoles', {}),
+    ]);
+    const user = dataOf(detailResponse);
+    const roles = dataOf(rolesResponse) ?? [];
+    if (!user) throw new Error('اطلاعات کاربر دریافت نشد.');
+
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || `کاربر #${userId}`;
+    const headerActions = [
+      { label: 'بازگشت', icon: 'arrow_forward', href: '/admin/users', variant: 'ghost' as const },
+      ...(tab === 'wallet'
+        ? [
+            { label: 'افزایش موجودی', icon: 'add_circle', id: 'admin-wallet-credit', variant: 'primary' as const },
+            { label: 'کاهش موجودی', icon: 'remove_circle', id: 'admin-wallet-debit', variant: 'danger' as const },
+          ]
+        : []),
+    ];
+
+    let tabContent = '';
+
+    if (tab === 'overview') {
+      tabContent = adminUserOverviewTab(user);
+    }
+
+    if (tab === 'tickets') {
+      const status = params.get('status') as Models.TicketFilterRequest['status'] | null;
+      const response = await api.call('getAllUserTickets', {
+        path: { userId },
+        query: { filterRequest: { page, size: 20, status: status ?? undefined } },
+      });
+      const tickets = contentOf(response);
+      const meta = pageOf(response);
+      const statusHref = (next?: Models.TicketFilterRequest['status']): string => {
+        const query = new URLSearchParams({ tab: 'tickets' });
+        if (next) query.set('status', next);
+        return `/admin/users/${userId}?${query.toString()}`;
+      };
+      tabContent = `<div class="filter-bar admin-user-tab-filter"><div class="segmented">
+        <a data-link class="${!status ? 'active' : ''}" href="${statusHref()}">همه</a>
+        <a data-link class="${status === 'PENDING' ? 'active' : ''}" href="${statusHref('PENDING')}">در انتظار</a>
+        <a data-link class="${status === 'WAITING' ? 'active' : ''}" href="${statusHref('WAITING')}">منتظر پاسخ</a>
+        <a data-link class="${status === 'RESPONDED' ? 'active' : ''}" href="${statusHref('RESPONDED')}">پاسخ‌داده‌شده</a>
+        <a data-link class="${status === 'CLOSED' ? 'active' : ''}" href="${statusHref('CLOSED')}">بسته</a>
+      </div></div>
+      ${card('تیکت‌های کاربر', dataTable<Models.TicketListAdminResponse>([
+        { label: 'موضوع', render: (row) => `<a data-link class="table-primary" href="${adminOwnedDetailHref(`/admin/tickets/${row.id}`, userId, 'tickets')}">${icon('chat')}<span><b>${escapeHtml(row.subject)}</b><small>#${faNumber(row.id)}</small></span></a>` },
+        { label: 'دپارتمان', render: (row) => translateEnum(row.department) },
+        { label: 'وضعیت', render: (row) => badge(row.status) },
+        { label: 'آخرین تغییر', render: (row) => faDate(row.lastModified) },
+        { label: '', render: (row) => `<a data-link class="icon-button" href="${adminOwnedDetailHref(`/admin/tickets/${row.id}`, userId, 'tickets')}">${icon('chevron_left')}</a>` },
+      ], tickets, { emptyTitle: 'تیکتی وجود ندارد', emptyText: 'این کاربر هنوز تیکتی ثبت نکرده است.' }) + pagination(meta.number, meta.totalPages), { icon: 'forum' })}`;
+    }
+
+    if (tab === 'wallet') {
+      const filters = readWalletTransactionFilters();
+      const transactionFilter = walletTransactionApiFilter(filters, page, 20);
+      const [overviewResponse, transactionsResponse] = await Promise.all([
+        api.call('getBalance_1', { path: { userId } }),
+        api.call('getWalletTransactions', { path: { userId }, query: { filter: transactionFilter } }),
+      ]);
+      const overview = dataOf(overviewResponse);
+      const transactions = contentOf(transactionsResponse);
+      const meta = pageOf(transactionsResponse);
+      if (!overview) throw new Error('اطلاعات کیف پول کاربر دریافت نشد.');
+      const coverage = overview.autoRenewalCoverageUntil ? remainingTime(overview.autoRenewalCoverageUntil) : 'قابل محاسبه نیست';
+
+      tabContent = `<section class="finance-overview admin-user-wallet-overview">
+        <article class="wallet-balance-card">
+          <div class="wallet-balance-card__icon">${icon('account_balance_wallet')}</div>
+          <div><small>موجودی قابل استفاده</small><strong>${money(overview.balance)}</strong><span>${escapeHtml(fullName)}</span></div>
+        </article>
+        <div class="finance-metrics">
+          <article>${icon('today')}<span><small>هزینه ۲۴ ساعت اخیر</small><b>${money(overview.spentLastDay)}</b></span></article>
+          <article>${icon('date_range')}<span><small>هزینه ۷ روز اخیر</small><b>${money(overview.spentLast7days)}</b></span></article>
+          <article>${icon('calendar_month')}<span><small>هزینه ۳۰ روز اخیر</small><b>${money(overview.spentLast30days)}</b></span></article>
+          <article>${icon('autorenew')}<span><small>پوشش تمدید خودکار</small><b>${escapeHtml(coverage)}</b></span></article>
+        </div>
+      </section>
+      ${card('تراکنش‌های کیف پول', adminWalletTransactionTable(transactions, userId) + pagination(meta.number, meta.totalPages), {
+        icon: 'account_balance_wallet',
+        actions: walletTransactionFilterToolbar(filters, {
+          id: 'admin-wallet-filter-form',
+          clearHref: `/admin/users/${userId}?tab=wallet`,
+        }),
+        className: 'finance-transactions-card',
+      })}`;
+    }
+
+    if (tab === 'services') {
+      const type = params.get('type') as Models.ResourceFilterRequest['byType'] | null;
+      const status = params.get('status') as Models.ResourceFilterRequest['byResourceStatus'] | null;
+      const response = await api.call('getAllResources', { query: { filter: {
+        page,
+        size: 20,
+        byOwnerId: userId,
+        byType: type ?? undefined,
+        byResourceStatus: status ?? undefined,
+      } } });
+      const resources = contentOf(response);
+      const meta = pageOf(response);
+      tabContent = `<form id="admin-user-service-filter" class="admin-user-owned-filter">
+        ${selectField('type', 'نوع سرویس', [
+          { value: '', label: 'همه سرویس‌ها' },
+          { value: 'TEASPEAK', label: 'TeaSpeak' },
+          { value: 'AUDIO_BOT', label: 'AudioBot' },
+        ], type ?? '')}
+        ${selectField('status', 'وضعیت', [
+          { value: '', label: 'همه وضعیت‌ها' },
+          { value: 'DEPLOYING', label: 'در حال راه‌اندازی' },
+          { value: 'ACTIVE', label: 'فعال' },
+          { value: 'PENDING_PROLONG', label: 'در انتظار تمدید' },
+          { value: 'LOCKED', label: 'قفل‌شده' },
+        ], status ?? '')}
+        <div class="admin-user-owned-filter__actions"><button class="button button--primary button--small" type="submit">${icon('filter_alt')} اعمال</button><a data-link class="button button--ghost button--small" href="/admin/users/${userId}?tab=services">${icon('filter_alt_off')} پاک‌کردن</a></div>
+      </form>
+      ${card('سرویس‌های کاربر', dataTable<Models.ResourceListAdminResponse>([
+        { label: 'سرویس', render: (resource) => `<a data-link class="table-primary" href="${adminOwnedDetailHref(`/admin/resources/${resource.id}`, userId, 'services')}">${icon(resource.resourceType === 'AUDIO_BOT' ? 'headphones' : 'dns')}<span><b>${escapeHtml(resource.label || `#${resource.id}`)}</b><small>${escapeHtml(resource.productName || translateEnum(resource.resourceType))}</small></span></a>` },
+        { label: 'نوع', render: (resource) => translateEnum(resource.resourceType) },
+        { label: 'وضعیت', render: (resource) => badge(resource.resourceStatus) },
+        { label: 'دوره', render: (resource) => badge(resource.period) },
+        { label: 'انقضا', render: (resource) => resourceExpirationCell(resource.expiration) },
+        { label: '', render: (resource) => `<a data-link class="button button--ghost button--small" href="${adminOwnedDetailHref(`/admin/resources/${resource.id}`, userId, 'services')}">جزئیات</a>` },
+      ], resources, { emptyTitle: 'سرویسی وجود ندارد', emptyText: 'برای این کاربر Resource ثبت‌شده‌ای پیدا نشد.' }) + pagination(meta.number, meta.totalPages), { icon: 'dns' })}`;
+    }
+
+    if (tab === 'invoices') {
+      const status = params.get('status') as Models.InvoiceAdminFilterRequest['status'] | null;
+      const fromCreatedAt = params.get('fromCreatedAt') || '';
+      const toCreatedAt = params.get('toCreatedAt') || '';
+      const response = await api.call('getAllInvoices', { query: { filterRequest: {
+        page,
+        size: 20,
+        byUserId: userId,
+        status: status ?? undefined,
+        fromCreatedAt: invoiceApiDateTime(fromCreatedAt),
+        toCreatedAt: invoiceApiDateTime(toCreatedAt),
+      } } });
+      const invoices = contentOf(response);
+      const meta = pageOf(response);
+      cacheAdminInvoices(invoices);
+      tabContent = `<form id="admin-user-invoice-filter" class="admin-user-owned-filter admin-user-owned-filter--invoice">
+        ${selectField('status', 'وضعیت', [
+          { value: '', label: 'همه وضعیت‌ها' },
+          { value: 'PENDING', label: 'در انتظار' },
+          { value: 'PAID', label: 'پرداخت‌شده' },
+          { value: 'CANCELLED', label: 'لغوشده' },
+        ], status ?? '')}
+        ${field('fromCreatedAt', 'از تاریخ', { type: 'datetime-local', value: invoiceDateTimeLocalValue(fromCreatedAt) })}
+        ${field('toCreatedAt', 'تا تاریخ', { type: 'datetime-local', value: invoiceDateTimeLocalValue(toCreatedAt) })}
+        <div class="admin-user-owned-filter__actions"><button class="button button--primary button--small" type="submit">${icon('filter_alt')} اعمال</button><a data-link class="button button--ghost button--small" href="/admin/users/${userId}?tab=invoices">${icon('filter_alt_off')} پاک‌کردن</a></div>
+      </form>
+      ${card('فاکتورهای کاربر', adminUserInvoicesTable(invoices, userId) + pagination(meta.number, meta.totalPages), { icon: 'request_quote' })}`;
+    }
+
+    renderAppShell(`${pageHeader(fullName, `شناسه ${faNumber(user.id)} — ${escapeHtml(user.phone)}`, headerActions)}
+      ${adminUserTabsMarkup(userId, tab)}
+      <section class="admin-user-tab-content">${tabContent}</section>`, 'جزئیات کاربر');
+
+    bindInvoiceTokenCopies();
+    if (tab === 'overview') bindAdminUserActions(user, roles);
+
+    if (tab === 'wallet') {
+      document.querySelector('#admin-wallet-credit')?.addEventListener('click', () => openAdminWalletAdjustment(userId, 'CREDIT'));
+      document.querySelector('#admin-wallet-debit')?.addEventListener('click', () => openAdminWalletAdjustment(userId, 'DEBIT'));
+      document.querySelector<HTMLFormElement>('#admin-wallet-filter-form')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.currentTarget as HTMLFormElement;
+        const { query, error } = walletTransactionFilterQuery(form, new URLSearchParams({ tab: 'wallet' }));
+        if (error) {
+          notify(error, 'warning');
+          return;
+        }
+        router.navigate(`/admin/users/${userId}?${query.toString()}`);
+      });
+    }
+
+    if (tab === 'services') {
+      document.querySelector<HTMLFormElement>('#admin-user-service-filter')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget as HTMLFormElement);
+        const query = new URLSearchParams({ tab: 'services' });
+        const type = String(data.get('type') ?? '');
+        const status = String(data.get('status') ?? '');
+        if (type) query.set('type', type);
+        if (status) query.set('status', status);
+        router.navigate(`/admin/users/${userId}?${query.toString()}`);
+      });
+    }
+
+    if (tab === 'invoices') {
+      document.querySelector<HTMLFormElement>('#admin-user-invoice-filter')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget as HTMLFormElement);
+        const from = String(data.get('fromCreatedAt') ?? '');
+        const to = String(data.get('toCreatedAt') ?? '');
+        if (from && to && new Date(from).getTime() > new Date(to).getTime()) {
+          notify('تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.', 'warning');
+          return;
+        }
+        const query = new URLSearchParams({ tab: 'invoices' });
+        const status = String(data.get('status') ?? '');
+        if (status) query.set('status', status);
+        if (from) query.set('fromCreatedAt', from);
+        if (to) query.set('toCreatedAt', to);
+        router.navigate(`/admin/users/${userId}?${query.toString()}`);
+      });
+    }
+
+    qsa<HTMLButtonElement>('[data-page]').forEach((button) => button.addEventListener('click', () => {
+      const query = new URLSearchParams(location.search);
+      query.set('tab', tab);
+      query.set('page', String(Number(button.dataset.page)));
+      router.navigate(`/admin/users/${userId}?${query.toString()}`);
+    }));
+  } catch(error){
+    renderAppShell(`${pageHeader('جزئیات کاربر','مدیریت حساب')}${adminError(error)}`,'جزئیات کاربر');
+  }
+}
+
+// Compatibility entry point for old bookmarks. The canonical wallet view now lives as a user-detail tab.
+export async function renderAdminUserWallet(userId: number, page = 0): Promise<void> {
+  const query = new URLSearchParams({ tab: 'wallet' });
+  if (page > 0) query.set('page', String(page));
+  router.navigate(`/admin/users/${userId}?${query.toString()}`, true);
 }
 
 type AdminResourceType = NonNullable<Models.ResourceFilterRequest['byType']>;
@@ -376,6 +760,7 @@ export async function renderAdminResources(page = 0): Promise<void> {
         { value: 'DEPLOYING', label: 'در حال راه‌اندازی' },
         { value: 'ACTIVE', label: 'فعال' },
         { value: 'PENDING_PROLONG', label: 'در انتظار تمدید' },
+        { value: 'LOCKED', label: 'قفل‌شده' },
       ], status ?? '')}
       <label class="field admin-resource-owner-field"><span>مالک سرویس</span>
         <input type="hidden" name="owner" value="${ownerId > 0 ? ownerId : ''}" />
@@ -438,6 +823,9 @@ export async function renderAdminResources(page = 0): Promise<void> {
   }
 }
 
+
+const revealedAdminPrivilegeTokens = new Set<number>();
+
 function adminTeaSpeakConnection(resource: AdminResourceDetailDto): string {
   const address = resource.address?.trim();
   const port = resource.port == null ? '' : String(resource.port);
@@ -455,6 +843,63 @@ function bindAdminConnectionCopy(): void {
     try { await navigator.clipboard.writeText(value); notify('اطلاعات اتصال کپی شد.', 'success'); }
     catch { notify('کپی خودکار انجام نشد.', 'warning'); }
   }));
+}
+
+function adminPrivilegeTokenPanel(resource: AdminResourceDetailDto, locked: boolean): string {
+  const resourceId = Number(resource.id ?? 0);
+  const token = resource.privilegeToken?.token?.trim();
+  const lockedAttr = locked ? 'disabled aria-disabled="true" title="Resource توسط مدیر قفل شده است"' : '';
+  const lockedClass = locked ? ' resource-action--locked' : '';
+  if (!token) {
+    return card('Privilege Token', emptyState(
+      'توکنی دریافت نشده است',
+      locked
+        ? 'Resource قفل است و تا زمان رفع قفل امکان ساخت Privilege جدید وجود ندارد.'
+        : 'با ساخت یک Privilege جدید، کلید مدیریت TeaSpeak در این بخش نمایش داده می‌شود.',
+      `<button type="button" class="button button--secondary button--small${lockedClass}" data-admin-new-privilege ${lockedAttr}>${icon(locked ? 'lock' : 'key')} ساخت Privilege</button>`,
+    ), { icon: 'key', className: 'privilege-card' });
+  }
+
+  const revealed = revealedAdminPrivilegeTokens.has(resourceId);
+  return card('Privilege Token', `<div class="privilege-token ${revealed ? 'privilege-token--revealed' : ''}" data-admin-privilege-token>
+    <div class="privilege-token__meta">${icon('vpn_key')}<span><b>کلید دسترسی مدیریتی TeaSpeak</b><small>${revealed ? 'توکن قابل مشاهده است؛ آن را محرمانه نگه دارید.' : 'برای مشاهده روی مقدار یا دکمه نمایش کلیک کنید.'}</small></span></div>
+    <button type="button" class="privilege-token__value" data-admin-reveal-privilege aria-pressed="${revealed}" aria-label="${revealed ? 'مخفی‌کردن توکن' : 'نمایش توکن'}"><code dir="ltr">${escapeHtml(token)}</code><span>${icon(revealed ? 'visibility_off' : 'visibility')}${revealed ? 'مخفی‌کردن' : 'نمایش توکن'}</span></button>
+    <div class="privilege-token__actions">
+      <button type="button" class="button button--ghost button--small" data-admin-copy-privilege ${revealed ? '' : 'disabled'}>${icon('content_copy')} کپی</button>
+      <button type="button" class="button button--secondary button--small${lockedClass}" data-admin-new-privilege ${lockedAttr}>${icon(locked ? 'lock' : 'autorenew')} ساخت توکن جدید</button>
+    </div>
+  </div>`, { icon: 'key', className: 'privilege-card' });
+}
+
+function bindAdminPrivilegeToken(resource: AdminResourceDetailDto, locked: boolean, createNew: () => void): void {
+  const resourceId = Number(resource.id ?? 0);
+  const token = resource.privilegeToken?.token?.trim();
+  const reveal = document.querySelector<HTMLButtonElement>('[data-admin-reveal-privilege]');
+  const copy = document.querySelector<HTMLButtonElement>('[data-admin-copy-privilege]');
+  const container = document.querySelector<HTMLElement>('[data-admin-privilege-token]');
+
+  reveal?.addEventListener('click', () => {
+    if (!token || !container) return;
+    const next = !revealedAdminPrivilegeTokens.has(resourceId);
+    if (next) revealedAdminPrivilegeTokens.add(resourceId);
+    else revealedAdminPrivilegeTokens.delete(resourceId);
+    container.classList.toggle('privilege-token--revealed', next);
+    reveal.setAttribute('aria-pressed', String(next));
+    reveal.querySelector('span')!.innerHTML = `${icon(next ? 'visibility_off' : 'visibility')}${next ? 'مخفی‌کردن' : 'نمایش توکن'}`;
+    copy?.toggleAttribute('disabled', !next);
+  });
+
+  copy?.addEventListener('click', async () => {
+    if (!token || !revealedAdminPrivilegeTokens.has(resourceId)) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      notify('Privilege Token کپی شد.', 'success');
+    } catch {
+      notify('کپی خودکار توکن انجام نشد.', 'warning');
+    }
+  });
+
+  if (!locked) qsa<HTMLButtonElement>('[data-admin-new-privilege]').forEach((button) => button.addEventListener('click', createNew));
 }
 
 function openAdminResourceEdit(resource: AdminResourceDetailDto, resourceId: number): void {
@@ -488,60 +933,100 @@ export async function renderAdminResourceDetail(resourceId: number): Promise<voi
     const response = await api.call('getResource', { path: { resourceId } });
     const resource = dataOf(response) as AdminResourceDetailDto | undefined;
     if (!resource) throw new Error('منبع دریافت نشد.');
+
     const isAudio = resource.resourceType === 'AUDIO_BOT';
     const isTeaSpeak = resource.resourceType === 'TEASPEAK';
+    const locked = resource.resourceStatus === 'LOCKED';
+    const backHref = adminDetailBackHref('/admin/resources');
+    const lockedAttr = locked ? 'disabled aria-disabled="true" title="Resource توسط مدیر قفل شده است"' : '';
+    const lockedClass = locked ? ' resource-action--locked' : '';
 
     const botStatus = resource.botStatus?.trim().toUpperCase();
-    const powerControls = isAudio
-      ? botStatus === 'OFFLINE'
-        ? `<button id="admin-audio-power" data-start="true" class="button button--secondary button--block">${icon('play_circle')} روشن‌کردن AudioBot</button>`
-        : botStatus === 'CONNECTED'
-          ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} خاموش‌کردن AudioBot</button>`
-          : botStatus === 'CONNECTING'
-            ? `<button id="admin-audio-power" data-start="false" class="button button--danger button--block">${icon('stop_circle')} توقف اتصال AudioBot</button>`
-            : `<button class="button button--ghost button--block" disabled>${icon('sync_problem')} وضعیت اجرای AudioBot نامشخص است</button>`
-      : `<button id="admin-start" class="button button--secondary button--block">${icon('play_arrow')} شروع سرویس</button>
-         <button id="admin-stop" class="button button--ghost button--block">${icon('stop')} توقف سرویس</button>`;
+    const teaSpeakStatus = resource.teaSpeakStatus?.trim().toUpperCase();
+    const shouldStart = isAudio
+      ? botStatus === 'OFFLINE' ? true : (botStatus === 'CONNECTED' || botStatus === 'CONNECTING') ? false : undefined
+      : teaSpeakStatus === 'OFFLINE' ? true : teaSpeakStatus === 'ONLINE' ? false : undefined;
+    const powerLabel = isAudio
+      ? shouldStart === true ? 'روشن‌کردن AudioBot' : botStatus === 'CONNECTING' ? 'توقف اتصال AudioBot' : 'خاموش‌کردن AudioBot'
+      : shouldStart === true ? 'روشن‌کردن TeaSpeak' : 'خاموش‌کردن TeaSpeak';
+    const powerControls = shouldStart == null
+      ? `<button class="button button--ghost button--block" disabled>${icon('sync_problem')} وضعیت اجرای ${isAudio ? 'AudioBot' : 'TeaSpeak'} نامشخص است</button>`
+      : `<button id="admin-service-power" data-start="${shouldStart}" class="button ${shouldStart ? 'button--secondary' : 'button--danger'} button--block${lockedClass}" ${lockedAttr}>${icon(locked ? 'lock' : shouldStart ? 'play_circle' : 'stop_circle')} ${powerLabel}</button>`;
 
     const actionCard = card('عملیات مدیریتی', `<div class="admin-resource-actions">
       ${powerControls}
-      <button id="admin-edit-resource" class="button button--ghost button--block">${icon('edit')} ویرایش سرویس</button>
-      <button id="admin-force-prolong" class="button button--primary button--block">${icon('event_repeat')} تمدید اجباری</button>
-      ${isAudio ? `<button id="admin-audio-settings" class="button button--ghost button--block">${icon('tune')} تنظیمات اتصال AudioBot</button>` : ''}
-      ${isTeaSpeak ? `<button id="admin-privilege" class="button button--ghost button--block">${icon('key')} ساخت Privilege</button>` : ''}
-      <button id="admin-delete-resource" class="button button--danger button--block">${icon('delete_forever')} حذف سرویس کاربر</button>
-    </div><p class="muted">عملیات نوع سرویس از همان endpointهای مدیریتی TeaSpeak و AudioBot اجرا می‌شود.</p>`, { icon: 'settings' });
+      <button id="admin-edit-resource" class="button button--ghost button--block${lockedClass}" ${lockedAttr}>${icon(locked ? 'lock' : 'edit')} ویرایش سرویس</button>
+      <button id="admin-force-prolong" class="button button--primary button--block${lockedClass}" ${lockedAttr}>${icon(locked ? 'lock' : 'event_repeat')} تمدید اجباری</button>
+      ${isAudio ? `<button id="admin-audio-settings" class="button button--ghost button--block${lockedClass}" ${lockedAttr}>${icon(locked ? 'lock' : 'tune')} تنظیمات اتصال AudioBot</button>` : ''}
+      <button id="admin-toggle-resource-lock" class="button ${locked ? 'button--secondary' : 'button--danger'} button--block">${icon(locked ? 'lock_open' : 'lock')} ${locked ? 'بازکردن قفل Resource' : 'قفل‌کردن Resource'}</button>
+      <button id="admin-delete-resource" class="button button--danger button--block${lockedClass}" ${lockedAttr}>${icon(locked ? 'lock' : 'delete_forever')} حذف سرویس کاربر</button>
+    </div><p class="muted">${locked ? 'Resource قفل است؛ فقط مشاهده اطلاعات و بازکردن قفل از این صفحه در دسترس است.' : 'عملیات نوع سرویس از endpointهای مدیریتی TeaSpeak و AudioBot اجرا می‌شود.'}</p>`, { icon: 'settings' });
 
-    renderAppShell(`${pageHeader(resource.label || resource.productName || `منبع #${resourceId}`, `${translateEnum(resource.resourceType)} — ${badge(resource.resourceStatus)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/resources', variant: 'ghost' }])}
+    const lockNotice = locked
+      ? `<div class="resource-lock-banner">${icon('lock')}<div><b>این Resource از سمت مدیر قفل شده است</b><span>مشخصات سرویس قابل مشاهده است، اما تمام عملیات اجرایی و Actionهای اختصاصی تا رفع قفل غیرفعال هستند.</span></div></div>`
+      : '';
+
+    renderAppShell(`${pageHeader(resource.label || resource.productName || `منبع #${resourceId}`, `${translateEnum(resource.resourceType)} — ${translateEnum(resource.resourceStatus)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: backHref, variant: 'ghost' }])}
+      ${lockNotice}
       <div class="detail-grid"><div class="detail-main">
         ${card('مشخصات منبع', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>${faNumber(resource.id)}</dd></div><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع</dt><dd>${translateEnum(resource.resourceType)}</dd></div><div><dt>وضعیت</dt><dd>${badge(resource.resourceStatus)}</dd></div><div><dt>دوره</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>انقضا</dt><dd>${resourceExpirationCell(resource.expiration)}</dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? 'فعال' : 'غیرفعال'}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>وضعیت TeaSpeak</dt><dd>${badge(resource.teaSpeakStatus)}</dd></div><div><dt>آدرس</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت AudioBot</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}</dl>`, { icon: 'info' })}
-        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`) : ''}
+        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`, { disabled: locked, disabledMessage: 'Resource قفل است؛ دسترسی پنل AudioBot قابل دریافت نیست.' }) : ''}
         ${isTeaSpeak ? adminTeaSpeakConnection(resource) : ''}
+        ${isTeaSpeak ? adminPrivilegeTokenPanel(resource, locked) : ''}
       </div><aside>${actionCard}</aside></div>`, 'جزئیات منبع');
 
     bindAdminConnectionCopy();
+    if (isAudio) bindAudioBotPanelAccessCards();
+
+    const createPrivilege = (): void => confirmDialog('ساخت Privilege', 'یک کلید دسترسی جدید برای TeaSpeak ساخته شود؟', 'ساخت کلید', async () => {
+      if (await runAction(() => api.call('newPrivilege', { path: { resourceId } }))) {
+        revealedAdminPrivilegeTokens.delete(resourceId);
+        await renderAdminResourceDetail(resourceId);
+      }
+    });
+    if (isTeaSpeak) bindAdminPrivilegeToken(resource, locked, createPrivilege);
+
+    document.querySelector('#admin-toggle-resource-lock')?.addEventListener('click', () => confirmDialog(
+      locked ? 'بازکردن قفل Resource' : 'قفل‌کردن Resource',
+      locked
+        ? 'قفل Resource برداشته شود و Actionهای اجرایی دوباره در دسترس قرار بگیرند؟'
+        : 'با قفل‌شدن Resource تمام Actionهای اجرایی در پنل غیرفعال می‌شوند. ادامه می‌دهید؟',
+      locked ? 'بازکردن قفل' : 'قفل‌کردن',
+      async () => {
+        const ok = locked
+          ? await runAction(() => api.call('unlockResource', { path: { resourceId } }))
+          : await runAction(() => api.call('lockResource', { path: { resourceId } }));
+        if (ok) await renderAdminResourceDetail(resourceId);
+      },
+      !locked,
+    ));
+
+    if (locked) return;
+
     const runServiceAction = async (start: boolean): Promise<void> => {
       const operation = isAudio ? (start ? 'startAudioBot' : 'stopAudioBot') : (start ? 'startTeaSpeak' : 'stopTeaSpeak');
       if (await runAction(() => api.call(operation, { path: { resourceId } } as never))) await renderAdminResourceDetail(resourceId);
     };
-    document.querySelector('#admin-start')?.addEventListener('click', () => confirmDialog('شروع سرویس', 'سرویس راه‌اندازی شود؟', 'شروع', () => runServiceAction(true)));
-    document.querySelector('#admin-stop')?.addEventListener('click', () => confirmDialog('توقف سرویس', 'این عملیات ممکن است ارتباط کاربران را قطع کند.', 'توقف', () => runServiceAction(false), true));
-    document.querySelector<HTMLButtonElement>('#admin-audio-power')?.addEventListener('click', (event) => {
+
+    document.querySelector<HTMLButtonElement>('#admin-service-power')?.addEventListener('click', (event) => {
       const button = event.currentTarget as HTMLButtonElement;
       const start = button.dataset.start === 'true';
-      confirmDialog(start ? 'روشن‌کردن AudioBot' : 'خاموش‌کردن AudioBot', start ? 'ربات موسیقی راه‌اندازی شود؟' : 'ربات موسیقی متوقف شود؟', start ? 'روشن‌کردن' : 'خاموش‌کردن', () => runServiceAction(start), !start);
+      const serviceName = isAudio ? 'AudioBot' : 'TeaSpeak';
+      confirmDialog(
+        start ? `روشن‌کردن ${serviceName}` : `خاموش‌کردن ${serviceName}`,
+        start ? `${serviceName} راه‌اندازی شود؟` : `این عملیات ${serviceName} را متوقف می‌کند و ممکن است ارتباط کاربران را قطع کند.`,
+        start ? 'روشن‌کردن' : 'خاموش‌کردن',
+        () => runServiceAction(start),
+        !start,
+      );
     });
     document.querySelector('#admin-edit-resource')?.addEventListener('click', () => openAdminResourceEdit(resource, resourceId));
-    if (isAudio) bindAudioBotPanelAccessCards();
     document.querySelector('#admin-audio-settings')?.addEventListener('click', () => openAdminAudioSettings(resource, resourceId));
     document.querySelector('#admin-force-prolong')?.addEventListener('click', () => confirmDialog('تمدید اجباری سرویس', 'سرویس بدون کسر هزینه از کیف پول کاربر توسط مدیر تمدید شود؟', 'تمدید اجباری', async () => {
       if (await runAction(() => api.call('forceProlongResource', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);
     }));
-    document.querySelector('#admin-privilege')?.addEventListener('click', () => confirmDialog('ساخت Privilege', 'یک کلید دسترسی جدید برای TeaSpeak ساخته شود؟', 'ساخت کلید', async () => {
-      if (await runAction(() => api.call('newPrivilege', { path: { resourceId } }))) await renderAdminResourceDetail(resourceId);
-    }));
     document.querySelector('#admin-delete-resource')?.addEventListener('click', () => confirmDialog('حذف سرویس کاربر', 'این سرویس و اطلاعات وابسته آن حذف می‌شود و عملیات برگشت‌پذیر نیست.', 'حذف دائمی', async () => {
-      if (await runAction(() => api.call('deleteResource', { path: { resourceId } }))) router.navigate('/admin/resources');
+      if (await runAction(() => api.call('deleteResource', { path: { resourceId } }))) router.navigate(backHref);
     }, true));
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات منبع', 'مدیریت سرویس')}${adminError(error)}`, 'جزئیات منبع');
@@ -572,7 +1057,7 @@ export async function renderAdminProducts(): Promise<void> {
       { label: 'وضعیت', render: (product) => badge(product.enabled ? 'ACTIVE' : 'DISABLED') },
       {
         label: 'عملیات',
-        render: (product) => `<div class="table-actions"><button class="icon-button" data-edit-product="${product.id}" title="ویرایش">${icon('edit')}</button><button class="icon-button" data-toggle-product="${product.id}" data-enabled="${product.enabled}" title="تغییر وضعیت">${icon(product.enabled ? 'toggle_on' : 'toggle_off')}</button><button class="icon-button icon-button--danger" data-delete-product="${product.id}" title="حذف">${icon('delete')}</button></div>`,
+        render: (product) => `<div class="table-actions"><button class="icon-button" data-edit-product="${product.id}" title="ویرایش">${icon('edit')}</button><button class="button button--small ${product.enabled ? 'button--danger' : 'button--secondary'}" data-toggle-product="${product.id}" data-enabled="${product.enabled}" title="${product.enabled ? 'غیرفعال‌کردن محصول' : 'فعال‌کردن محصول'}">${icon(product.enabled ? 'toggle_off' : 'toggle_on')} ${product.enabled ? 'غیرفعال‌کردن' : 'فعال‌کردن'}</button><button class="icon-button icon-button--danger" data-delete-product="${product.id}" title="حذف">${icon('delete')}</button></div>`,
       },
     ], products);
 
@@ -849,7 +1334,7 @@ export async function renderAdminTicketDetail(ticketId: number): Promise<void> {
       ticket.subject || `تیکت #${ticketId}`,
       `${escapeHtml(ticket.ownerFullName)} — ${translateEnum(ticket.department)}`,
       [
-        { label: 'بازگشت', icon: 'arrow_forward', href: '/admin/tickets', variant: 'ghost' },
+        { label: 'بازگشت', icon: 'arrow_forward', href: adminDetailBackHref('/admin/tickets'), variant: 'ghost' },
         { label: 'ویرایش تیکت', icon: 'edit', id: 'edit-ticket', variant: 'secondary' },
       ],
     )}
@@ -1044,7 +1529,7 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
       ${filterCard}
       ${card('فاکتورها', dataTable<Models.InvoiceAdminResponse>([
         { label: 'توکن', render: (row) => invoiceTokenView(row.invoiceToken, `/admin/invoices/${encodeURIComponent(row.invoiceToken ?? '')}`) },
-        { label: 'کاربر', render: (row) => adminUserReference(row.ownerId) },
+        { label: 'کاربر', render: (row) => adminUserReference(row.ownerId, row.ownerFullName || `#${row.ownerId ?? '—'}`) },
         { label: 'قابل پرداخت', render: (row) => invoiceAmountCell(row.money, row.taxPercentage) },
         { label: 'وضعیت', render: (row) => badge(row.status) },
         { label: 'ایجاد', render: (row) => faDate(row.createdAt) },
@@ -1121,17 +1606,17 @@ export async function renderAdminInvoices(page = 0): Promise<void> {
 export async function renderAdminInvoiceDetail(invoiceToken: string): Promise<void> {
   const invoice = cachedAdminInvoice(invoiceToken);
   if (!invoice) {
-    renderAppShell(`${pageHeader('جزئیات فاکتور', invoiceToken, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
-      <div class="notice notice--warning">${icon('info')}<span>اطلاعات کامل این فاکتور در cache فهرست ادمین موجود نیست. برای جلوگیری از فراخوانی API کاربری و نمایش داده ناقص، ابتدا به فهرست فاکتورها برگردید و فاکتور را از همان ردیف باز کنید.</span><a data-link class="button button--ghost button--small" href="/admin/invoices">بازگشت به فهرست</a></div>`, 'جزئیات فاکتور');
+    renderAppShell(`${pageHeader('جزئیات فاکتور', invoiceToken, [{ label: 'بازگشت', icon: 'arrow_forward', href: adminDetailBackHref('/admin/invoices'), variant: 'ghost' }])}
+      <div class="notice notice--warning">${icon('info')}<span>اطلاعات کامل این فاکتور در cache فهرست ادمین موجود نیست. برای جلوگیری از فراخوانی API کاربری و نمایش داده ناقص، ابتدا به فهرست فاکتورها برگردید و فاکتور را از همان ردیف باز کنید.</span><a data-link class="button button--ghost button--small" href="${adminDetailBackHref('/admin/invoices')}">بازگشت به فهرست</a></div>`, 'جزئیات فاکتور');
     return;
   }
 
   const token = invoice.invoiceToken || invoiceToken;
   const pricing = calculateInvoicePricing(invoice.money, invoice.taxPercentage);
-  renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/invoices', variant: 'ghost' }])}
+  renderAppShell(`${pageHeader('جزئیات فاکتور', `فاکتور ${token}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: adminDetailBackHref('/admin/invoices'), variant: 'ghost' }])}
     <div class="invoice-layout admin-invoice-detail">
-      <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>فاکتور خدمات TeaCloud</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoiceTaxBreakdown(invoice.money, invoice.taxPercentage)}<footer><span>مبلغ قابل پرداخت</span><strong>${money(pricing.total)}</strong></footer></section>
-      <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId) : '—'}</dd></div><div><dt>درصد مالیات</dt><dd>${faNumber(pricing.taxPercentage)}٪</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(invoice.paymentTransaction, pricing.total), { icon: 'account_balance' })}</aside>
+      <section class="invoice-sheet"><header><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div>${badge(invoice.status)}</header><div class="invoice-title"><span>صورت‌حساب مدیریتی</span><h2>فاکتور خدمات TeaCloud</h2></div><dl class="invoice-meta"><div><dt>شناسه</dt><dd>${invoiceTokenView(token)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId, invoice.ownerFullName || `#${invoice.ownerId}`) : escapeHtml(invoice.ownerFullName || '—')}</dd></div><div><dt>تاریخ ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>تاریخ پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>${invoiceTaxBreakdown(invoice.money, invoice.taxPercentage)}<footer><span>مبلغ قابل پرداخت</span><strong>${money(pricing.total)}</strong></footer></section>
+      <aside>${card('وضعیت فاکتور', `<dl class="description-list"><div><dt>وضعیت</dt><dd>${badge(invoice.status)}</dd></div><div><dt>مالک</dt><dd>${invoice.ownerId ? adminUserReference(invoice.ownerId, invoice.ownerFullName || `#${invoice.ownerId}`) : escapeHtml(invoice.ownerFullName || '—')}</dd></div><div><dt>درصد مالیات</dt><dd>${faNumber(pricing.taxPercentage)}٪</dd></div><div><dt>زمان ایجاد</dt><dd>${faDate(invoice.createdAt)}</dd></div><div><dt>زمان پرداخت</dt><dd>${faDate(invoice.paidAt)}</dd></div></dl>`, { icon: 'request_quote' })}${card('تراکنش درگاه', paymentTransactionContent(invoice.paymentTransaction, pricing.total), { icon: 'account_balance' })}</aside>
     </div>`, 'جزئیات فاکتور');
   bindInvoiceTokenCopies();
 }
@@ -1271,19 +1756,74 @@ export async function renderQueryInstances(): Promise<void> {
     renderAppShell(`${pageHeader('نودهای Query', 'زیرساخت TeaSpeak')}${adminError(error)}`, 'نودهای Query');
   }
 }
+
+interface AdminQueryInstanceDto extends Models.QueryInstanceListResponse {
+  defaultQueryServerGroupId?: number;
+}
+
+function passwordRevealField(name: string, label: string, value = '', required = false, hint = ''): string {
+  return `<label class="field password-reveal-field"><span>${escapeHtml(label)}${required ? '<b>*</b>' : ''}</span>
+    <div class="password-reveal-field__control">
+      <input name="${escapeHtml(name)}" type="password" value="${escapeHtml(value)}" ${required ? 'required' : ''} dir="ltr" autocomplete="off" />
+      <button type="button" class="icon-button" data-password-toggle aria-label="نمایش رمز عبور" title="نمایش رمز عبور">${icon('visibility')}</button>
+    </div>
+    ${hint ? `<small>${escapeHtml(hint)}</small>` : ''}
+  </label>`;
+}
+
+function bindPasswordReveal(root: ParentNode): void {
+  qsa<HTMLButtonElement>('[data-password-toggle]', root).forEach((button) => button.addEventListener('click', () => {
+    const control = button.closest('.password-reveal-field__control');
+    const input = control?.querySelector<HTMLInputElement>('input');
+    if (!input) return;
+    const reveal = input.type === 'password';
+    input.type = reveal ? 'text' : 'password';
+    button.innerHTML = icon(reveal ? 'visibility_off' : 'visibility');
+    button.setAttribute('aria-label', reveal ? 'مخفی‌کردن رمز عبور' : 'نمایش رمز عبور');
+    button.title = reveal ? 'مخفی‌کردن رمز عبور' : 'نمایش رمز عبور';
+  }));
+}
+
+function queryCredentialsCard(instance: AdminQueryInstanceDto): string {
+  const credentials = instance.credentials;
+  if (!credentials) return '';
+  return card('Credentials اتصال Query', `<dl class="description-list description-list--grid">
+    <div><dt>IP</dt><dd class="ltr">${escapeHtml(credentials.ip || '—')}</dd></div>
+    <div><dt>Port</dt><dd class="ltr">${credentials.port == null ? '—' : faNumber(credentials.port)}</dd></div>
+    <div><dt>Username</dt><dd class="ltr">${escapeHtml(credentials.username || '—')}</dd></div>
+    <div><dt>Password</dt><dd><span class="secret-inline"><code dir="ltr" data-query-detail-password>${escapeHtml(credentials.password || '—')}</code><button type="button" class="icon-button" data-query-detail-password-toggle aria-label="نمایش رمز">${icon('visibility')}</button></span></dd></div>
+  </dl>`, { icon: 'password' });
+}
+
+function bindQueryDetailPassword(): void {
+  const button = document.querySelector<HTMLButtonElement>('[data-query-detail-password-toggle]');
+  const code = document.querySelector<HTMLElement>('[data-query-detail-password]');
+  if (!button || !code) return;
+  const original = code.textContent || '';
+  let revealed = false;
+  code.textContent = original === '—' ? original : '••••••••••••';
+  button.addEventListener('click', () => {
+    revealed = !revealed;
+    code.textContent = revealed ? original : original === '—' ? '—' : '••••••••••••';
+    button.innerHTML = icon(revealed ? 'visibility_off' : 'visibility');
+  });
+}
+
 export async function renderQueryInstanceDetail(instanceId: number): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات نود Query');
   try {
     const response = await api.call('getAllQueryInstance', {});
-    const instances = dataOf(response) ?? [];
+    const instances = (dataOf(response) ?? []) as AdminQueryInstanceDto[];
     const instance = instances.find((item) => Number(item.id) === instanceId);
     if (!instance) throw new Error('نود Query موردنظر پیدا نشد.');
-    renderAppShell(`${pageHeader(instance.name || `نود Query #${instanceId}`, 'جزئیات runtime، ظرفیت و محدوده پورت نود TeaSpeak.', [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/query-instances', variant: 'ghost' }])}
+    renderAppShell(`${pageHeader(instance.name || `نود Query #${instanceId}`, 'جزئیات runtime، Credentials، ظرفیت و محدوده پورت نود TeaSpeak.', [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/query-instances', variant: 'ghost' }])}
       <div class="detail-grid"><div class="detail-main">
         ${card('مشخصات نود Query', `<dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>#${faNumber(instance.id)}</dd></div><div><dt>نام</dt><dd>${escapeHtml(instance.name || '—')}</dd></div><div><dt>وضعیت runtime</dt><dd>${runtimeStatus(instance.status, Boolean(instance.active))}</dd></div><div><dt>دسترسی</dt><dd>${badge(instance.active ? 'ACTIVE' : 'DISABLED')}</dd></div><div><dt>شروع پورت</dt><dd class="ltr">${faNumber(instance.startPort)}</dd></div><div><dt>پایان پورت</dt><dd class="ltr">${faNumber(instance.stopPort)}</dd></div></dl>`, { icon: 'lan' })}
+        ${queryCredentialsCard(instance)}
         ${card('ظرفیت Provisioning', `${capacityCell(Number(instance.usedInstanceSlot ?? 0), Number(instance.maxTeaSpeakInstance ?? 0), 'سرویس')}<p class="muted">ظرفیت مصرف‌شده بر اساس آخرین پاسخ backend نمایش داده می‌شود.</p>`, { icon: 'speed' })}
       </div><aside>${card('عملیات نود', `<div class="admin-resource-actions"><button type="button" class="button button--secondary button--block" id="detail-edit-query">${icon('edit')} ویرایش نود</button><button type="button" class="button button--ghost button--block" id="detail-toggle-query">${icon(instance.status === 'DISABLED' ? 'play_arrow' : 'pause')} ${instance.status === 'DISABLED' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}</button></div>`, { icon: 'settings' })}</aside></div>
     `, 'جزئیات نود Query');
+    bindQueryDetailPassword();
     document.querySelector('#detail-edit-query')?.addEventListener('click', () => openQueryForm(instance));
     document.querySelector('#detail-toggle-query')?.addEventListener('click', () => {
       const disabled = instance.status === 'DISABLED';
@@ -1299,7 +1839,187 @@ export async function renderQueryInstanceDetail(instanceId: number): Promise<voi
   }
 }
 
-function openQueryForm(instance?:Models.QueryInstanceListResponse):void{const form=document.createElement('form');form.className='form-grid';form.innerHTML=`${field('name','نام',{value:instance?.name,required:true})}${field('queryIpAddress','آدرس IP',{required:true,dir:'ltr'})}${field('queryPort','پورت Query',{type:'number',value:10011,required:true,min:1})}${field('queryUsername','نام کاربری',{required:true,dir:'ltr'})}${field('queryPassword','رمز عبور',{type:'password',required:true,dir:'ltr'})}${field('defaultQueryServerGroupId','شناسه گروه پیش‌فرض',{type:'number',required:true,min:0})}${field('maxTeaSpeakInstance','حداکثر Instance',{type:'number',value:instance?.maxTeaSpeakInstance??10,required:true,min:1})}${field('startPort','شروع پورت',{type:'number',value:instance?.startPort??9987,min:1})}${field('stopPort','پایان پورت',{type:'number',value:instance?.stopPort??10000,min:1})}${toggleField('enabled','فعال باشد',instance?.active??true)}`;openDialog({title:instance?'ویرایش Query Instance':'Query Instance جدید',content:form,confirmLabel:'ذخیره',wide:true,onConfirm:async()=>{if(!form.reportValidity())return false;const data=new FormData(form);const body={name:String(data.get('name')??''),queryIpAddress:String(data.get('queryIpAddress')??''),queryPort:requiredNumber(data.get('queryPort')),queryUsername:String(data.get('queryUsername')??''),queryPassword:String(data.get('queryPassword')??''),defaultQueryServerGroupId:requiredNumber(data.get('defaultQueryServerGroupId')),maxTeaSpeakInstance:requiredNumber(data.get('maxTeaSpeakInstance')),startPort:requiredNumber(data.get('startPort')),stopPort:requiredNumber(data.get('stopPort')),enabled:data.get('enabled')==='on'};const ok=instance?await runAction(()=>api.call('editQueryInstance',{path:{id:Number(instance.id)},body})):await runAction(()=>api.call('initQueryInstance',{body}));if(ok)await renderQueryInstances();return Boolean(ok);}});}
+function openQueryForm(instance?: AdminQueryInstanceDto): void {
+  const editing = Boolean(instance);
+  const credentials = instance?.credentials;
+  const form = document.createElement('form');
+  form.className = 'form-grid';
+  form.innerHTML = `${editing ? `<div class="notice notice--info field--full">${icon('edit_note')}<span>مقادیر فعلی از Backend بارگذاری شده‌اند. فقط فیلدهایی که تغییر کنند در درخواست Edit ارسال می‌شوند.</span></div>` : ''}
+    ${field('name', 'نام', { value: instance?.name, required: !editing })}
+    ${field('queryIpAddress', 'آدرس IP', { value: credentials?.ip ?? '', required: !editing, dir: 'ltr' })}
+    ${field('queryPort', 'پورت Query', { type: 'number', value: credentials?.port ?? (editing ? '' : 10011), required: !editing, min: 1 })}
+    ${field('queryUsername', 'نام کاربری', { value: credentials?.username ?? '', required: !editing, dir: 'ltr' })}
+    ${passwordRevealField('queryPassword', 'رمز عبور', credentials?.password ?? '', !editing, editing ? 'رمز فعلی نمایش داده می‌شود؛ فقط در صورت تغییر، مقدار جدید ارسال خواهد شد.' : '')}
+    ${field('defaultQueryServerGroupId', 'شناسه گروه پیش‌فرض', { type: 'number', value: instance?.defaultQueryServerGroupId ?? '', required: !editing, min: 0 })}
+    ${field('maxTeaSpeakInstance', 'حداکثر Instance', { type: 'number', value: instance?.maxTeaSpeakInstance ?? 10, required: !editing, min: 1 })}
+    ${field('startPort', 'شروع پورت', { type: 'number', value: instance?.startPort ?? 9987, required: !editing, min: 1 })}
+    ${field('stopPort', 'پایان پورت', { type: 'number', value: instance?.stopPort ?? 10000, required: !editing, min: 1 })}
+    ${toggleField('enabled', 'فعال باشد', instance?.active ?? true)}`;
+
+  const detailOrigin = editing && location.pathname === `/admin/query-instances/${Number(instance?.id)}`;
+  const dialog = openDialog({
+    title: editing ? 'ویرایش Query Instance' : 'Query Instance جدید',
+    description: editing ? 'Edit به‌صورت Patch-like انجام می‌شود و فیلدهای بدون تغییر ارسال نمی‌شوند.' : 'اطلاعات اتصال و ظرفیت Query Instance جدید را وارد کنید.',
+    content: form,
+    confirmLabel: 'ذخیره',
+    wide: true,
+    onConfirm: async () => {
+      if (!form.reportValidity()) return false;
+      const data = new FormData(form);
+
+      if (instance) {
+        const body: Models.QueryInstanceEditRequest = {};
+        const nextName = String(data.get('name') ?? '').trim();
+        const nextIp = String(data.get('queryIpAddress') ?? '').trim();
+        const nextUsername = String(data.get('queryUsername') ?? '').trim();
+        const nextPassword = String(data.get('queryPassword') ?? '');
+        const nextEnabled = (form.elements.namedItem('enabled') as HTMLInputElement | null)?.checked ?? false;
+
+        if (nextName !== String(instance.name ?? '').trim()) body.name = nextName;
+        if (nextIp !== String(credentials?.ip ?? '').trim()) body.queryIpAddress = nextIp;
+        if (nextUsername !== String(credentials?.username ?? '').trim()) body.queryUsername = nextUsername;
+        if (nextPassword !== String(credentials?.password ?? '')) body.queryPassword = nextPassword;
+        if (nextEnabled !== Boolean(instance.active)) body.enabled = nextEnabled;
+
+        const numericChanges: Array<[keyof Models.QueryInstanceEditRequest, FormDataEntryValue | null, number | undefined, number]> = [
+          ['queryPort', data.get('queryPort'), credentials?.port, 1],
+          ['defaultQueryServerGroupId', data.get('defaultQueryServerGroupId'), instance.defaultQueryServerGroupId, 0],
+          ['maxTeaSpeakInstance', data.get('maxTeaSpeakInstance'), instance.maxTeaSpeakInstance, 1],
+          ['startPort', data.get('startPort'), instance.startPort, 1],
+          ['stopPort', data.get('stopPort'), instance.stopPort, 1],
+        ];
+        for (const [key, raw, current, min] of numericChanges) {
+          const value = String(raw ?? '').trim();
+          if (!value) continue;
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed) || parsed < min) {
+            notify('یکی از مقادیر عددی فرم معتبر نیست.', 'warning');
+            return false;
+          }
+          if (parsed !== Number(current ?? NaN)) (body as Record<string, unknown>)[key] = parsed;
+        }
+
+        if (Object.keys(body).length === 0) {
+          notify('هیچ تغییری برای ذخیره وجود ندارد.', 'warning');
+          return false;
+        }
+
+        const ok = await runAction(() => api.call('editQueryInstance', { path: { id: Number(instance.id) }, body }));
+        if (ok) {
+          if (detailOrigin) await renderQueryInstanceDetail(Number(instance.id));
+          else await renderQueryInstances();
+        }
+        return Boolean(ok);
+      }
+
+      const body: Models.QueryInstanceInitRequest = {
+        name: String(data.get('name') ?? '').trim(),
+        queryIpAddress: String(data.get('queryIpAddress') ?? '').trim(),
+        queryPort: requiredNumber(data.get('queryPort')),
+        queryUsername: String(data.get('queryUsername') ?? '').trim(),
+        queryPassword: String(data.get('queryPassword') ?? ''),
+        defaultQueryServerGroupId: requiredNumber(data.get('defaultQueryServerGroupId')),
+        maxTeaSpeakInstance: requiredNumber(data.get('maxTeaSpeakInstance')),
+        startPort: requiredNumber(data.get('startPort')),
+        stopPort: requiredNumber(data.get('stopPort')),
+        enabled: data.get('enabled') === 'on',
+      };
+      const ok = await runAction(() => api.call('initQueryInstance', { body }));
+      if (ok) await renderQueryInstances();
+      return Boolean(ok);
+    },
+  });
+  bindPasswordReveal(dialog);
+}
+
+const revealedAdminAudioNodePanels = new Set<number>();
+
+function safeAdminPanelUrl(value?: string): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function audioNodePanelCredential(username?: string, password?: string): string {
+  const raw = `${username ?? ''}:${password ?? ''}`;
+  return raw === ':' ? '' : raw;
+}
+
+function adminAudioNodePanelCard(node: Models.AudioBotNodeDetailResponse): string {
+  const nodeId = Number(node.id ?? 0);
+  const revealed = revealedAdminAudioNodePanels.has(nodeId);
+  const panelUrl = safeAdminPanelUrl(node.webAddress);
+  const panelAddress = node.webAddress?.trim() || '';
+  const credential = audioNodePanelCredential(node.username, node.password);
+
+  const accessFields = `<div class="audio-bot-panel-card__field">
+      <span>${icon('language')}<small>آدرس پنل</small></span>
+      <div class="audio-bot-panel-card__value-row">
+        ${panelUrl
+          ? `<a class="audio-bot-panel-card__url audio-bot-panel-card__masked ltr" href="${escapeHtml(panelUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(panelAddress)} ${icon('open_in_new')}</a>`
+          : `<code class="audio-bot-panel-card__plain-value audio-bot-panel-card__masked ltr">${escapeHtml(panelAddress || 'آدرس پنل ثبت نشده')}</code>`}
+        ${panelAddress ? `<button type="button" class="icon-button" data-copy-admin-audio-panel-url aria-label="کپی آدرس پنل">${icon('content_copy')}</button>` : ''}
+      </div>
+    </div>
+    <div class="audio-bot-panel-card__field">
+      <span>${icon('key')}<small>Credential ورود</small></span>
+      <div class="audio-bot-panel-card__value-row">
+        <code class="audio-bot-panel-card__plain-value audio-bot-panel-card__masked ltr">${escapeHtml(credential || 'Credential کامل در پاسخ موجود نیست')}</code>
+        ${credential ? `<button type="button" class="icon-button" data-copy-admin-audio-panel-token aria-label="کپی Credential">${icon('content_copy')}</button>` : ''}
+      </div>
+    </div>`;
+
+  return `<section class="card audio-bot-panel-card admin-audio-node-panel-card" data-admin-audio-node-panel data-node-id="${nodeId}">
+    <header class="card__header audio-bot-panel-card__header">
+      <div>${icon('admin_panel_settings')}<h2>پنل مدیریتی AudioBot</h2></div>
+      <button type="button" class="button button--secondary button--small" data-admin-audio-panel-reveal aria-pressed="${revealed}">${icon(revealed ? 'visibility_off' : 'visibility')} ${revealed ? 'مخفی‌کردن دسترسی' : 'نمایش دسترسی'}</button>
+    </header>
+    <div class="card__body audio-bot-panel-card__body">
+      <div class="audio-bot-panel-card__intro">
+        <span class="audio-bot-panel-card__icon">${icon('shield_lock')}</span>
+        <div><b>دسترسی مدیریتی مستقیم نود</b><p>از این کارت می‌توانید آدرس پنل و Credential ورود همین نود AudioBot را مشاهده، کپی و برای ورود مستقیم به پنل مدیریتی استفاده کنید.</p></div>
+      </div>
+      <div class="audio-bot-panel-card__access ${revealed ? 'is-revealed' : 'is-locked'}" data-admin-audio-panel-access>${accessFields}</div>
+    </div>
+  </section>`;
+}
+
+function bindAdminAudioNodePanel(node: Models.AudioBotNodeDetailResponse): void {
+  const nodeId = Number(node.id ?? 0);
+  const panel = document.querySelector<HTMLElement>('[data-admin-audio-node-panel]');
+  if (!panel || !Number.isSafeInteger(nodeId) || nodeId < 1) return;
+
+  const revealButton = panel.querySelector<HTMLButtonElement>('[data-admin-audio-panel-reveal]');
+  const access = panel.querySelector<HTMLElement>('[data-admin-audio-panel-access]');
+  revealButton?.addEventListener('click', () => {
+    const next = !revealedAdminAudioNodePanels.has(nodeId);
+    if (next) revealedAdminAudioNodePanels.add(nodeId);
+    else revealedAdminAudioNodePanels.delete(nodeId);
+    access?.classList.toggle('is-revealed', next);
+    access?.classList.toggle('is-locked', !next);
+    revealButton.setAttribute('aria-pressed', String(next));
+    revealButton.innerHTML = `${icon(next ? 'visibility_off' : 'visibility')} ${next ? 'مخفی‌کردن دسترسی' : 'نمایش دسترسی'}`;
+  });
+
+  panel.querySelector<HTMLButtonElement>('[data-copy-admin-audio-panel-url]')?.addEventListener('click', async () => {
+    const value = node.webAddress?.trim();
+    if (!value || !revealedAdminAudioNodePanels.has(nodeId)) return;
+    try { await navigator.clipboard.writeText(value); notify('آدرس پنل کپی شد.', 'success'); }
+    catch { notify('کپی خودکار آدرس پنل انجام نشد.', 'warning'); }
+  });
+
+  panel.querySelector<HTMLButtonElement>('[data-copy-admin-audio-panel-token]')?.addEventListener('click', async () => {
+    const value = audioNodePanelCredential(node.username, node.password);
+    if (!value || !revealedAdminAudioNodePanels.has(nodeId)) return;
+    try { await navigator.clipboard.writeText(value); notify('Credential ورود پنل کپی شد.', 'success'); }
+    catch { notify('کپی خودکار Credential انجام نشد.', 'warning'); }
+  });
+}
 
 export async function renderAudioNodes(): Promise<void> {
   renderAppShell(loadingPage(), 'نودهای ربات موزیک');
@@ -1353,7 +2073,13 @@ export async function renderAudioNodes(): Promise<void> {
 
     document.querySelector('#change-audio-strategy')?.addEventListener('click', () => openProvisioningStrategyDialog('audioBot', currentStrategy));
     document.querySelector('#add-node')?.addEventListener('click', () => openNodeForm());
-    qsa<HTMLButtonElement>('[data-edit-node]').forEach((button) => button.addEventListener('click', () => openNodeForm(nodes.find((node) => node.id === Number(button.dataset.editNode)))));
+    qsa<HTMLButtonElement>('[data-edit-node]').forEach((button) => button.addEventListener('click', async () => {
+      const nodeId = Number(button.dataset.editNode);
+      if (!Number.isSafeInteger(nodeId) || nodeId < 1) return;
+      const detailResponse = await runAction(() => api.call('getAudioBotNodeDetail', { path: { nodeId } }), { silentSuccess: true });
+      const detail = detailResponse ? dataOf(detailResponse) : undefined;
+      if (detail) openNodeForm(detail);
+    }));
     qsa<HTMLButtonElement>('[data-delete-node]').forEach((button) => button.addEventListener('click', () => confirmDialog(
       'حذف نود AudioBot',
       'نود دارای resource فعال قابل حذف نیست.',
@@ -1367,20 +2093,24 @@ export async function renderAudioNodes(): Promise<void> {
     renderAppShell(`${pageHeader('نودهای ربات موزیک', 'زیرساخت AudioBot')}${adminError(error)}`, 'نودهای ربات موزیک');
   }
 }
-function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNodeDetailResponse): void {
+
+function openNodeForm(node?: Models.AudioBotNodeDetailResponse, detailOrigin = false): void {
   const editing = Boolean(node);
-  const currentUsername = node && 'username' in node ? String(node.username ?? '') : '';
+  const currentUsername = String(node?.username ?? '');
+  const currentPassword = String(node?.password ?? '');
   const form = document.createElement('form');
   form.className = 'form-grid';
-  form.innerHTML = `${editing ? `<div class="notice notice--info field--full">${icon('edit_note')}<span>فقط فیلدهایی که واقعاً تغییر کنند برای Backend ارسال می‌شوند. رمز عبور را برای عدم تغییر خالی بگذارید.</span></div>` : ''}
-    ${field('name', 'نام نود', { value: node?.name, required: !editing, hint: editing ? 'در صورت عدم تغییر، مقدار فعلی را نگه دارید.' : undefined })}
-    ${!editing ? field('webAddress', 'آدرس وب', { value: '', required: true, dir: 'ltr', placeholder: 'http://host:45855', hint: 'آدرس نباید با / پایان یابد.' }) : ''}
-    ${field('username', 'نام کاربری', { value: editing ? currentUsername : '', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined, hint: editing && !currentUsername ? 'فقط در صورت تغییر نام کاربری این فیلد را پر کنید.' : undefined })}
-    ${field('password', 'رمز عبور', { type: 'password', required: !editing, dir: 'ltr', placeholder: editing ? 'برای عدم تغییر خالی بگذارید' : undefined })}
+  form.innerHTML = `${editing ? `<div class="notice notice--info field--full">${icon('edit_note')}<span>اطلاعات فعلی نود در فرم قرار گرفته‌اند و فقط فیلدهایی که واقعاً تغییر کنند برای Backend ارسال می‌شوند.</span></div>` : ''}
+    ${field('name', 'نام نود', { value: node?.name, required: !editing })}
+    ${editing
+      ? `<label class="field"><span>آدرس وب</span><input type="text" value="${escapeHtml(node?.webAddress || '')}" dir="ltr" readonly disabled /><small>آدرس وب در قرارداد فعلی Edit قابل تغییر نیست.</small></label>`
+      : field('webAddress', 'آدرس وب', { value: '', required: true, dir: 'ltr', placeholder: 'http://host:45855', hint: 'آدرس نباید با / پایان یابد.' })}
+    ${field('username', 'نام کاربری', { value: currentUsername, required: !editing, dir: 'ltr' })}
+    ${passwordRevealField('password', 'رمز عبور', currentPassword, !editing, editing ? 'رمز فعلی نمایش داده شده است؛ فقط در صورت تغییر داخل Request قرار می‌گیرد.' : '')}
     ${field('maxBotInstance', 'حداکثر Bot', { type: 'number', value: node?.maxBotInstance ?? 10, required: !editing, min: 1 })}
     ${toggleField('enabled', 'نود فعال باشد', node?.enabled ?? true)}`;
 
-  openDialog({
+  const dialog = openDialog({
     title: editing ? 'ویرایش نود' : 'نود AudioBot جدید',
     content: form,
     confirmLabel: 'ذخیره',
@@ -1399,7 +2129,7 @@ function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNo
 
         if (nextName !== String(node.name ?? '').trim()) body.name = nextName;
         if (nextUsername !== currentUsername) body.username = nextUsername;
-        if (nextPassword.length > 0) body.password = nextPassword;
+        if (nextPassword !== currentPassword) body.password = nextPassword;
         if (maxRaw !== '') {
           const nextMax = Number(maxRaw);
           if (!Number.isFinite(nextMax) || nextMax < 1) {
@@ -1415,8 +2145,12 @@ function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNo
           return false;
         }
 
-        const ok = await runAction(() => api.call('editAudioBotNode', { path: { nodeId: Number(node.id) }, body }));
-        if (ok) await renderAudioNodes();
+        const nodeId = Number(node.id);
+        const ok = await runAction(() => api.call('editAudioBotNode', { path: { nodeId }, body }));
+        if (ok) {
+          if (detailOrigin) await renderAudioNodeDetail(nodeId);
+          else await renderAudioNodes();
+        }
         return Boolean(ok);
       }
 
@@ -1432,7 +2166,9 @@ function openNodeForm(node?: Models.AudioBotNodeListResponse | Models.AudioBotNo
       return Boolean(ok);
     },
   });
+  bindPasswordReveal(dialog);
 }
+
 export async function renderAudioNodeDetail(nodeId: number): Promise<void> {
   renderAppShell(loadingPage(), 'جزئیات نود AudioBot');
   try {
@@ -1442,10 +2178,12 @@ export async function renderAudioNodeDetail(nodeId: number): Promise<void> {
     renderAppShell(`${pageHeader(node.name || `نود AudioBot #${nodeId}`, 'جزئیات اتصال، وضعیت و ظرفیت نود ربات موسیقی.', [{ label: 'بازگشت', icon: 'arrow_forward', href: '/admin/audio-nodes', variant: 'ghost' }])}
       <div class="detail-grid"><div class="detail-main">
         ${card('مشخصات نود AudioBot', `<div class="node-detail__hero"><span>${icon('headphones')}</span><div><h3>${escapeHtml(node.name || 'بدون نام')}</h3><p class="ltr">${escapeHtml(node.webAddress || '—')}</p>${runtimeStatus(node.nodeStatus, Boolean(node.enabled))}</div></div><dl class="description-list description-list--grid"><div><dt>شناسه</dt><dd>#${faNumber(node.id)}</dd></div><div><dt>نام کاربری</dt><dd class="ltr">${escapeHtml(node.username || '—')}</dd></div><div><dt>راه‌اندازی</dt><dd>${faDate(node.initiatedAt)}</dd></div><div><dt>آخرین استفاده</dt><dd>${faDate(node.lastUsed)}</dd></div><div><dt>دسترسی</dt><dd>${badge(node.enabled ? 'ACTIVE' : 'DISABLED')}</dd></div><div><dt>ظرفیت تکمیل</dt><dd>${badge(node.full ? 'FULL' : 'ACTIVE')}</dd></div></dl>`, { icon: 'info' })}
+        ${adminAudioNodePanelCard(node)}
         <div class="stats-grid stats-grid--three">${statCard('آنلاین', faNumber(node.onlineInstanceCount), 'sensors', 'Botهای آنلاین', 'cyan')}${statCard('کل Instance', faNumber(node.allInstanceCount), 'apps', 'مصرف ثبت‌شده', 'blue')}${statCard('ظرفیت', faNumber(node.maxBotInstance), 'speed', 'حداکثر Bot', 'purple')}</div>
       </div><aside>${card('عملیات نود', `<button type="button" class="button button--secondary button--block" id="detail-edit-audio-node">${icon('edit')} ویرایش نود</button>`, { icon: 'settings' })}</aside></div>
     `, 'جزئیات نود AudioBot');
-    document.querySelector('#detail-edit-audio-node')?.addEventListener('click', () => openNodeForm(node));
+    document.querySelector('#detail-edit-audio-node')?.addEventListener('click', () => openNodeForm(node, true));
+    bindAdminAudioNodePanel(node);
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات نود AudioBot', 'زیرساخت AudioBot')}${adminError(error)}`, 'جزئیات نود AudioBot');
   }

@@ -132,6 +132,13 @@ export interface AuthEntryRequest {
   phoneNumber?: string;
 }
 
+export interface WalletTransactionAdminRequest {
+  transactionType?: "CREDIT" | "DEBIT";
+  transactionReason?: "PROLONG" | "PURCHASE" | "REFUND" | "WALLET_CHARGE";
+  amount?: number;
+  persist?: boolean;
+}
+
 export interface UserEditAdminRequest {
   firstName?: string;
   lastName?: string;
@@ -158,6 +165,10 @@ export interface AbstractProductEditRequest {
   price?: Money;
   presentation?: ProductPresentation;
 }
+
+export type AudioBotProductEditRequest = (AbstractProductEditRequest) & ({
+  providerNodeId?: number;
+});
 
 export interface Money {
   amount?: number;
@@ -268,16 +279,16 @@ export interface DetailedDataResponseApplicationSettingDto {
 }
 
 export interface QueryInstanceEditRequest {
-  name: string;
+  name?: string;
   queryIpAddress?: string;
   queryPort?: number;
-  queryUsername: string;
-  queryPassword: string;
-  defaultQueryServerGroupId: number;
-  maxTeaSpeakInstance: number;
+  queryUsername?: string;
+  queryPassword?: string;
+  defaultQueryServerGroupId?: number;
+  maxTeaSpeakInstance?: number;
   startPort?: number;
   stopPort?: number;
-  enabled: boolean;
+  enabled?: boolean;
 }
 
 export interface ChangeProvisioningStrategyRequest {
@@ -317,7 +328,7 @@ export interface PagedModelWalletTransactionResponse {
 
 export interface WalletTransactionResponse {
   relatedResourceId?: number;
-  reason?: string;
+  reason?: "PROLONG" | "PURCHASE" | "REFUND" | "WALLET_CHARGE";
   type?: "CREDIT" | "DEBIT";
   createdAt?: string;
   amount?: Money;
@@ -439,7 +450,7 @@ export interface ResourceListResponse {
   id?: number;
   label?: string;
   productName?: string;
-  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG" | "LOCKED";
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   expiration?: string;
   period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
@@ -450,7 +461,7 @@ export interface AbstractResourceDetailResponse {
   label?: string;
   productName?: string;
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
-  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG" | "LOCKED";
   period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
   orderDate?: string;
   expiration?: string;
@@ -660,7 +671,7 @@ export interface UserListResponse {
   phone?: string;
   fullName?: string;
   email?: string;
-  role?: string;
+  role?: "ROLE_USER" | "ROLE_SUPPORT" | "ROLE_ADMIN";
   lastLogin?: string;
   online?: boolean;
 }
@@ -758,7 +769,7 @@ export interface TicketDetailAdminResponse {
 export interface ResourceFilterRequest {
   page?: number;
   size?: number;
-  byResourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  byResourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG" | "LOCKED";
   byType?: "TEASPEAK" | "AUDIO_BOT";
   byOwnerId?: number;
 }
@@ -782,7 +793,7 @@ export interface ResourceListAdminResponse {
   id?: number;
   label?: string;
   productName?: string;
-  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG";
+  resourceStatus?: "DEPLOYING" | "ACTIVE" | "PENDING_PROLONG" | "LOCKED";
   resourceType?: "TEASPEAK" | "AUDIO_BOT";
   expiration?: string;
   period?: "HOURLY" | "DAILY" | "MONTHLY" | "BIMONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL";
@@ -803,11 +814,20 @@ export interface QueryInstanceListResponse {
   id?: number;
   name?: string;
   status?: "DISABLED" | "FULL" | "UNREACHABLE" | "RECONNECTING" | "LOGIN_FAILED" | "DISPATCHED" | "INITIATED";
+  credentials?: ServerQueryCredentials;
   maxTeaSpeakInstance?: number;
   usedInstanceSlot?: number;
   startPort?: number;
   stopPort?: number;
   active?: boolean;
+  defaultQueryServerGroupId?: number;
+}
+
+export interface ServerQueryCredentials {
+  ip?: string;
+  port?: number;
+  username?: string;
+  password?: string;
 }
 
 /** DataResponse, the type of responses with data only */
@@ -932,13 +952,14 @@ export interface DataResponsePagedModelInvoiceAdminResponse {
 /** 'ownerId' field requires UserDetail Page redirect */
 export interface InvoiceAdminResponse {
   invoiceToken?: string;
-  ownerId?: number;
   money?: Money;
   taxPercentage?: number;
   createdAt?: string;
   paidAt?: string;
   status?: "PAID" | "CANCELLED" | "PENDING";
   paymentTransaction?: PaymentTransactionDetailResponse;
+  ownerFullName?: string;
+  ownerId?: number;
 }
 
 export interface PagedModelInvoiceAdminResponse {

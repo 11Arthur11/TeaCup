@@ -60,6 +60,7 @@ const enumLabels: Record<string, string> = {
   ACTIVE: 'فعال',
   DEPLOYING: 'در حال راه‌اندازی',
   PENDING_PROLONG: 'در انتظار تمدید',
+  LOCKED: 'قفل‌شده',
 
   // Query instance lifecycle
   DISABLED: 'غیرفعال',
@@ -156,6 +157,7 @@ const enumTones: Record<string, BadgeTone> = {
   WAITING: 'warning',
   DEPLOYING: 'info',
   PENDING_PROLONG: 'warning',
+  LOCKED: 'danger',
   PROCESSING: 'warning',
   ROLE_SUPPORT: 'warning',
   FULL: 'warning',
@@ -199,6 +201,7 @@ export const resourceStatusHint = (value?: string | null): string => {
     case 'ACTIVE': return 'سرویس فعال است و دوره آن در حال استفاده است.';
     case 'DEPLOYING': return 'زیرساخت سرویس در حال Provisioning و آماده‌سازی است.';
     case 'PENDING_PROLONG': return 'دوره سرویس به پایان نزدیک شده یا منتظر تمدید است.';
+    case 'LOCKED': return 'سرویس توسط مدیریت قفل شده و عملیات اجرایی آن غیرفعال است.';
     default: return 'آخرین وضعیت چرخه سرویس از backend دریافت شده است.';
   }
 };

@@ -25,6 +25,8 @@ export const operations = {
   "logout": { method: "POST", path: "/v1/auth/logout", bodyKind: null, responseKind: "json" },
   "login": { method: "POST", path: "/v1/auth/login", bodyKind: "json", responseKind: "json" },
   "authEntry": { method: "POST", path: "/v1/auth/initiate", bodyKind: "json", responseKind: "json" },
+  "getWalletTransactions": { method: "GET", path: "/v1/admin/wallets/{userId}/transactions", bodyKind: null, responseKind: "json" },
+  "adjust": { method: "POST", path: "/v1/admin/wallets/{userId}/transactions", bodyKind: "json", responseKind: "json" },
   "unlockUser": { method: "POST", path: "/v1/admin/users/{userId}/unlock", bodyKind: null, responseKind: "json" },
   "setUserRole": { method: "POST", path: "/v1/admin/users/{userId}/roles/{roleId}", bodyKind: null, responseKind: "json" },
   "lockUser": { method: "POST", path: "/v1/admin/users/{userId}/lock", bodyKind: null, responseKind: "json" },
@@ -51,6 +53,7 @@ export const operations = {
   "initAudioBotNode": { method: "POST", path: "/v1/admin/audio-bot-nodes/initiate", bodyKind: "json", responseKind: "json" },
   "getSettings": { method: "GET", path: "/v1/admin/app-settings", bodyKind: null, responseKind: "json" },
   "setSettings": { method: "POST", path: "/v1/admin/app-settings", bodyKind: "json", responseKind: "json" },
+  "lockResource": { method: "PATCH", path: "/v1/admin/resources/{resourceId}/lock", bodyKind: null, responseKind: "json" },
   "forceProlongResource": { method: "PATCH", path: "/v1/admin/resources/{resourceId}/force-prolong", bodyKind: null, responseKind: "json" },
   "removeQueryInstance": { method: "DELETE", path: "/v1/admin/query-instances/{id}", bodyKind: null, responseKind: "json" },
   "editQueryInstance": { method: "PATCH", path: "/v1/admin/query-instances/{id}", bodyKind: "json", responseKind: "json" },
@@ -65,7 +68,7 @@ export const operations = {
   "changeProvisioningStrategy_1": { method: "PATCH", path: "/v1/admin/audio-bot-nodes/provisioning", bodyKind: "json", responseKind: "json" },
   "isAvailable": { method: "HEAD", path: "/v1/dns/zones/{zoneId}/subdomains/{subdomain}/availability", bodyKind: null, responseKind: "void" },
   "checkAuthentication": { method: "HEAD", path: "/v1/auth/session", bodyKind: null, responseKind: "void" },
-  "getWalletTransactions": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
+  "getWalletTransactions_1": { method: "GET", path: "/v1/wallet/transactions", bodyKind: null, responseKind: "json" },
   "getBalance": { method: "GET", path: "/v1/wallet/overview", bodyKind: null, responseKind: "json" },
   "getProfile": { method: "GET", path: "/v1/users", bodyKind: null, responseKind: "json" },
   "getTickets": { method: "GET", path: "/v1/tickets", bodyKind: null, responseKind: "json" },
@@ -86,6 +89,7 @@ export const operations = {
   "getAssignedRecord": { method: "GET", path: "/v1/dns/records/{resourceId}", bodyKind: null, responseKind: "json" },
   "getDashboardOverviewResponse": { method: "GET", path: "/v1/dashboard/overview", bodyKind: null, responseKind: "json" },
   "getCategories_1": { method: "GET", path: "/v1/categories", bodyKind: null, responseKind: "json" },
+  "getBalance_1": { method: "GET", path: "/v1/admin/wallets/{userId}/overview", bodyKind: null, responseKind: "json" },
   "getAllUsers": { method: "GET", path: "/v1/admin/users", bodyKind: null, responseKind: "json" },
   "getUserById": { method: "GET", path: "/v1/admin/users/{userId}", bodyKind: null, responseKind: "json" },
   "getRoles": { method: "GET", path: "/v1/admin/users/roles", bodyKind: null, responseKind: "json" },
@@ -110,6 +114,7 @@ export const operations = {
   "unassignRecord_1": { method: "DELETE", path: "/v1/admin/dns/records/{recordId}", bodyKind: null, responseKind: "json" },
   "deleteCategory": { method: "DELETE", path: "/v1/admin/categories/{categoryId}", bodyKind: null, responseKind: "json" },
   "closeTicket": { method: "POST", path: "/v1/tickets/detail/{ticketId}/close", bodyKind: null, responseKind: "json" },
+  "unlockResource": { method: "PATCH", path: "/v1/admin/resources/{resourceId}/unlock", bodyKind: null, responseKind: "json" },
 } as const;
 
 export type OperationId = keyof typeof operations;
@@ -216,6 +221,20 @@ export interface OperationInputMap {
   "authEntry": {
     body: Models.AuthEntryRequest;
   };
+  "getWalletTransactions": {
+    path: {
+    userId: number;
+  };
+    query: {
+    filter: Models.WalletTransactionFilterRequest;
+  };
+  };
+  "adjust": {
+    path: {
+    userId: number;
+  };
+    body: Models.WalletTransactionAdminRequest;
+  };
   "unlockUser": {
     path: {
     userId: number;
@@ -252,7 +271,7 @@ export interface OperationInputMap {
     path: {
     productId: number;
   };
-    body: (Models.AbstractProductEditRequest) | (Models.TeaSpeakProductEditRequest);
+    body: (Models.AbstractProductEditRequest) | (Models.AudioBotProductEditRequest) | (Models.TeaSpeakProductEditRequest);
   };
   "addProduct": {
     body: Models.AbstractNewResourceRequest;
@@ -311,6 +330,11 @@ export interface OperationInputMap {
   "setSettings": {
     body: Models.ApplicationSettingDto;
   };
+  "lockResource": {
+    path: {
+    resourceId: number;
+  };
+  };
   "forceProlongResource": {
     path: {
     resourceId: number;
@@ -368,7 +392,7 @@ export interface OperationInputMap {
   };
   };
   "checkAuthentication": Record<string, never>;
-  "getWalletTransactions": {
+  "getWalletTransactions_1": {
     query: {
     filter: Models.WalletTransactionFilterRequest;
   };
@@ -433,6 +457,11 @@ export interface OperationInputMap {
   };
   "getDashboardOverviewResponse": Record<string, never>;
   "getCategories_1": Record<string, never>;
+  "getBalance_1": {
+    path: {
+    userId: number;
+  };
+  };
   "getAllUsers": {
     query: {
     filter: Models.UsersFilterRequest;
@@ -536,6 +565,11 @@ export interface OperationInputMap {
     ticketId: number;
   };
   };
+  "unlockResource": {
+    path: {
+    resourceId: number;
+  };
+  };
 }
 
 export interface OperationOutputMap {
@@ -560,9 +594,9 @@ export interface OperationOutputMap {
   "register": Models.SimpleResponse;
   "logout": Models.SimpleResponse;
   "login": Models.SimpleResponse;
-  "authEntry": {
-
-};
+  "authEntry": Models.SimpleResponse;
+  "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
+  "adjust": Models.SimpleResponse;
   "unlockUser": Models.SimpleResponse;
   "setUserRole": Models.SimpleResponse;
   "lockUser": Models.SimpleResponse;
@@ -589,6 +623,7 @@ export interface OperationOutputMap {
   "initAudioBotNode": Models.SimpleResponse;
   "getSettings": Models.DataResponseApplicationSettingDto;
   "setSettings": Models.DetailedDataResponseApplicationSettingDto;
+  "lockResource": Models.SimpleResponse;
   "forceProlongResource": Models.SimpleResponse;
   "removeQueryInstance": Models.SimpleResponse;
   "editQueryInstance": Models.SimpleResponse;
@@ -603,7 +638,7 @@ export interface OperationOutputMap {
   "changeProvisioningStrategy_1": Models.SimpleResponse;
   "isAvailable": void;
   "checkAuthentication": void;
-  "getWalletTransactions": Models.DataResponsePagedModelWalletTransactionResponse;
+  "getWalletTransactions_1": Models.DataResponsePagedModelWalletTransactionResponse;
   "getBalance": Models.DataResponseWalletOverviewResponse;
   "getProfile": Models.DataResponseUserDetailResponse;
   "getTickets": Models.DataResponsePagedModelTicketListUserResponse;
@@ -628,6 +663,7 @@ export interface OperationOutputMap {
   "getAssignedRecord": Models.DataResponseDnsRecordUserResponse;
   "getDashboardOverviewResponse": Models.DataResponseDashboardOverviewResponse;
   "getCategories_1": Models.DataResponseListCategoryListResponse;
+  "getBalance_1": Models.DataResponseWalletOverviewResponse;
   "getAllUsers": Models.DataResponsePagedModelUserListResponse;
   "getUserById": Models.DataResponseUserDetailAdminResponse;
   "getRoles": Models.DataResponseListRoleListResponse;
@@ -652,6 +688,7 @@ export interface OperationOutputMap {
   "unassignRecord_1": Models.SimpleResponse;
   "deleteCategory": Models.SimpleResponse;
   "closeTicket": Models.SimpleResponse;
+  "unlockResource": Models.SimpleResponse;
 }
 
 export interface OperationMeta {

@@ -26,6 +26,7 @@ import { parseProductPresentation, renderProductCard } from '../ui/product-prese
 import { scheduleDashboardTourAutoStart } from '../ui/dashboard-tour.js';
 import { openDnsAssignmentDialog } from '../ui/dns-assignment.js';
 import { audioBotPanelAccessCard, bindAudioBotPanelAccessCards } from '../ui/audio-bot-access.js';
+import { readWalletTransactionFilters, walletTransactionApiFilter, walletTransactionFilterQuery, walletTransactionFilterToolbar } from '../ui/wallet-transaction-filter.js';
 
 interface ProductDto {
   id?: number; productName?: string; price?: Models.Money; period?: string; productType?: 'TEASPEAK' | 'AUDIO_BOT'; maxClients?: number; presentation?: Models.ProductPresentation;
@@ -53,20 +54,6 @@ function errorNotice(text = 'دریافت بخشی از اطلاعات با خط
 }
 
 
-type TransactionTypeFilter = NonNullable<Models.WalletTransactionFilterRequest['transactionType']>;
-type TransactionReasonFilter = NonNullable<Models.WalletTransactionFilterRequest['transactionReason']>;
-
-interface FinanceFilters {
-  transactionType?: TransactionTypeFilter;
-  transactionReason?: TransactionReasonFilter;
-  fromCreatedAt?: string;
-  toCreatedAt?: string;
-}
-
-const transactionTypes = new Set<TransactionTypeFilter>(['CREDIT', 'DEBIT']);
-const transactionReasons = new Set<TransactionReasonFilter>(['PROLONG', 'PURCHASE', 'REFUND', 'WALLET_CHARGE']);
-
-
 function audioBotStatusHint(value?: string): string {
   switch (value?.trim().toUpperCase()) {
     case 'CONNECTED': return 'AudioBot متصل و در حال اجرا است؛ برای توقف می‌توانید آن را خاموش کنید.';
@@ -74,31 +61,6 @@ function audioBotStatusHint(value?: string): string {
     case 'OFFLINE': return 'AudioBot خاموش است و می‌توانید آن را روشن کنید.';
     default: return 'وضعیت اجرای AudioBot از سرویس دریافت نشده است.';
   }
-}
-
-function readFinanceFilters(params = new URLSearchParams(location.search)): FinanceFilters {
-  const type = params.get('transactionType') as TransactionTypeFilter | null;
-  const reason = params.get('transactionReason') as TransactionReasonFilter | null;
-  return {
-    transactionType: type && transactionTypes.has(type) ? type : undefined,
-    transactionReason: reason && transactionReasons.has(reason) ? reason : undefined,
-    fromCreatedAt: params.get('fromCreatedAt') || undefined,
-    toCreatedAt: params.get('toCreatedAt') || undefined,
-  };
-}
-
-function apiDateTime(value?: string): string | undefined {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
-
-function dateTimeLocalValue(value?: string): string {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
 }
 
 function transactionRows(transactions: Models.WalletTransactionResponse[], showResource = true): string {
@@ -354,13 +316,14 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
   try {
     const [response, transactionsResponse] = await Promise.all([
       api.call('getResourceById', { path: { resourceId } }),
-      api.call('getWalletTransactions', { query: { filter: { page: 0, size: 10, relatedResourceId: resourceId } } }),
+      api.call('getWalletTransactions_1', { query: { filter: { page: 0, size: 10, relatedResourceId: resourceId } } }),
     ]);
     const resource = dataOf(response) as TeaSpeakResourceDetail | undefined;
     const resourceTransactions = contentOf(transactionsResponse);
     if (!resource) throw new Error('اطلاعات سرویس دریافت نشد.');
     const isAudio = resource.resourceType === 'AUDIO_BOT';
     const isTeaSpeak = resource.resourceType === 'TEASPEAK';
+    const locked = resource.resourceStatus === 'LOCKED';
     const teaSpeakStatus = resource.teaSpeakStatus?.toUpperCase();
     let dnsRecord: Models.DnsRecordUserResponse | undefined;
     if (isTeaSpeak) {
@@ -390,31 +353,41 @@ export async function renderServiceDetail(resourceId: number): Promise<void> {
         ? `<div class="service-runtime-state"><span>وضعیت AudioBot</span>${badge(resource.botStatus)}<p>${escapeHtml(audioBotStatusHint(resource.botStatus))}</p></div>`
         : '';
 
-    renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${serviceLabelEditor(resource)}
+    const lockNotice = locked ? `<div class="resource-lock-banner">${icon('lock')}<div><b>این سرویس از سمت مدیریت قفل شده است</b><span>اطلاعات سرویس قابل مشاهده است، اما تا رفع قفل امکان اجرای هیچ Action عملیاتی وجود ندارد.</span></div></div>` : '';
+    renderAppShell(`${pageHeader(resource.productName || 'جزئیات سرویس', `${translateEnum(resource.resourceType)} — شناسه ${faNumber(resource.id)}`, [{ label: 'بازگشت', icon: 'arrow_forward', href: '/panel/services', variant: 'ghost' }])}${lockNotice}${serviceLabelEditor(resource)}
       <div class="detail-grid"><div class="detail-main">
         ${card('وضعیت سرویس', `<div class="service-status-hero"><div class="service-status-hero__icon">${icon(isAudio ? 'headphones' : 'dns')}</div><div><span>چرخه سرویس</span>${badge(resource.resourceStatus)}<p>${escapeHtml(lifecycleText)}</p></div></div>${runtimeBlock}<div class="quick-actions quick-actions--service">${powerActions}<button class="quick-action ${resource.autoProlong ? 'quick-action--success' : ''}" data-service-action="auto-prolong">${icon(resource.autoProlong ? 'autorenew' : 'update_disabled')}<span><b>${resource.autoProlong ? 'تمدید خودکار فعال' : 'فعال‌کردن تمدید خودکار'}</b><small>${resource.autoProlong ? 'برای غیرفعال‌کردن کلیک کنید' : 'تمدید دوره‌ای سرویس'}</small></span></button><button class="quick-action" data-service-action="prolong">${icon('event_repeat')}<span><b>تمدید</b><small>تمدید دوره سرویس</small></span></button>${isAudio ? `<button class="quick-action" data-service-action="audio-settings">${icon('tune')}<span><b>تنظیمات اتصال</b><small>ویرایش اتصال AudioBot</small></span></button>` : ''}${isTeaSpeak ? `<button class="quick-action" data-service-action="privilege">${icon('key')}<span><b>Privilege جدید</b><small>ساخت توکن دسترسی</small></span></button>` : ''}</div>${isTeaSpeak ? teaSpeakConnectionEndpoint(resource, dnsRecord) : ''}`, { icon: 'monitor_heart' })}
         ${isTeaSpeak ? privilegeTokenPanel(resource) : ''}
-        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`) : ''}
+        ${isAudio ? audioBotPanelAccessCard(Number(resource.id), resource.label || resource.productName || `AudioBot #${resource.id}`, { disabled: locked, disabledMessage: 'این سرویس توسط مدیریت قفل شده و دسترسی پنل AudioBot موقتاً غیرفعال است.' }) : ''}
         ${card('تراکنش‌های این سرویس', transactionRows(resourceTransactions, false), { icon: 'receipt_long', className: 'service-transactions-card', actions: '<a data-link class="button button--ghost button--small" href="/panel/finance?tab=transactions">همه تراکنش‌ها</a>' })}
       </div><aside class="detail-aside">
         ${card('مشخصات سرویس', `<dl class="description-list"><div><dt>محصول</dt><dd>${escapeHtml(resource.productName)}</dd></div><div><dt>نوع سرویس</dt><dd>${translateEnum(resource.resourceType)}</dd></div>${isTeaSpeak ? `<div><dt>ظرفیت کاربران</dt><dd>${resource.maxClients == null ? '—' : faNumber(resource.maxClients)}</dd></div><div><dt>آدرس اتصال</dt><dd class="ltr">${escapeHtml(resource.address || '—')}</dd></div><div><dt>پورت اتصال</dt><dd class="ltr">${resource.port == null ? '—' : faNumber(resource.port)}</dd></div>` : ''}${isAudio ? `<div><dt>وضعیت ربات</dt><dd>${badge(resource.botStatus)}</dd></div><div><dt>نام ربات</dt><dd>${escapeHtml(resource.botNickname || '—')}</dd></div><div><dt>سرور مقصد</dt><dd class="ltr">${escapeHtml(resource.serverAddress || '—')}</dd></div>` : ''}<div><dt>دوره سرویس</dt><dd>${badge(resource.period)}</dd></div><div><dt>تاریخ سفارش</dt><dd>${faDate(resource.orderDate)}</dd></div><div><dt>تاریخ انقضا</dt><dd><span class="expiration-cell"><b>${faDate(resource.expiration)}</b><small>${escapeHtml(remainingTime(resource.expiration))}</small></span></dd></div><div><dt>تمدید خودکار</dt><dd>${resource.autoProlong ? badge('ACTIVE') : badge('DISABLED')}</dd></div></dl>`, { icon: 'info' })}
         ${card('راهنمای سریع', `<div class="help-box">${icon('support_agent')}<p>برای مشکل فنی این سرویس، یک تیکت مرتبط ثبت کنید تا تیم پشتیبانی اطلاعات سرویس را مشاهده کند.</p><a data-link href="/panel/tickets?resource=${resource.id}" class="text-link">ارسال تیکت مرتبط</a></div>`, { icon: 'help' })}
       </aside></div>`, resource.label || 'جزئیات سرویس');
-    bindServiceActions(resource);
-    if (isAudio) bindAudioBotPanelAccessCards();
-    if (isTeaSpeak) { bindTeaSpeakConnection(resource, dnsRecord); bindPrivilegeToken(resource); }
+    if (locked) {
+      qsa<HTMLButtonElement>('[data-service-action], [data-service-label-edit], [data-service-label-save], [data-dns-add], [data-dns-unassign]').forEach((button) => {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+        button.title = 'این سرویس توسط مدیریت قفل شده است';
+        button.classList.add('resource-action--locked');
+      });
+    } else {
+      bindServiceActions(resource);
+    }
+    if (isAudio && !locked) bindAudioBotPanelAccessCards();
+    if (isTeaSpeak) { bindTeaSpeakConnection(resource, dnsRecord, locked); bindPrivilegeToken(resource); }
   } catch (error) {
     renderAppShell(`${pageHeader('جزئیات سرویس', 'اطلاعات سرویس')}${errorNotice(error instanceof ApiError ? error.message : undefined)}`, 'جزئیات سرویس');
   }
 }
 
-function bindTeaSpeakConnection(resource: TeaSpeakResourceDetail, dnsRecord?: Models.DnsRecordUserResponse): void {
-  document.querySelector<HTMLButtonElement>('[data-dns-add]')?.addEventListener('click', () => openDnsAssignmentDialog({
+function bindTeaSpeakConnection(resource: TeaSpeakResourceDetail, dnsRecord?: Models.DnsRecordUserResponse, locked = false): void {
+  if (!locked) document.querySelector<HTMLButtonElement>('[data-dns-add]')?.addEventListener('click', () => openDnsAssignmentDialog({
     resource: { id: Number(resource.id), label: resource.label || resource.productName || `سرویس #${resource.id}`, productName: resource.productName, status: resource.resourceStatus },
     onAssigned: () => renderServiceDetail(Number(resource.id)),
   }));
   const unassignButton = document.querySelector<HTMLButtonElement>('[data-dns-unassign]');
-  unassignButton?.addEventListener('click', (event) => {
+  if (!locked) unassignButton?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     const recordId = Number(unassignButton.dataset.dnsUnassign || userDnsRecordId(dnsRecord) || 0);
@@ -585,20 +558,13 @@ function openPurchaseDialog(product: ProductDto): void {
 export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' = 'transactions'): Promise<void> {
   renderAppShell(loadingPage(), 'مالی');
   try {
-    const filters = readFinanceFilters();
-    const transactionFilter: Models.WalletTransactionFilterRequest = {
-      page: tab === 'transactions' ? page : 0,
-      size: 20,
-      transactionType: filters.transactionType,
-      transactionReason: filters.transactionReason,
-      fromCreatedAt: apiDateTime(filters.fromCreatedAt),
-      toCreatedAt: apiDateTime(filters.toCreatedAt),
-    };
+    const filters = readWalletTransactionFilters();
+    const transactionFilter = walletTransactionApiFilter(filters, tab === 'transactions' ? page : 0, 20);
 
     const [walletOverview, transactionsResponse, invoicesResponse] = await Promise.all([
       getWalletOverview(),
       tab === 'transactions'
-        ? api.call('getWalletTransactions', { query: { filter: transactionFilter } })
+        ? api.call('getWalletTransactions_1', { query: { filter: transactionFilter } })
         : Promise.resolve(undefined),
       api.call('getInvoices', { query: { filterRequest: { page: tab === 'invoices' ? page : 0, size: 20 } } }),
     ]);
@@ -609,14 +575,9 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
     const invoices = contentOf(invoicesResponse);
     const invoiceMeta = pageOf(invoicesResponse);
 
-    const financeFilterToolbar = tab === 'transactions' ? `<form id="finance-filter-form" class="finance-filter-toolbar" aria-label="فیلتر تراکنش‌های کیف پول">
-      <label><span>نوع</span><select name="transactionType"><option value="" ${!filters.transactionType ? 'selected' : ''}>همه</option><option value="CREDIT" ${filters.transactionType === 'CREDIT' ? 'selected' : ''}>افزایش</option><option value="DEBIT" ${filters.transactionType === 'DEBIT' ? 'selected' : ''}>کاهش</option></select></label>
-      <label><span>دلیل</span><select name="transactionReason"><option value="" ${!filters.transactionReason ? 'selected' : ''}>همه</option><option value="PROLONG" ${filters.transactionReason === 'PROLONG' ? 'selected' : ''}>تمدید</option><option value="PURCHASE" ${filters.transactionReason === 'PURCHASE' ? 'selected' : ''}>خرید</option><option value="REFUND" ${filters.transactionReason === 'REFUND' ? 'selected' : ''}>بازگشت وجه</option><option value="WALLET_CHARGE" ${filters.transactionReason === 'WALLET_CHARGE' ? 'selected' : ''}>شارژ</option></select></label>
-      <label class="finance-filter-toolbar__date"><span>از</span><input name="fromCreatedAt" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(filters.fromCreatedAt))}" /></label>
-      <label class="finance-filter-toolbar__date"><span>تا</span><input name="toCreatedAt" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(filters.toCreatedAt))}" /></label>
-      <button type="submit" class="icon-button" aria-label="اعمال فیلتر" title="اعمال فیلتر">${icon('filter_alt')}</button>
-      <a data-link class="icon-button" href="/panel/finance?tab=transactions" aria-label="پاک‌کردن فیلتر" title="پاک‌کردن فیلتر">${icon('filter_alt_off')}</a>
-    </form>` : '';
+    const financeFilterToolbar = tab === 'transactions'
+      ? walletTransactionFilterToolbar(filters, { id: 'finance-filter-form', clearHref: '/panel/finance?tab=transactions' })
+      : '';
 
     const table = tab === 'transactions'
       ? transactionRows(transactions) + pagination(transactionMeta.number, transactionMeta.totalPages)
@@ -652,20 +613,11 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
     document.querySelector<HTMLFormElement>('#finance-filter-form')?.addEventListener('submit', (event) => {
       event.preventDefault();
       const form = event.currentTarget as HTMLFormElement;
-      const values = new FormData(form);
-      const query = new URLSearchParams({ tab: 'transactions' });
-      const type = String(values.get('transactionType') ?? '');
-      const reason = String(values.get('transactionReason') ?? '');
-      const from = String(values.get('fromCreatedAt') ?? '');
-      const to = String(values.get('toCreatedAt') ?? '');
-      if (from && to && new Date(from).getTime() > new Date(to).getTime()) {
-        notify('تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.', 'warning');
+      const { query, error } = walletTransactionFilterQuery(form, new URLSearchParams({ tab: 'transactions' }));
+      if (error) {
+        notify(error, 'warning');
         return;
       }
-      if (type) query.set('transactionType', type);
-      if (reason) query.set('transactionReason', reason);
-      if (from) query.set('fromCreatedAt', from);
-      if (to) query.set('toCreatedAt', to);
       router.navigate(`/panel/finance?${query.toString()}`);
     });
     qsa<HTMLButtonElement>('[data-page]').forEach((button) => button.addEventListener('click', () => {
@@ -682,7 +634,7 @@ export async function renderFinance(page = 0, tab: 'transactions' | 'invoices' =
 export async function renderWallet(page = 0): Promise<void> {
   renderAppShell(loadingPage(), 'کیف پول');
   try {
-    const response = await api.call('getWalletTransactions', { query: { filter: { page, size: 20 } } }); const transactions = contentOf(response); const meta = pageOf(response);
+    const response = await api.call('getWalletTransactions_1', { query: { filter: { page, size: 20 } } }); const transactions = contentOf(response); const meta = pageOf(response);
     const credits = transactions.filter((item) => item.type === 'CREDIT').reduce((sum, item) => sum + Number(item.amount?.amount ?? 0), 0);
     const debits = transactions.filter((item) => item.type === 'DEBIT').reduce((sum, item) => sum + Number(item.amount?.amount ?? 0), 0);
     renderAppShell(`${pageHeader('کیف پول', 'شارژ حساب و مشاهده ریز تراکنش‌های مالی.', [{ label: 'شارژ کیف پول', icon: 'add_card', id: 'charge-wallet' }])}

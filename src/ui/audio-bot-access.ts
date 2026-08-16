@@ -189,18 +189,24 @@ function revealCard(card: HTMLElement, access: AudioBotPanelAccessState): void {
   bindCopyActions(card, access);
 }
 
-export function audioBotPanelAccessCard(resourceId: number, resourceLabel = 'AudioBot'): string {
-  const access = pageAccess(resourceId);
-  const loading = panelAccessRequests.has(resourceId);
-  return `<section class="card audio-bot-panel-card" data-audio-bot-panel-card data-resource-id="${resourceId}" data-resource-label="${escapeHtml(resourceLabel)}">
+export function audioBotPanelAccessCard(
+  resourceId: number,
+  resourceLabel = 'AudioBot',
+  options: { disabled?: boolean; disabledMessage?: string } = {},
+): string {
+  const disabled = Boolean(options.disabled);
+  const access = disabled ? undefined : pageAccess(resourceId);
+  const loading = disabled ? false : panelAccessRequests.has(resourceId);
+  const disabledMessage = options.disabledMessage || 'دسترسی پنل در وضعیت فعلی Resource غیرفعال است.';
+  return `<section class="card audio-bot-panel-card ${disabled ? 'audio-bot-panel-card--disabled' : ''}" data-audio-bot-panel-card data-resource-id="${resourceId}" data-resource-label="${escapeHtml(resourceLabel)}" data-disabled="${disabled}">
     <header class="card__header audio-bot-panel-card__header">
-      <div>${icon('dashboard')}<h2>پنل اختصاصی AudioBot</h2>${metaMarkup(access)}</div>
-      <button type="button" class="button button--secondary button--small" data-audio-bot-panel-load ${loading ? 'disabled' : ''}>${loading ? `${icon('progress_activity')} در حال دریافت...` : `${icon(access ? 'refresh' : 'visibility')} ${access ? 'دریافت دسترسی جدید' : 'نمایش دسترسی'}`}</button>
+      <div>${icon(disabled ? 'lock' : 'dashboard')}<h2>پنل اختصاصی AudioBot</h2>${metaMarkup(access)}</div>
+      <button type="button" class="button button--secondary button--small ${disabled ? 'resource-action--locked' : ''}" data-audio-bot-panel-load ${disabled || loading ? 'disabled' : ''}>${disabled ? `${icon('lock')} دسترسی قفل است` : loading ? `${icon('progress_activity')} در حال دریافت...` : `${icon(access ? 'refresh' : 'visibility')} ${access ? 'دریافت دسترسی جدید' : 'نمایش دسترسی'}`}</button>
     </header>
     <div class="card__body audio-bot-panel-card__body">
       <div class="audio-bot-panel-card__intro">
-        <span class="audio-bot-panel-card__icon">${icon('shield_lock')}</span>
-        <div><b>دسترسی موقت پنل مدیریت ربات</b><p>آدرس پنل و Credentials فقط هنگام درخواست نمایش داده می‌شوند و می‌توانید آن‌ها را مستقیماً کپی یا باز کنید.</p></div>
+        <span class="audio-bot-panel-card__icon">${icon(disabled ? 'lock' : 'shield_lock')}</span>
+        <div><b>${disabled ? 'دسترسی پنل غیرفعال است' : 'دسترسی موقت پنل مدیریت ربات'}</b><p>${escapeHtml(disabled ? disabledMessage : 'آدرس پنل و Credentials فقط هنگام درخواست نمایش داده می‌شوند و می‌توانید آن‌ها را مستقیماً کپی یا باز کنید.')}</p></div>
       </div>
       <div class="audio-bot-panel-card__access ${access ? 'is-revealed' : 'is-locked'}" data-audio-bot-panel-access>
         ${access ? revealedAccessFields(access) : lockedAccessFields()}
@@ -212,6 +218,7 @@ export function audioBotPanelAccessCard(resourceId: number, resourceLabel = 'Aud
 
 export function bindAudioBotPanelAccessCards(root: ParentNode = document): void {
   qsa<HTMLElement>('[data-audio-bot-panel-card]', root).forEach((card) => {
+    if (card.dataset.disabled === 'true') return;
     const button = card.querySelector<HTMLButtonElement>('[data-audio-bot-panel-load]');
     if (!button || button.dataset.bound === 'true') return;
     button.dataset.bound = 'true';
