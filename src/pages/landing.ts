@@ -17,7 +17,7 @@ function stopLandingLoader(): void {
   document.documentElement.classList.remove('landing-loader-lock');
 }
 
-function stopLandingCategoryRotation(): void {
+export function stopLandingCategoryRotation(): void {
   stopLandingLoader();
   stopLandingCreature();
   window.clearInterval(landingCategoryTimer);
@@ -46,9 +46,19 @@ function waitForLandingCreature(signal: AbortSignal): Promise<void> {
   });
 }
 
-function bindLandingLoader(): void {
+export function landingLoaderMarkup(): string {
+  return `<div class="landing-loader-screen" data-landing-loader role="status" aria-live="polite" aria-label="در حال آماده‌سازی صفحه اصلی">
+      <div class="landing-loader-screen__glow" aria-hidden="true"></div>
+      <div class="landing-loader-screen__content">
+        <span class="loader" aria-hidden="true"></span>
+        <div><b>ابر چایی</b><small>در حال دم کردن چای...</small></div>
+      </div>
+    </div>`;
+}
+
+export function bindLandingLoader(): Promise<void> {
   const overlay = document.querySelector<HTMLElement>('[data-landing-loader]');
-  if (!overlay) return;
+  if (!overlay) return Promise.resolve();
 
   stopLandingLoader();
   const controller = new AbortController();
@@ -57,10 +67,16 @@ function bindLandingLoader(): void {
   const startedAt = performance.now();
   document.documentElement.classList.add('landing-loader-lock');
 
-  const fontsReady = document.fonts?.ready.catch(() => undefined) ?? Promise.resolve();
+  // A delayed external font must not keep the whole page locked indefinitely.
+  const fontsReady = new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(resolve, 2_500);
+    const finish = (): void => { window.clearTimeout(timeout); resolve(); };
+    void (document.fonts?.ready ?? Promise.resolve()).then(finish, finish);
+    signal.addEventListener('abort', finish, { once: true });
+  });
   const initialPaint = new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-  void Promise.all([fontsReady, initialPaint, waitForLandingCreature(signal)]).then(async () => {
+  return Promise.all([fontsReady, initialPaint, waitForLandingCreature(signal)]).then(async () => {
     if (signal.aborted || !overlay.isConnected) return;
     const minimumVisibleTime = 720;
     const remaining = Math.max(0, minimumVisibleTime - (performance.now() - startedAt));
@@ -152,6 +168,7 @@ async function hydrateLandingProducts(version: number): Promise<void> {
     };
 
     await renderCategory(0);
+    if (version !== landingRenderVersion || !grid.isConnected) return;
     landingCategoryTimer = window.setInterval(() => void renderCategory(activeIndex + 1), 7_000);
   } catch (error) {
     if (version !== landingRenderVersion) return;
@@ -177,13 +194,7 @@ export function renderLanding(): void {
   stopLandingCategoryRotation();
   const version = landingRenderVersion;
   renderPublic(`
-    <div class="landing-loader-screen" data-landing-loader role="status" aria-live="polite" aria-label="در حال آماده‌سازی صفحه اصلی">
-      <div class="landing-loader-screen__glow" aria-hidden="true"></div>
-      <div class="landing-loader-screen__content">
-        <span class="loader" aria-hidden="true"></span>
-        <div><b>ابر چایی</b><small>در حال دم کردن چای...</small></div>
-      </div>
-    </div>
+    ${landingLoaderMarkup()}
     <div class="landing-creature" data-landing-creature aria-hidden="true">
       <div class="landing-creature__ambient"></div>
       <div class="landing-creature__grid" data-landing-creature-grid></div>
@@ -198,6 +209,7 @@ export function renderLanding(): void {
           <div class="tea-hero__actions">
             <a data-link data-dashboard-access href="/auth" class="button button--primary button--large">ورود و شروع خرید ${icon('arrow_back')}</a>
             <a data-link href="/products" class="button button--glass button--large">دیدن محصولات</a>
+            <a data-link href="/landing-v2" class="text-link">تجربه جدید ابر چایی ←</a>
           </div>
           <div class="tea-hero__promises">
             <span>${icon('timer')} خرید از یک ساعت</span>

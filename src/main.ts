@@ -15,7 +15,8 @@ import { renderAppShell, renderPublic } from './ui/layout.js';
 import { initializeTheme } from './core/theme.js';
 import { RATE_LIMIT_EVENT } from './core/request-guard.js';
 import { renderAuth } from './pages/auth.js';
-import { renderLanding, renderPublicProducts, renderRules } from './pages/landing.js';
+import { renderLandingV2 } from './pages/landing-v2.js';
+import { stopLandingCategoryRotation, renderPublicProducts, renderRules } from './pages/landing.js';
 import {
   renderAccount, renderFinance, renderInvoiceDetail, renderNotifications, renderProducts, renderServiceDetail,
   renderServices, renderTicketDetail, renderTickets, renderUserDashboard, renderUserDns
@@ -191,9 +192,10 @@ function renderFatal(error: unknown): void {
 }
 
 router
-  .setBeforeResolve(() => { store.set({ sidebarOpen: false }); document.querySelector('.app-shell')?.classList.remove('app-shell--sidebar-open'); stopLiveLogStream(); pageRefresh.stop(); beginRouteLoading(); })
+  .setBeforeResolve(() => { stopLandingCategoryRotation(); store.set({ sidebarOpen: false }); document.querySelector('.app-shell')?.classList.remove('app-shell--sidebar-open'); stopLiveLogStream(); pageRefresh.stop(); beginRouteLoading(); })
   .setAfterResolve(() => finishRouteLoading())
-  .register('/', () => renderLanding())
+  .register('/', () => renderLandingV2())
+  .register('/landing-v2', () => renderLandingV2())
   .register('/products', () => renderPublicProducts())
   .register('/rules', () => renderRules())
   .register('/auth', (ctx) => renderAuthRoute(ctx))

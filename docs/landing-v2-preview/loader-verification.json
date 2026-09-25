@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "theme": "dark",
+      "width": 1440,
+      "loaderVisible": true,
+      "dismissedDespiteStalledFonts": true,
+      "scrollRestored": true,
+      "stickyHeader": true
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "loaderVisible": true,
+      "dismissedDespiteStalledFonts": true,
+      "scrollRestored": true,
+      "stickyHeader": true
+    }
+  ],
+  "additionalChecks": [
+    "deep-link position after loading",
+    "navigation during loading clears lock",
+    "repeat entry safely starts another loader",
+    "no JavaScript errors"
+  ],
+  "note": "Existing tea loader markup and CSS reused. Font-ready promise deliberately stalled in browser tests. API mocked."
+}

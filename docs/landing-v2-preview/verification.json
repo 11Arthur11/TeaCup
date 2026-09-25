@@ -1,0 +1,288 @@
+{
+  "passed": true,
+  "layouts": [
+    {
+      "theme": "dark",
+      "width": 320,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 500,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 1600,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 6820,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 500,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 1600,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 6420,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 500,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 1600,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 4538,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 500,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 1600,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 4163,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 500,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 1600,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 6820,
+          "viewport": 320,
+          "width": 320,
+          "headerTop": 0,
+          "headerHeight": 68
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 500,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 1600,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        },
+        {
+          "scroll": 6420,
+          "viewport": 390,
+          "width": 390,
+          "headerTop": 0,
+          "headerHeight": 68
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 500,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 1600,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 4538,
+          "viewport": 768,
+          "width": 768,
+          "headerTop": 0,
+          "headerHeight": 76
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "positions": [
+        {
+          "scroll": 0,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 500,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 1600,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        },
+        {
+          "scroll": 4163,
+          "viewport": 1440,
+          "width": 1440,
+          "headerTop": 0,
+          "headerHeight": 76
+        }
+      ]
+    }
+  ],
+  "checks": [
+    "sticky header at top, middle and bottom in eight layouts",
+    "new hero at root and previous v2 URL",
+    "footer contains only product and rules links",
+    "menu opens at viewport top after scroll",
+    "anchor sections clear sticky header",
+    "product CTA and return-to-home brand",
+    "shared features navigation and old features fragment",
+    "no page errors"
+  ],
+  "note": "Mock API used. Browser checks focus on the revised hero, header and navigation."
+}

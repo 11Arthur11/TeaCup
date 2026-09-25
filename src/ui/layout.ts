@@ -146,7 +146,7 @@ export function renderPublic(content: string, options: { transparent?: boolean }
   const root = appRoot();
   root.innerHTML = `<div class="public-shell ${options.transparent ? 'public-shell--transparent' : ''}">
     <div class="public-header-wrap" data-public-header><header class="public-header"><a data-link href="/" class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></a>
-    <nav><a data-link href="/products">محصولات</a><a data-link href="/#features">امکانات</a><a data-link href="/rules">قوانین</a></nav>
+    <nav><a data-link href="/products">محصولات</a><a data-link href="/#lv-features">امکانات</a><a data-link href="/rules">قوانین</a></nav>
     <div class="public-header__actions">${themeToggleButton('icon-button public-theme-toggle')}<a data-link data-dashboard-access class="button button--primary" href="/auth">ورود به پنل</a></div></header></div>
     <section class="maintenance-banner" data-maintenance-banner hidden>${icon('engineering')}<div><b>سامانه موقتاً در حالت نگهداری است</b><span>ارتباط با سامانه برقرار نیست و ورود به داشبورد تا بازگشت سرویس غیرفعال شده است.</span></div><button type="button" class="button button--ghost button--small" data-maintenance-retry>${icon('refresh')} بررسی دوباره</button></section>
     <main>${content}</main><footer class="public-footer"><div class="brand"><span class="brand__mark">${brandLogo('brand__logo')}</span><span><b>ابر چایی</b><small>TeaCloud</small></span></div><p>خرید و مدیریت سرویس‌های صوتی، ساده و مطمئن.</p><span>© ۱۴۰۵ ابر چایی</span></footer></div>`;

@@ -2,7 +2,7 @@
 
 TeaCloud is the frontend application for the **TeaCloud / ابر چایی** platform; a service-management web application designed to let users purchase, manage, renew, and monitor hosted services such as **TeaSpeak servers** and **AudioBot instances**, while providing a dedicated administration panel for managing users, infrastructure, billing, DNS, nodes, support, and system configuration.
 
-**Current frontend version: `1.0.1`**
+**Current frontend version: `0.2.6`**
 
 ---
 
